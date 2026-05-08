@@ -1,0 +1,28 @@
+Запуск в PowerShell:
+
+1. Откройте PowerShell
+2. Перейдите в папку проекта
+3. Выполните:
+
+   powershell -ExecutionPolicy Bypass -File .\run_dev.ps1
+
+Запуск в Git Bash / WSL:
+
+1. Откройте shell с поддержкой `.sh`
+2. Перейдите в папку проекта
+3. Выполните:
+
+   sh run_dev.sh
+
+Что делает скрипт:
+
+- создаёт `backend/.env` и `frontend/.env` из `.env.example`, если их ещё нет
+- создаёт `backend/.venv`, если его ещё нет
+- ставит backend зависимости из `backend/requirements.txt`
+- ставит frontend зависимости через `npm install`
+- запускает backend на `http://localhost:8000`
+- запускает frontend на `http://localhost:5173`
+
+Остановка:
+
+- нажмите `Ctrl+C` в том же окне shell
