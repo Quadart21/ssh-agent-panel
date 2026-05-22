@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     AlertNotificationState,
+    CloudflareSettings,
     CommandPattern,
     LoginThrottleState,
     NotificationSettings,
@@ -118,6 +119,20 @@ def build_backup_payload(db: Session) -> dict[str, Any]:
             )
             for item in db.query(NotificationSettings).all()
         ],
+        "cloudflare_settings": [
+            _row_to_dict(
+                item,
+                [
+                    "id",
+                    "api_token",
+                    "account_id",
+                    "default_ttl",
+                    "created_at",
+                    "updated_at",
+                ],
+            )
+            for item in db.query(CloudflareSettings).all()
+        ],
         "alert_states": [
             _row_to_dict(
                 item,
@@ -155,6 +170,7 @@ def restore_backup_payload(db: Session, payload: dict[str, Any]) -> None:
     db.query(AlertNotificationState).delete()
     db.query(UserTwoFactor).delete()
     db.query(NotificationSettings).delete()
+    db.query(CloudflareSettings).delete()
     db.query(User).delete()
     db.query(CommandPattern).delete()
     db.query(Server).delete()
@@ -267,6 +283,17 @@ def restore_backup_payload(db: Session, payload: dict[str, Any]) -> None:
                 notify_payment_expired=bool(item["notify_payment_expired"]),
                 notify_payment_expiring=bool(item["notify_payment_expiring"]),
                 notify_automation_failed=bool(item["notify_automation_failed"]),
+                created_at=_parse_datetime(item.get("created_at")) or datetime.utcnow(),
+                updated_at=_parse_datetime(item.get("updated_at")) or datetime.utcnow(),
+            )
+        )
+    for item in payload.get("cloudflare_settings", []):
+        db.add(
+            CloudflareSettings(
+                id=item["id"],
+                api_token=item.get("api_token"),
+                account_id=item.get("account_id"),
+                default_ttl=int(item.get("default_ttl") or 1),
                 created_at=_parse_datetime(item.get("created_at")) or datetime.utcnow(),
                 updated_at=_parse_datetime(item.get("updated_at")) or datetime.utcnow(),
             )

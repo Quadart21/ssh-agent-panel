@@ -307,3 +307,49 @@ export type NotificationSettings = {
   notify_payment_expiring: boolean;
   notify_automation_failed: boolean;
 };
+
+export type CloudflareSettings = {
+  api_token: string | null;
+  account_id: string | null;
+  default_ttl: number;
+  configured: boolean;
+};
+
+export type CloudflareStatus = {
+  configured: boolean;
+  message?: string | null;
+};
+
+export type CloudflareZone = {
+  id: string;
+  name: string;
+  status: string;
+  paused: boolean;
+  type: string;
+  name_servers: string[];
+};
+
+export type CloudflareDnsRecord = {
+  id: string;
+  type: string;
+  name: string;
+  content: string;
+  ttl: number;
+  proxied: boolean | null;
+  comment: string | null;
+  priority: number | null;
+  created_on: string | null;
+  modified_on: string | null;
+  relative_name: string;
+  is_subdomain: boolean;
+};
+
+export type CloudflareDnsRecordForm = {
+  type: string;
+  name: string;
+  content: string;
+  ttl: string;
+  proxied: boolean;
+  comment: string;
+  priority: string;
+};

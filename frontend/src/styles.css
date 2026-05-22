@@ -1499,6 +1499,43 @@ main#main-content {
   margin-bottom: var(--space-3);
 }
 
+/* ——— Domains page ——— */
+.domains-page .domains-overview-stats {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.domain-zone-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.domains-toolbar {
+  grid-template-columns: minmax(220px, 1.4fr) minmax(120px, 0.7fr) auto;
+}
+
+.domains-filter-checkbox {
+  align-self: end;
+  margin-bottom: 0.35rem;
+}
+
+.domains-table code {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--accent-2);
+  word-break: break-all;
+}
+
+.domain-record-fqdn {
+  font-size: 0.78rem;
+  margin-top: 0.15rem;
+}
+
+.domains-table tr.is-subdomain td:first-child strong {
+  color: var(--accent);
+}
+
 /* ——— Responsive ——— */
 @media (max-width: 1100px) {
   .dashboard-grid {

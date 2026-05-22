@@ -27,6 +27,7 @@ const Pm2Panel = lazy(() => import("../components/Pm2Panel"));
 const PatternsRoute = lazy(() => import("../components/PatternsRoute"));
 const SecurityPage = lazy(() => import("../components/SecurityPage"));
 const ServersRoute = lazy(() => import("../components/ServersRoute"));
+const DomainsRoute = lazy(() => import("../components/DomainsRoute"));
 const SessionsPage = lazy(() => import("../components/SessionsPage"));
 const SystemPage = lazy(() => import("../components/SystemPage"));
 const TerminalPanel = lazy(() => import("../components/TerminalPanel"));
@@ -90,6 +91,7 @@ function AppRoutes({
           path="/groups"
           element={<GroupsRoute groups={groups} currentUser={currentUser} onError={setError} onReload={onReload} />}
         />
+        <Route path="/domains" element={<DomainsRoute currentUser={currentUser} onError={setError} />} />
         <Route
           path="/commands"
           element={<CommandsRoute servers={servers} groups={groups} patterns={patterns} token={authToken} onError={setError} />}

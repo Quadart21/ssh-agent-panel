@@ -36,6 +36,7 @@ function PanelUsersPage({
     { key: "group_create", label: "Создание групп" },
     { key: "group_update", label: "Редактирование групп" },
     { key: "group_delete", label: "Удаление групп" },
+    { key: "domains_manage", label: "Управление DNS Cloudflare" },
     { key: "pattern_create", label: "Создание шаблонов" },
     { key: "pattern_update", label: "Редактирование шаблонов" },
     { key: "pattern_delete", label: "Удаление шаблонов" },

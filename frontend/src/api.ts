@@ -5,6 +5,10 @@ import type {
   AuditLog,
   BulkCommandResponse,
   BulkServerCreateResponse,
+  CloudflareDnsRecord,
+  CloudflareSettings,
+  CloudflareStatus,
+  CloudflareZone,
   ConnectionTestResult,
   DashboardStats,
   FirewallStatus,
@@ -365,5 +369,42 @@ export const api = {
     request<ConnectionTestResult>("/servers/test-connection", {
       method: "POST",
       body: JSON.stringify(payload)
-    })
+    }),
+  cloudflareSettings: () => request<CloudflareSettings>("/domains/settings"),
+  updateCloudflareSettings: (payload: Record<string, unknown>) =>
+    request<CloudflareSettings>("/domains/settings", {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    }),
+  testCloudflare: () =>
+    request<CloudflareStatus>("/domains/test", {
+      method: "POST"
+    }),
+  listCloudflareZones: () => request<CloudflareZone[]>("/domains/zones"),
+  listCloudflareRecords: (
+    zoneId: string,
+    params?: { search?: string; record_type?: string; only_subdomains?: boolean }
+  ) =>
+    request<CloudflareDnsRecord[]>(
+      appendQuery(`/domains/zones/${encodeURIComponent(zoneId)}/records`, {
+        search: params?.search,
+        record_type: params?.record_type,
+        only_subdomains: params?.only_subdomains ? "true" : undefined
+      })
+    ),
+  createCloudflareRecord: (zoneId: string, payload: Record<string, unknown>) =>
+    request<CloudflareDnsRecord>(`/domains/zones/${encodeURIComponent(zoneId)}/records`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  updateCloudflareRecord: (zoneId: string, recordId: string, payload: Record<string, unknown>) =>
+    request<CloudflareDnsRecord>(`/domains/zones/${encodeURIComponent(zoneId)}/records/${encodeURIComponent(recordId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    }),
+  deleteCloudflareRecord: (zoneId: string, recordId: string) =>
+    request<{ ok: boolean; message: string }>(
+      `/domains/zones/${encodeURIComponent(zoneId)}/records/${encodeURIComponent(recordId)}`,
+      { method: "DELETE" }
+    )
 };

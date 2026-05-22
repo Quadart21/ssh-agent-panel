@@ -126,6 +126,15 @@ class NotificationSettings(Base, TimestampMixin):
     notify_automation_failed: Mapped[bool] = mapped_column(default=True, nullable=False)
 
 
+class CloudflareSettings(Base, TimestampMixin):
+    __tablename__ = "cloudflare_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    api_token: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    account_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    default_ttl: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+
 class UserTwoFactor(Base, TimestampMixin):
     __tablename__ = "user_two_factor"
 

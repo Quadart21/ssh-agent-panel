@@ -605,3 +605,66 @@ class PanelUserUpdate(BaseModel):
     @classmethod
     def validate_panel_update_role(cls, value: str) -> str:
         return PanelUserCreate.validate_panel_role(value)
+
+
+class CloudflareSettingsRead(BaseModel):
+    api_token: str | None = None
+    account_id: str | None = None
+    default_ttl: int
+    configured: bool
+
+
+class CloudflareSettingsUpdate(BaseModel):
+    api_token: str | None = None
+    account_id: str | None = None
+    default_ttl: int = Field(default=1, ge=1, le=86400)
+
+
+class CloudflareStatusRead(BaseModel):
+    configured: bool
+    message: str | None = None
+
+
+class CloudflareZoneRead(BaseModel):
+    id: str
+    name: str
+    status: str
+    paused: bool
+    type: str
+    name_servers: list[str] = Field(default_factory=list)
+
+
+class CloudflareDnsRecordRead(BaseModel):
+    id: str
+    type: str
+    name: str
+    content: str
+    ttl: int
+    proxied: bool | None = None
+    comment: str | None = None
+    priority: int | None = None
+    created_on: str | None = None
+    modified_on: str | None = None
+    relative_name: str
+    is_subdomain: bool
+
+
+class CloudflareDnsRecordCreate(BaseModel):
+    type: str = Field(default="A", min_length=1, max_length=16)
+    name: str = Field(min_length=1, max_length=255)
+    content: str = Field(min_length=1, max_length=4096)
+    ttl: int | None = Field(default=None, ge=1, le=86400)
+    proxied: bool | None = None
+    comment: str | None = Field(default=None, max_length=255)
+    priority: int | None = Field(default=None, ge=0, le=65535)
+
+
+class CloudflareDnsRecordUpdate(BaseModel):
+    type: str | None = Field(default=None, min_length=1, max_length=16)
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    content: str | None = Field(default=None, min_length=1, max_length=4096)
+    ttl: int | None = Field(default=None, ge=1, le=86400)
+    proxied: bool | None = None
+    comment: str | None = Field(default=None, max_length=255)
+    priority: int | None = Field(default=None, ge=0, le=65535)
+

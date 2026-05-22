@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     admin_password: str = "replace-with-a-strong-admin-password"
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+    cloudflare_api_token: str = ""
+    cloudflare_account_id: str = ""
     scheduler_enabled: bool = True
     scheduler_interval_seconds: int = 300
     alert_repeat_minutes: int = 180
