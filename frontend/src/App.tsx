@@ -40,21 +40,33 @@ function App() {
 
   async function loadReferenceData() {
     const me = await api.me();
-    const [serverList, groupList, patternList, alertsData] = await Promise.all([
+    // Set current user ASAP so app can render quickly after refresh.
+    setCurrentUser(me);
+
+    const [serverList, groupList, patternList] = await Promise.all([
       userHasSectionAccess(me, "servers") ? api.listServers() : Promise.resolve([]),
       userHasSectionAccess(me, "groups") ? api.listGroups() : Promise.resolve([]),
-      userHasSectionAccess(me, "patterns") ? api.listPatterns() : Promise.resolve([]),
-      userHasSectionAccess(me, "alerts") ? api.listAlerts() : Promise.resolve([])
+      userHasSectionAccess(me, "patterns") ? api.listPatterns() : Promise.resolve([])
     ]);
     const [logs, users] =
       me.role === "admin" ? await Promise.all([api.listAuditLogs(), api.listPanelUsers()]) : [[], []];
-    setCurrentUser(me);
     setServers(serverList);
     setGroups(groupList);
     setPatterns(patternList);
     setAuditLogs(logs as AuditLog[]);
     setPanelUsers(users as User[]);
-    setAlerts(alertsData);
+
+    // Alerts endpoint can be slow (SSH checks), so load it in background.
+    if (userHasSectionAccess(me, "alerts")) {
+      void api
+        .listAlerts()
+        .then((alertsData) => setAlerts(alertsData))
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : "Не удалось загрузить алерты.");
+        });
+    } else {
+      setAlerts([]);
+    }
   }
 
   async function loadLiveData() {
