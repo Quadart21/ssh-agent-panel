@@ -254,6 +254,7 @@ set -euo pipefail
 cat > /usr/local/bin/panel-agent.py <<'EOF'
 #!/usr/bin/env python3
 import json
+import os
 import subprocess
 import time
 from urllib import request
@@ -329,6 +330,23 @@ def post_heartbeat(payload):
         return json.loads(body)
 
 
+def execute_task(command):
+    if os.path.exists("/bin/bash"):
+        return subprocess.run(
+            ["/bin/bash", "-lc", command],
+            text=True,
+            capture_output=True,
+            timeout=300,
+        )
+    return subprocess.run(
+        command,
+        shell=True,
+        text=True,
+        capture_output=True,
+        timeout=300,
+    )
+
+
 while True:
     payload = {{
         "token": TOKEN,
@@ -347,13 +365,7 @@ while True:
         if task and task.get("id") and task.get("command"):
             command = str(task["command"])
             try:
-                proc = subprocess.run(
-                    command,
-                    shell=True,
-                    text=True,
-                    capture_output=True,
-                    timeout=300,
-                )
+                proc = execute_task(command)
                 last_result = {{
                     "task_id": int(task["id"]),
                     "task_status": "done" if proc.returncode == 0 else "error",
