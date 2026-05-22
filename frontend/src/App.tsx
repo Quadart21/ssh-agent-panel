@@ -184,6 +184,10 @@ function App() {
     );
   }
 
+  if (!currentUser) {
+    return <PageFallback />;
+  }
+
   if (currentUser?.must_change_password) {
     return (
       <Suspense fallback={<PageFallback />}>
