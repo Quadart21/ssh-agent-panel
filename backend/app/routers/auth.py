@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.core.security import create_access_token, decode_access_token, hash_password, validate_password_strength, verify_password
 from app.db import get_db
 from app.deps import get_current_user, normalize_user_access, oauth2_scheme
@@ -30,7 +29,7 @@ from app.services.auth_state import (
     revoke_session_by_id,
 )
 from app.services.notification_settings import get_or_create_notification_settings
-from app.services.telegram import send_telegram_message, telegram_is_configured
+from app.services.telegram import format_telegram_message, send_telegram_message, telegram_is_configured
 from app.services.two_factor import (
     disable_two_factor,
     enable_two_factor,
@@ -81,7 +80,22 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     profile = get_or_create_notification_settings(db)
     if profile.notify_login and telegram_is_configured(db):
         try:
-            send_telegram_message(f"{settings.app_display_name}\nВход в панель: {user.email}", db)
+            user_agent_short = (user_agent or "unknown").strip()
+            if len(user_agent_short) > 120:
+                user_agent_short = f"{user_agent_short[:117]}..."
+            send_telegram_message(
+                format_telegram_message(
+                    "Вход в панель",
+                    icon="🔐",
+                    facts=[
+                        ("Пользователь", user.email),
+                        ("IP", ip_address or "unknown"),
+                    ],
+                    lines=[f"User-Agent: {user_agent_short}"],
+                ),
+                db,
+                parse_mode="HTML",
+            )
         except Exception:
             pass
     return TokenResponse(access_token=token, user=UserRead.model_validate(user, from_attributes=True))

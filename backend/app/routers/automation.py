@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, WebSocket
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.core.security import decode_access_token
 from app.db import get_db
 from app.deps import ensure_action_access, ensure_section_access, ensure_server_access, get_current_user
@@ -18,7 +17,7 @@ from app.services.auth_state import validate_user_session
 from app.services.automation import get_automation_preset, list_automation_presets, render_automation_commands
 from app.services.notification_settings import get_or_create_notification_settings
 from app.services.ssh import execute_commands, stream_command_on_server
-from app.services.telegram import send_telegram_message, telegram_is_configured
+from app.services.telegram import format_telegram_message, send_telegram_message, telegram_is_configured
 
 router = APIRouter(prefix="/automation", tags=["automation"])
 
@@ -100,14 +99,18 @@ def run_preset(
     if profile.notify_automation_failed and telegram_is_configured(db) and any(not result.ok for result in results):
         try:
             failed = [result for result in results if not result.ok]
-            lines = [
-                settings.app_display_name,
-                f"Ошибка автоматизации: {preset.name}",
-                f"Неуспешных шагов: {len(failed)}",
-            ]
+            lines = [f"Неуспешных шагов: {len(failed)}"]
             for item in failed[:10]:
-                lines.append(f"- {item.server_name}: {item.command}")
-            send_telegram_message("\n".join(lines), db)
+                lines.append(f"{item.server_name}: {item.command}")
+            send_telegram_message(
+                format_telegram_message(
+                    f"Ошибка автоматизации: {preset.name}",
+                    icon="🤖",
+                    lines=lines,
+                ),
+                db,
+                parse_mode="HTML",
+            )
         except Exception:
             pass
     return BulkCommandResponse(results=results)
@@ -274,14 +277,18 @@ async def run_preset_websocket(websocket: WebSocket):
         if profile.notify_automation_failed and telegram_is_configured(db) and any(not result.ok for result in results):
             try:
                 failed = [result for result in results if not result.ok]
-                lines = [
-                    settings.app_display_name,
-                    f"Ошибка автоматизации: {preset.name}",
-                    f"Неуспешных шагов: {len(failed)}",
-                ]
+                lines = [f"Неуспешных шагов: {len(failed)}"]
                 for item in failed[:10]:
-                    lines.append(f"- {item.server_name}: {item.command}")
-                send_telegram_message("\n".join(lines), db)
+                    lines.append(f"{item.server_name}: {item.command}")
+                send_telegram_message(
+                    format_telegram_message(
+                        f"Ошибка автоматизации: {preset.name}",
+                        icon="🤖",
+                        lines=lines,
+                    ),
+                    db,
+                    parse_mode="HTML",
+                )
             except Exception:
                 pass
         await websocket.send_json(

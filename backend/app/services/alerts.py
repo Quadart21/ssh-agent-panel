@@ -7,7 +7,7 @@ from app.models import AlertNotificationState, NotificationSettings, Server
 from app.schemas import AlertRead
 from app.services.notification_settings import get_or_create_notification_settings
 from app.services.ssh import fetch_server_metrics
-from app.services.telegram import send_telegram_message, telegram_is_configured
+from app.services.telegram import format_telegram_message, send_telegram_message, telegram_is_configured
 
 
 def collect_server_alerts(db: Session) -> list[AlertRead]:
@@ -64,13 +64,17 @@ def alert_fingerprint(alert: AlertRead) -> str:
 
 
 def format_alerts_for_telegram(alerts: list[AlertRead], prefix: str | None = None) -> str:
-    resolved_prefix = prefix or f"{settings.app_display_name}\nФоновые алерты"
-    lines = [resolved_prefix, f"Событий: {len(alerts)}"]
+    title = prefix or "Фоновые алерты"
+    lines = [f"Событий: {len(alerts)}"]
+    level_icon = {"critical": "🔴", "warning": "🟠", "info": "🔵"}
     for alert in alerts[:20]:
-        lines.append(f"- {alert.title}: {alert.message}")
+        icon = level_icon.get(alert.level, "⚪")
+        server_name = alert.server_name or "без сервера"
+        lines.append(f"{icon} {alert.title} — {server_name}")
+        lines.append(alert.message)
     if len(alerts) > 20:
-        lines.append(f"... и ещё {len(alerts) - 20}")
-    return "\n".join(lines)
+        lines.append(f"… и еще {len(alerts) - 20}")
+    return format_telegram_message(title, icon="🚨", lines=lines)
 
 
 def sync_alert_notifications(db: Session) -> tuple[int, int]:
@@ -123,7 +127,7 @@ def sync_alert_notifications(db: Session) -> tuple[int, int]:
 
     sent_count = 0
     if sendable_alerts and telegram_is_configured(db):
-        send_telegram_message(format_alerts_for_telegram(sendable_alerts), db)
+        send_telegram_message(format_alerts_for_telegram(sendable_alerts), db, parse_mode="HTML")
         for alert in sendable_alerts:
             existing_states[alert_fingerprint(alert)].last_sent_at = now
         sent_count = len(sendable_alerts)

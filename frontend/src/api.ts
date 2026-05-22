@@ -196,6 +196,10 @@ export const api = {
     request<TmuxActionResponse>("/notifications/telegram/test", {
       method: "POST"
     }),
+  sendTelegramTypedTest: (eventType: string) =>
+    request<TmuxActionResponse>(`/notifications/telegram/test/${encodeURIComponent(eventType)}`, {
+      method: "POST"
+    }),
   sendTelegramAlerts: () =>
     request<TmuxActionResponse>("/notifications/telegram/alerts", {
       method: "POST"

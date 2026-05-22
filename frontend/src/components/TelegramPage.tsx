@@ -21,10 +21,20 @@ type FormState = {
   notify_automation_failed: boolean;
 };
 
+const testNotificationKinds = [
+  { key: "login", label: "Тест: вход в панель" },
+  { key: "server_offline", label: "Тест: офлайн-сервер" },
+  { key: "payment_expired", label: "Тест: просроченная оплата" },
+  { key: "payment_expiring", label: "Тест: оплата истекает" },
+  { key: "automation_failed", label: "Тест: ошибка автоматизации" },
+  { key: "digest", label: "Тест: сводка алертов" }
+] as const;
+
 function TelegramPage({ onError }: Props) {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
   const [message, setMessage] = useState("Проверьте настройки и выберите, какие уведомления вам нужны.");
 
   async function loadSettings() {
@@ -78,21 +88,40 @@ function TelegramPage({ onError }: Props) {
 
   async function handleTestSend() {
     onError("");
+    setSending(true);
     try {
       const response = await api.sendTelegramTest();
       setMessage(response.message);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Не удалось отправить тестовое уведомление.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleTestTypedSend(kind: string, label: string) {
+    onError("");
+    setSending(true);
+    try {
+      const response = await api.sendTelegramTypedTest(kind);
+      setMessage(`${label}: ${response.message}`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : `Не удалось отправить уведомление '${label}'.`);
+    } finally {
+      setSending(false);
     }
   }
 
   async function handleSendAlerts() {
     onError("");
+    setSending(true);
     try {
       const response = await api.sendTelegramAlerts();
       setMessage(response.message);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Не удалось отправить алерты в Telegram.");
+    } finally {
+      setSending(false);
     }
   }
 
@@ -233,13 +262,24 @@ function TelegramPage({ onError }: Props) {
             <p>{message}</p>
           </div>
           <div className="compact-form">
-            <button type="button" onClick={() => void handleTestSend()}>
+            <button type="button" onClick={() => void handleTestSend()} disabled={sending}>
               Отправить тестовое сообщение
             </button>
-            <button type="button" className="ghost" onClick={() => void handleSendAlerts()}>
+            {testNotificationKinds.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className="ghost"
+                onClick={() => void handleTestTypedSend(item.key, item.label)}
+                disabled={sending}
+              >
+                {item.label}
+              </button>
+            ))}
+            <button type="button" className="ghost" onClick={() => void handleSendAlerts()} disabled={sending}>
               Отправить текущие алерты
             </button>
-            <button type="button" className="ghost" onClick={() => void loadSettings()}>
+            <button type="button" className="ghost" onClick={() => void loadSettings()} disabled={sending}>
               Обновить настройки
             </button>
           </div>

@@ -1,4 +1,6 @@
 import json
+from datetime import datetime, timezone
+from html import escape
 from urllib import error, request
 
 from sqlalchemy.orm import Session
@@ -16,7 +18,30 @@ def telegram_is_configured(db: Session | None = None) -> bool:
     return bool(settings.telegram_bot_token and settings.telegram_chat_id)
 
 
-def send_telegram_message(text: str, db: Session | None = None) -> None:
+def format_telegram_message(
+    title: str,
+    *,
+    icon: str = "🔔",
+    facts: list[tuple[str, str]] | None = None,
+    lines: list[str] | None = None,
+) -> str:
+    from app.core.config import settings
+
+    rendered_lines = [
+        f"<b>{escape(icon)} {escape(settings.app_display_name)}</b>",
+        f"<b>{escape(title)}</b>",
+    ]
+    for label, value in facts or []:
+        rendered_lines.append(f"• <b>{escape(label)}:</b> {escape(value)}")
+    for line in lines or []:
+        rendered_lines.append(f"• {escape(line)}")
+    rendered_lines.append(
+        f"<i>Время: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}</i>"
+    )
+    return "\n".join(rendered_lines)
+
+
+def send_telegram_message(text: str, db: Session | None = None, parse_mode: str | None = None) -> None:
     if db is not None:
         profile = get_or_create_notification_settings(db)
         token, chat_id = telegram_credentials(profile)
@@ -30,12 +55,14 @@ def send_telegram_message(text: str, db: Session | None = None) -> None:
         return
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = json.dumps(
-        {
-            "chat_id": chat_id,
-            "text": text,
-        }
-    ).encode("utf-8")
+    payload_data = {
+        "chat_id": chat_id,
+        "text": text,
+        "disable_web_page_preview": True,
+    }
+    if parse_mode:
+        payload_data["parse_mode"] = parse_mode
+    payload = json.dumps(payload_data).encode("utf-8")
 
     req = request.Request(
         url,
