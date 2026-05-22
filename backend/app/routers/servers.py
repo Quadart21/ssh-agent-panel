@@ -23,6 +23,9 @@ from app.models import CommandPattern, Server, ServerGroup
 from app.models import User
 from app.schemas import (
     AlertRead,
+    BulkServerCreateItemResult,
+    BulkServerCreateRequest,
+    BulkServerCreateResponse,
     BulkCommandRequest,
     BulkCommandResponse,
     CommandExecutionResult,
@@ -125,15 +128,7 @@ def servers_accounting_summary(
     return build_accounting_summary(servers)
 
 
-@router.post("", response_model=ServerRead, status_code=status.HTTP_201_CREATED)
-def create_server(
-    payload: ServerCreate,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: object = Depends(get_current_user),
-):
-    ensure_section_access(current_user, "servers")
-    ensure_action_access(current_user, "server_create")
+def _create_server_internal(db: Session, payload: ServerCreate, request: Request) -> Server:
     if payload.group_id and not db.get(ServerGroup, payload.group_id):
         raise HTTPException(status_code=404, detail="Группа не найдена.")
 
@@ -163,11 +158,83 @@ def create_server(
             _install_agent_over_ssh(server, _build_external_base_url(request), token)
         except Exception as exc:
             raise HTTPException(status_code=400, detail=f"Агент не установлен: {exc}") from exc
-
     db.commit()
     db.refresh(server)
+    return server
+
+
+@router.post("", response_model=ServerRead, status_code=status.HTTP_201_CREATED)
+def create_server(
+    payload: ServerCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: object = Depends(get_current_user),
+):
+    ensure_section_access(current_user, "servers")
+    ensure_action_access(current_user, "server_create")
+    server = _create_server_internal(db, payload, request)
     write_audit_log(db, user=current_user, action="server.create", target_type="server", target_id=str(server.id), details=server.name)
     return serialize_server(server)
+
+
+@router.post("/bulk", response_model=BulkServerCreateResponse)
+def create_servers_bulk(
+    payload: BulkServerCreateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: object = Depends(get_current_user),
+):
+    ensure_section_access(current_user, "servers")
+    ensure_action_access(current_user, "server_create")
+    results: list[BulkServerCreateItemResult] = []
+    created = 0
+
+    for item in payload.items:
+        try:
+            server = _create_server_internal(db, item, request)
+            created += 1
+            results.append(
+                BulkServerCreateItemResult(
+                    name=server.name,
+                    ip=server.ip,
+                    ok=True,
+                    server_id=server.id,
+                    message="Сервер создан.",
+                )
+            )
+            write_audit_log(
+                db,
+                user=current_user,
+                action="server.create.bulk_item",
+                target_type="server",
+                target_id=str(server.id),
+                details=server.name,
+            )
+        except Exception as exc:
+            db.rollback()
+            if isinstance(exc, HTTPException):
+                detail = str(exc.detail)
+            else:
+                detail = str(exc)
+            results.append(
+                BulkServerCreateItemResult(
+                    name=item.name,
+                    ip=item.ip,
+                    ok=False,
+                    message=detail or "Ошибка создания сервера.",
+                )
+            )
+
+    failed = len(results) - created
+    write_audit_log(
+        db,
+        user=current_user,
+        action="server.create.bulk",
+        target_type="servers",
+        target_id=str(created),
+        details=f"created={created};failed={failed}",
+    )
+    return BulkServerCreateResponse(total=len(results), created=created, failed=failed, results=results)
 
 
 @router.post("/test-connection", response_model=ConnectionTestResult)

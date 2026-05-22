@@ -4,6 +4,7 @@ import type {
   AutomationPreset,
   AuditLog,
   BulkCommandResponse,
+  BulkServerCreateResponse,
   ConnectionTestResult,
   DashboardStats,
   FirewallStatus,
@@ -265,6 +266,8 @@ export const api = {
   serversAccounting: () => request<ServerAccountingSummary>("/servers/accounting"),
   createServer: (payload: Record<string, unknown>) =>
     request<Server>("/servers", { method: "POST", body: JSON.stringify(payload) }),
+  createServersBulk: (payload: Record<string, unknown>) =>
+    request<BulkServerCreateResponse>("/servers/bulk", { method: "POST", body: JSON.stringify(payload) }),
   updateServer: (id: number, payload: Record<string, unknown>) =>
     request<Server>(`/servers/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
   deleteServer: (id: number) => request<void>(`/servers/${id}`, { method: "DELETE" }),

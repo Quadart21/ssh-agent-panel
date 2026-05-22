@@ -122,6 +122,21 @@ export type AgentEnrollResponse = {
   install_script: string;
 };
 
+export type BulkServerCreateItemResult = {
+  name: string;
+  ip: string;
+  ok: boolean;
+  server_id: number | null;
+  message: string;
+};
+
+export type BulkServerCreateResponse = {
+  total: number;
+  created: number;
+  failed: number;
+  results: BulkServerCreateItemResult[];
+};
+
 export type Pm2Process = {
   name: string;
   pm_id: number;

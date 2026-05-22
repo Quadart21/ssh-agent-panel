@@ -44,6 +44,9 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
   const [connectionResult, setConnectionResult] = useState<ConnectionTestResult | null>(null);
   const [accounting, setAccounting] = useState<ServerAccountingSummary | null>(null);
   const [accountingLoading, setAccountingLoading] = useState(true);
+  const [bulkInput, setBulkInput] = useState("");
+  const [bulkStatus, setBulkStatus] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   async function loadAccounting() {
     setAccountingLoading(true);
@@ -140,6 +143,80 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
     }
   }
 
+  function resolveGroupId(rawValue: string): number | null {
+    const cleaned = rawValue.trim();
+    if (!cleaned) {
+      return null;
+    }
+    const asNumber = Number(cleaned);
+    if (Number.isFinite(asNumber) && asNumber > 0) {
+      return asNumber;
+    }
+    const group = groups.find((item) => item.name.toLowerCase() === cleaned.toLowerCase());
+    return group ? group.id : null;
+  }
+
+  async function handleBulkCreate() {
+    onError("");
+    const rows = bulkInput
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (rows.length === 0) {
+      onError("Добавьте хотя бы одну строку для массового создания.");
+      return;
+    }
+    const items: Record<string, unknown>[] = [];
+    for (const row of rows) {
+      const parts = row.split(";").map((part) => part.trim());
+      if (parts.length < 4) {
+        onError(`Неверный формат строки: "${row}"`);
+        return;
+      }
+      const [name, ip, login, password, portRaw, groupRaw] = parts;
+      const portValue = portRaw ? Number(portRaw) : 22;
+      if (!name || !ip || !login) {
+        onError(`Заполните name/ip/login в строке: "${row}"`);
+        return;
+      }
+      if (!Number.isFinite(portValue) || portValue < 1 || portValue > 65535) {
+        onError(`Неверный порт в строке: "${row}"`);
+        return;
+      }
+      items.push({
+        name,
+        ip,
+        login,
+        port: Math.trunc(portValue),
+        password_enc: password || null,
+        key_path: null,
+        group_id: resolveGroupId(groupRaw || ""),
+        pay_until: null,
+        monthly_cost: null,
+        billing_period: "monthly",
+        currency: "RUB",
+        provider: null,
+        setup_cost: null,
+        notes: null,
+        test_connection: true,
+        auto_install_agent: true
+      });
+    }
+
+    setBulkBusy(true);
+    setBulkStatus("");
+    try {
+      const response = await api.createServersBulk({ items });
+      setBulkStatus(`Создано: ${response.created}, ошибок: ${response.failed}.`);
+      await onReload();
+      await loadAccounting();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось выполнить массовое добавление.");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   function handleEditServer(server: Server) {
     setEditingServerId(server.id);
     setConnectionResult(null);
@@ -189,6 +266,11 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
       canDelete={hasAction(currentUser, "server_delete")}
       canEnrollAgent={currentUser?.role === "admin"}
       onEnrollAgent={(id) => void handleEnrollAgent(id)}
+      bulkInput={bulkInput}
+      setBulkInput={setBulkInput}
+      onBulkCreate={() => void handleBulkCreate()}
+      bulkStatus={bulkStatus}
+      bulkBusy={bulkBusy}
     />
   );
 }

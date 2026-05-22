@@ -42,6 +42,11 @@ type Props = {
   canDelete: boolean;
   canEnrollAgent: boolean;
   onEnrollAgent: (id: number) => void;
+  bulkInput: string;
+  setBulkInput: (value: string) => void;
+  onBulkCreate: () => void;
+  bulkStatus: string;
+  bulkBusy: boolean;
 };
 
 function ServersPage({
@@ -63,7 +68,12 @@ function ServersPage({
   canEdit,
   canDelete,
   canEnrollAgent,
-  onEnrollAgent
+  onEnrollAgent,
+  bulkInput,
+  setBulkInput,
+  onBulkCreate,
+  bulkStatus,
+  bulkBusy
 }: Props) {
   return (
     <div className="page-stack">
@@ -218,6 +228,28 @@ function ServersPage({
           ) : (
             <p className="muted">У вас нет прав на создание или редактирование серверов.</p>
           )}
+        </article>
+
+        <article className="panel">
+          <div className="panel-head">
+            <h2>Массовое добавление</h2>
+          </div>
+          <p className="muted">
+            Формат строки: <code>name;ip;login;password;port;group</code>. Порт и группа необязательны.
+            Группа может быть id или названием.
+          </p>
+          <textarea
+            rows={10}
+            value={bulkInput}
+            onChange={(event) => setBulkInput(event.target.value)}
+            placeholder={"srv-1;1.2.3.4;root;pass123;22;Бот/кабинет\nsrv-2;5.6.7.8;root;pass456"}
+          />
+          <div className="compact-form">
+            <button type="button" onClick={onBulkCreate} disabled={!canCreate || bulkBusy}>
+              {bulkBusy ? "Добавляем..." : "Добавить пачкой"}
+            </button>
+            {bulkStatus ? <p className="muted">{bulkStatus}</p> : null}
+          </div>
         </article>
 
         <article className="panel">

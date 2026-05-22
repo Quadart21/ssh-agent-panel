@@ -64,6 +64,25 @@ class ServerUpdate(ServerBase):
     pass
 
 
+class BulkServerCreateRequest(BaseModel):
+    items: list[ServerCreate] = Field(default_factory=list, min_length=1)
+
+
+class BulkServerCreateItemResult(BaseModel):
+    name: str
+    ip: str
+    ok: bool
+    server_id: int | None = None
+    message: str
+
+
+class BulkServerCreateResponse(BaseModel):
+    total: int
+    created: int
+    failed: int
+    results: list[BulkServerCreateItemResult]
+
+
 class ServerRead(ServerBase):
     id: int
     created_at: datetime
