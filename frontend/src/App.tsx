@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 
-import { api, getStoredToken, setStoredToken } from "./api";
+import { ApiError, api, getStoredToken, setStoredToken } from "./api";
 import PageFallback from "./components/PageFallback";
 import AppChrome from "./layout/AppChrome";
 import AppSidebar from "./layout/AppSidebar";
@@ -81,8 +81,12 @@ function App() {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Не удалось загрузить панель.";
       setError(message);
+      if (err instanceof ApiError && [400, 401, 403].includes(err.status)) {
+        await handleLogout(true);
+        return;
+      }
       if (!getStoredToken()) {
-        void handleLogout(true);
+        await handleLogout(true);
       }
     } finally {
       setLoading(false);

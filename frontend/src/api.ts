@@ -113,7 +113,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    if (response.status === 401) {
+    const isAuthMeRequest = path === "/auth/me";
+    if (response.status === 401 || (response.status === 400 && isAuthMeRequest)) {
       setStoredToken(null);
     }
     const payload = await response.json().catch(() => ({ detail: "Непредвиденная ошибка API." }));
