@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { api } from "../api";
 import type { ConnectionTestResult, Group, Server, ServerAccountingSummary, ServerMetricSnapshot, User } from "../types";
 import ServersPage from "./ServersPage";
+import type { ServerForm } from "./servers/types";
 
 type Props = {
   groups: Group[];
@@ -13,7 +14,7 @@ type Props = {
   onReload: () => Promise<void>;
 };
 
-const emptyServerForm = {
+const emptyServerForm: ServerForm = {
   name: "",
   ip: "",
   port: 22,

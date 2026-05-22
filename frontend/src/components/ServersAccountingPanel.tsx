@@ -4,12 +4,13 @@ import { billingPeriodLabel, formatMoney } from "../utils/formatMoney";
 type Props = {
   summary: ServerAccountingSummary | null;
   loading?: boolean;
+  embedded?: boolean;
 };
 
-function ServersAccountingPanel({ summary, loading }: Props) {
+function ServersAccountingPanel({ summary, loading, embedded = false }: Props) {
   if (loading && !summary) {
     return (
-      <section className="panel accounting-panel">
+      <section className={`panel accounting-panel ${embedded ? "" : "span-two"}`}>
         <h2>Бухгалтерия</h2>
         <p className="muted">Загружаем сводку расходов…</p>
       </section>
@@ -17,13 +18,18 @@ function ServersAccountingPanel({ summary, loading }: Props) {
   }
 
   if (!summary) {
-    return null;
+    return (
+      <section className={`panel accounting-panel ${embedded ? "" : "span-two"}`}>
+        <h2>Бухгалтерия</h2>
+        <p className="muted">Не удалось загрузить сводку расходов.</p>
+      </section>
+    );
   }
 
   const currency = summary.primary_currency;
 
   return (
-    <section className="panel accounting-panel span-two">
+    <section className={`panel accounting-panel ${embedded ? "" : "span-two"}`}>
       <div className="panel-head">
         <div>
           <h2>Бухгалтерия</h2>

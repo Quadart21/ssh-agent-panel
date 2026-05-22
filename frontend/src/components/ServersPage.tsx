@@ -1,26 +1,14 @@
-import type { CSSProperties, FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 
 import type { ConnectionTestResult, Group, Server, ServerAccountingSummary, ServerMetricSnapshot } from "../types";
-import { billingPeriodLabel, formatMoney } from "../utils/formatMoney";
 import ServersAccountingPanel from "./ServersAccountingPanel";
-
-type ServerForm = {
-  name: string;
-  ip: string;
-  port: number;
-  login: string;
-  password_enc: string;
-  key_path: string;
-  group_id: string;
-  pay_until: string;
-  monthly_cost: string;
-  billing_period: string;
-  currency: string;
-  provider: string;
-  setup_cost: string;
-  notes: string;
-  test_connection: boolean;
-};
+import ServerCard from "./servers/ServerCard";
+import ServerFormPanel from "./servers/ServerFormPanel";
+import ServersBulkPanel from "./servers/ServersBulkPanel";
+import { computeFleetStats, filterServers } from "./servers/helpers";
+import ServersOverviewStats from "./servers/ServersOverviewStats";
+import type { FleetFilters, ServerForm, ServerViewTab } from "./servers/types";
 
 type Props = {
   groups: Group[];
@@ -49,6 +37,20 @@ type Props = {
   bulkBusy: boolean;
 };
 
+const defaultFilters: FleetFilters = {
+  query: "",
+  groupId: "",
+  status: "all",
+  agent: "all"
+};
+
+const tabs: { id: ServerViewTab; label: string; hint: string }[] = [
+  { id: "fleet", label: "Парк серверов", hint: "Список, фильтры и метрики" },
+  { id: "form", label: "Добавить узел", hint: "Один сервер с проверкой SSH" },
+  { id: "bulk", label: "Импорт", hint: "Пакетное добавление" },
+  { id: "accounting", label: "Бухгалтерия", hint: "Расходы и оплаты" }
+];
+
 function ServersPage({
   groups,
   servers,
@@ -75,78 +77,98 @@ function ServersPage({
   bulkStatus,
   bulkBusy
 }: Props) {
+  const [activeTab, setActiveTab] = useState<ServerViewTab>("fleet");
+  const [filters, setFilters] = useState<FleetFilters>(defaultFilters);
+
+  const fleetStats = useMemo(() => computeFleetStats(servers, metrics, accounting), [servers, metrics, accounting]);
+  const filteredServers = useMemo(() => filterServers(servers, metrics, filters), [servers, metrics, filters]);
+
+  useEffect(() => {
+    if (editingServerId != null) {
+      setActiveTab("form");
+    }
+  }, [editingServerId]);
+
+  function handleEdit(server: Server) {
+    onEdit(server);
+    setActiveTab("form");
+  }
+
+  function handleCancelEdit() {
+    onCancelEdit();
+    setActiveTab("fleet");
+  }
+
   return (
-    <div className="page-stack">
+    <div className="page-stack servers-page">
       <section className="page-hero">
         <div>
           <p className="eyebrow">Серверы</p>
           <h1>Управление узлами и доступом</h1>
-          <p className="hero-copy">Добавляйте серверы, проверяйте SSH, ведите оплату и расходы по каждому узлу.</p>
+          <p className="hero-copy">
+            Следите за состоянием парка, добавляйте узлы по одному или пачкой, проверяйте SSH и агент, ведите учёт
+            оплаты по каждому серверу.
+          </p>
         </div>
       </section>
 
-      <ServersAccountingPanel summary={accounting} loading={accountingLoading} />
+      <ServersOverviewStats stats={fleetStats} />
 
-      {connectionResult ? (
-        <div className={`banner ${connectionResult.ok ? "success" : "error"}`}>
-          {connectionResult.message}
-          {connectionResult.latency_ms !== null ? ` Задержка: ${connectionResult.latency_ms} мс.` : ""}
-        </div>
-      ) : null}
+      <nav className="page-tabs" aria-label="Разделы управления серверами">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`page-tab ${activeTab === tab.id ? "active" : ""}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <span>{tab.label}</span>
+            <small>{tab.hint}</small>
+          </button>
+        ))}
+      </nav>
 
-      <section className="dashboard-grid">
-        <article className="panel">
+      {activeTab === "fleet" ? (
+        <section className="panel servers-fleet-panel">
           <div className="panel-head">
-            <h2>{editingServerId ? "Редактировать сервер" : "Добавить сервер"}</h2>
-            <div className="panel-actions">
-              {editingServerId && canEdit ? (
-                <button type="button" className="ghost" onClick={onCancelEdit}>
-                  Отменить
-                </button>
-              ) : null}
-              <button type="button" className="ghost" onClick={onTest} disabled={!canCreate && !canEdit}>
-                Проверить SSH
-              </button>
+            <div>
+              <h2>Парк серверов</h2>
+              <p className="muted">
+                Показано {filteredServers.length} из {servers.length}. SSH-статус обновляется при загрузке страницы и
+                фоновых проверках.
+              </p>
             </div>
+            {(canCreate || canEdit) && (
+              <div className="panel-actions">
+                <button type="button" className="ghost" onClick={() => setActiveTab("form")}>
+                  + Добавить узел
+                </button>
+                {canCreate ? (
+                  <button type="button" className="ghost" onClick={() => setActiveTab("bulk")}>
+                    Импорт
+                  </button>
+                ) : null}
+              </div>
+            )}
           </div>
-          {canCreate || (editingServerId && canEdit) ? (
-          <form className="form-grid" onSubmit={onSubmit}>
-            <label>
-              Название
-              <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
-            </label>
-            <label>
-              IP / хост
-              <input value={form.ip} onChange={(event) => setForm({ ...form, ip: event.target.value })} required />
-            </label>
-            <label>
-              Порт
+
+          <div className="servers-toolbar">
+            <label className="toolbar-search">
+              <span className="sr-only">Поиск</span>
               <input
-                type="number"
-                value={form.port}
-                onChange={(event) => setForm({ ...form, port: Number(event.target.value) })}
+                type="search"
+                placeholder="Поиск по имени, IP, логину, группе…"
+                value={filters.query}
+                onChange={(event) => setFilters({ ...filters, query: event.target.value })}
               />
-            </label>
-            <label>
-              Логин
-              <input value={form.login} onChange={(event) => setForm({ ...form, login: event.target.value })} required />
-            </label>
-            <label>
-              Пароль
-              <input
-                type="password"
-                value={form.password_enc}
-                onChange={(event) => setForm({ ...form, password_enc: event.target.value })}
-              />
-            </label>
-            <label>
-              Путь к SSH-ключу
-              <input value={form.key_path} onChange={(event) => setForm({ ...form, key_path: event.target.value })} />
             </label>
             <label>
               Группа
-              <select value={form.group_id} onChange={(event) => setForm({ ...form, group_id: event.target.value })}>
-                <option value="">Без группы</option>
+              <select
+                value={filters.groupId}
+                onChange={(event) => setFilters({ ...filters, groupId: event.target.value })}
+              >
+                <option value="">Все группы</option>
                 {groups.map((group) => (
                   <option key={group.id} value={group.id}>
                     {group.name}
@@ -155,207 +177,104 @@ function ServersPage({
               </select>
             </label>
             <label>
-              Оплачен до
-              <input
-                type="datetime-local"
-                value={form.pay_until}
-                onChange={(event) => setForm({ ...form, pay_until: event.target.value })}
-              />
-            </label>
-            <label>
-              Стоимость тарифа
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                placeholder="1500"
-                value={form.monthly_cost}
-                onChange={(event) => setForm({ ...form, monthly_cost: event.target.value })}
-              />
-            </label>
-            <label>
-              Период оплаты
+              SSH
               <select
-                value={form.billing_period}
-                onChange={(event) => setForm({ ...form, billing_period: event.target.value })}
+                value={filters.status}
+                onChange={(event) => setFilters({ ...filters, status: event.target.value as FleetFilters["status"] })}
               >
-                <option value="monthly">Ежемесячно</option>
-                <option value="quarterly">Ежеквартально</option>
-                <option value="yearly">Ежегодно</option>
+                <option value="all">Любой</option>
+                <option value="online">Онлайн</option>
+                <option value="offline">Офлайн</option>
               </select>
             </label>
             <label>
-              Валюта
-              <select value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value })}>
-                <option value="RUB">RUB</option>
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
+              Агент
+              <select
+                value={filters.agent}
+                onChange={(event) => setFilters({ ...filters, agent: event.target.value as FleetFilters["agent"] })}
+              >
+                <option value="all">Любой</option>
+                <option value="online">Онлайн</option>
+                <option value="pending">Ожидает связи</option>
+                <option value="none">Не установлен</option>
               </select>
             </label>
-            <label>
-              Провайдер / хостинг
-              <input
-                value={form.provider}
-                onChange={(event) => setForm({ ...form, provider: event.target.value })}
-                placeholder="Hetzner, Selectel…"
-              />
-            </label>
-            <label>
-              Разовые затраты
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                placeholder="0"
-                value={form.setup_cost}
-                onChange={(event) => setForm({ ...form, setup_cost: event.target.value })}
-              />
-            </label>
-            <label className="full-width">
-              Заметки
-              <textarea rows={3} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
-            </label>
-            <label className="checkbox full-width">
-              <input
-                type="checkbox"
-                checked={form.test_connection}
-                onChange={(event) => setForm({ ...form, test_connection: event.target.checked })}
-              />
-              Проверять SSH при сохранении
-            </label>
-            <button type="submit">{editingServerId ? "Сохранить изменения" : "Сохранить сервер"}</button>
-          </form>
+            {filters.query || filters.groupId || filters.status !== "all" || filters.agent !== "all" ? (
+              <button type="button" className="ghost" onClick={() => setFilters(defaultFilters)}>
+                Сбросить
+              </button>
+            ) : null}
+          </div>
+
+          {filteredServers.length === 0 ? (
+            <div className="empty-state">
+              <strong>{servers.length === 0 ? "Серверов пока нет" : "Ничего не найдено"}</strong>
+              <p className="muted">
+                {servers.length === 0
+                  ? "Добавьте первый узел вручную или импортируйте список из CSV-подобного формата."
+                  : "Измените фильтры или очистите поиск, чтобы увидеть другие узлы."}
+              </p>
+              {canCreate && servers.length === 0 ? (
+                <div className="card-actions">
+                  <button type="button" onClick={() => setActiveTab("form")}>
+                    Добавить сервер
+                  </button>
+                  <button type="button" className="ghost" onClick={() => setActiveTab("bulk")}>
+                    Массовый импорт
+                  </button>
+                </div>
+              ) : null}
+            </div>
           ) : (
-            <p className="muted">У вас нет прав на создание или редактирование серверов.</p>
+            <div className="servers-grid">
+              {filteredServers.map((server) => (
+                <ServerCard
+                  key={server.id}
+                  server={server}
+                  metric={metrics.find((item) => item.server_id === server.id)}
+                  isEditing={editingServerId === server.id}
+                  canEdit={canEdit}
+                  canDelete={canDelete}
+                  canEnrollAgent={canEnrollAgent}
+                  onEdit={handleEdit}
+                  onDelete={onDelete}
+                  onEnrollAgent={onEnrollAgent}
+                />
+              ))}
+            </div>
           )}
-        </article>
+        </section>
+      ) : null}
 
-        <article className="panel">
-          <div className="panel-head">
-            <h2>Массовое добавление</h2>
-          </div>
-          <p className="muted">
-            Формат строки: <code>name;ip;login;password;port;group</code>. Порт и группа необязательны.
-            Группа может быть id или названием.
-          </p>
-          <textarea
-            rows={10}
-            value={bulkInput}
-            onChange={(event) => setBulkInput(event.target.value)}
-            placeholder={"srv-1;1.2.3.4;root;pass123;22;Бот/кабинет\nsrv-2;5.6.7.8;root;pass456"}
-          />
-          <div className="compact-form">
-            <button type="button" onClick={onBulkCreate} disabled={!canCreate || bulkBusy}>
-              {bulkBusy ? "Добавляем..." : "Добавить пачкой"}
-            </button>
-            {bulkStatus ? <p className="muted">{bulkStatus}</p> : null}
-          </div>
-        </article>
+      {activeTab === "form" ? (
+        <ServerFormPanel
+          groups={groups}
+          form={form}
+          setForm={setForm}
+          connectionResult={connectionResult}
+          onSubmit={onSubmit}
+          onTest={onTest}
+          editingServerId={editingServerId}
+          onCancelEdit={handleCancelEdit}
+          canCreate={canCreate}
+          canEdit={canEdit}
+        />
+      ) : null}
 
-        <article className="panel">
-          <h2>Список серверов</h2>
-          <div className="server-list">
-            {servers.length === 0 ? <p className="muted">Серверов пока нет.</p> : null}
-            {servers.map((server) => {
-              const metric = metrics.find((item) => item.server_id === server.id);
-              return (
-                <article className="server-card" key={server.id}>
-                  <div className="server-card-row">
-                    <div>
-                      <strong>{server.name}</strong>
-                      <p>
-                        {server.ip}:{server.port} · {server.login}
-                      </p>
-                    </div>
-                    <span className={`status-pill ${metric?.online ? "online" : "offline"}`}>
-                      {metric?.online ? "онлайн" : "офлайн"}
-                    </span>
-                  </div>
-                  <p className="muted">{server.group_name ?? "Группа не назначена"}</p>
-                  <p className="muted">
-                    Агент: {server.agent_online ? "онлайн" : server.agent_enabled ? "ожидает heartbeat" : "не установлен"}
-                    {server.agent_version ? ` · v${server.agent_version}` : ""}
-                  </p>
-                  {server.monthly_cost != null ? (
-                    <p className="accounting-line">
-                      {formatMoney(server.monthly_cost, server.currency)}{" "}
-                      <span className="muted">{billingPeriodLabel(server.billing_period)}</span>
-                      {server.monthly_equivalent != null &&
-                      server.billing_period !== "monthly" ? (
-                        <> · ≈ {formatMoney(server.monthly_equivalent, server.currency)} / мес.</>
-                      ) : null}
-                      {server.provider ? <> · {server.provider}</> : null}
-                    </p>
-                  ) : (
-                    <p className="muted">Стоимость не указана</p>
-                  )}
-                  {server.pay_until ? (
-                    <p className="muted">Оплачен до: {new Date(server.pay_until).toLocaleString("ru-RU")}</p>
-                  ) : null}
-                  {metric ? (
-                    <div className="server-metric-visuals">
-                      <MetricRing label="CPU" value={metric.cpu_percent} tone="sky" />
-                      <MetricRing label="RAM" value={metric.ram_percent} tone="mint" />
-                      <MetricRing label="Disk" value={metric.disk_percent} tone="amber" />
-                      <div className="metric-uptime">
-                        <span className="muted">Uptime</span>
-                        <strong>{metric.uptime}</strong>
-                      </div>
-                    </div>
-                  ) : null}
-                  {canEdit || canDelete ? (
-                    <div className="card-actions">
-                      {canEdit ? (
-                        <button className="ghost" type="button" onClick={() => onEdit(server)}>
-                          Редактировать
-                        </button>
-                      ) : null}
-                      {canDelete ? (
-                        <button className="danger" type="button" onClick={() => onDelete(server.id)}>
-                          Удалить
-                        </button>
-                      ) : null}
-                      {canEnrollAgent ? (
-                        <button className="ghost" type="button" onClick={() => onEnrollAgent(server.id)}>
-                          Выпустить агент
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </article>
-              );
-            })}
-          </div>
-        </article>
-      </section>
-    </div>
-  );
-}
+      {activeTab === "bulk" ? (
+        <ServersBulkPanel
+          bulkInput={bulkInput}
+          setBulkInput={setBulkInput}
+          onBulkCreate={onBulkCreate}
+          bulkStatus={bulkStatus}
+          bulkBusy={bulkBusy}
+          canCreate={canCreate}
+        />
+      ) : null}
 
-function MetricRing({
-  label,
-  value,
-  tone
-}: {
-  label: string;
-  value: number;
-  tone: "sky" | "mint" | "amber";
-}) {
-  const normalized = Math.max(0, Math.min(100, value));
-  const style = {
-    "--metric-value": normalized,
-    "--metric-accent":
-      tone === "sky" ? "#7cc8ff" : tone === "mint" ? "#6df7c1" : "#ffc56a"
-  } as CSSProperties;
-
-  return (
-    <div className="metric-ring compact" style={style}>
-      <div className="metric-ring-graphic">
-        <div className="metric-ring-inner">
-          <strong>{normalized}%</strong>
-        </div>
-      </div>
-      <span>{label}</span>
+      {activeTab === "accounting" ? (
+        <ServersAccountingPanel summary={accounting} loading={accountingLoading} embedded />
+      ) : null}
     </div>
   );
 }
