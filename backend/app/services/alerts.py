@@ -7,7 +7,7 @@ from app.models import AlertNotificationState, NotificationSettings, Server
 from app.schemas import AlertRead
 from app.services.notification_settings import get_or_create_notification_settings
 from app.services.ssh import fetch_server_metrics
-from app.services.telegram import format_telegram_message, send_telegram_message, telegram_is_configured
+from app.services.telegram import format_telegram_message, resolve_telegram_topic_id, send_telegram_message, telegram_is_configured
 
 
 def collect_server_alerts(db: Session) -> list[AlertRead]:
@@ -77,6 +77,14 @@ def format_alerts_for_telegram(alerts: list[AlertRead], prefix: str | None = Non
     return format_telegram_message(title, icon="🚨", lines=lines)
 
 
+def _topic_event_for_alert_category(category: str) -> str:
+    if category == "server_offline":
+        return "server_offline"
+    if category in {"payment_expired", "payment_expiring"}:
+        return "payment_expiring"
+    return "alerts_digest"
+
+
 def sync_alert_notifications(db: Session) -> tuple[int, int]:
     now = datetime.utcnow()
     profile = get_or_create_notification_settings(db)
@@ -127,7 +135,17 @@ def sync_alert_notifications(db: Session) -> tuple[int, int]:
 
     sent_count = 0
     if sendable_alerts and telegram_is_configured(db):
-        send_telegram_message(format_alerts_for_telegram(sendable_alerts), db, parse_mode="HTML")
+        grouped: dict[str, list[AlertRead]] = {}
+        for alert in sendable_alerts:
+            key = _topic_event_for_alert_category(alert.category)
+            grouped.setdefault(key, []).append(alert)
+        for event_type, grouped_alerts in grouped.items():
+            send_telegram_message(
+                format_alerts_for_telegram(grouped_alerts),
+                db,
+                parse_mode="HTML",
+                topic_id=resolve_telegram_topic_id(profile, event_type),
+            )
         for alert in sendable_alerts:
             existing_states[alert_fingerprint(alert)].last_sent_at = now
         sent_count = len(sendable_alerts)

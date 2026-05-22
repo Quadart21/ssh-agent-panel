@@ -5,6 +5,7 @@ from urllib import error, request
 
 from sqlalchemy.orm import Session
 
+from app.models import NotificationSettings
 from app.services.notification_settings import get_or_create_notification_settings, telegram_credentials
 
 
@@ -41,7 +42,28 @@ def format_telegram_message(
     return "\n".join(rendered_lines)
 
 
-def send_telegram_message(text: str, db: Session | None = None, parse_mode: str | None = None) -> None:
+def resolve_telegram_topic_id(profile: NotificationSettings | None, event_type: str | None = None) -> int | None:
+    if not profile:
+        return None
+    mapping = {
+        "login": profile.telegram_topic_login,
+        "server_offline": profile.telegram_topic_servers,
+        "payment_expired": profile.telegram_topic_payments,
+        "payment_expiring": profile.telegram_topic_payments,
+        "automation_failed": profile.telegram_topic_automation,
+        "alerts_digest": profile.telegram_topic_general,
+        "test": profile.telegram_topic_general,
+    }
+    scoped = mapping.get((event_type or "").strip().lower())
+    return scoped if scoped else profile.telegram_topic_general
+
+
+def send_telegram_message(
+    text: str,
+    db: Session | None = None,
+    parse_mode: str | None = None,
+    topic_id: int | None = None,
+) -> None:
     if db is not None:
         profile = get_or_create_notification_settings(db)
         token, chat_id = telegram_credentials(profile)
@@ -62,6 +84,8 @@ def send_telegram_message(text: str, db: Session | None = None, parse_mode: str 
     }
     if parse_mode:
         payload_data["parse_mode"] = parse_mode
+    if topic_id:
+        payload_data["message_thread_id"] = int(topic_id)
     payload = json.dumps(payload_data).encode("utf-8")
 
     req = request.Request(

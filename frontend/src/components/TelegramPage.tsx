@@ -11,6 +11,11 @@ type Props = {
 type FormState = {
   telegram_bot_token: string;
   telegram_chat_id: string;
+  telegram_topic_general: string;
+  telegram_topic_login: string;
+  telegram_topic_servers: string;
+  telegram_topic_payments: string;
+  telegram_topic_automation: string;
   scheduler_enabled: boolean;
   scheduler_interval_seconds: number;
   alert_repeat_minutes: number;
@@ -46,6 +51,11 @@ function TelegramPage({ onError }: Props) {
       setForm({
         telegram_bot_token: data.telegram_bot_token ?? "",
         telegram_chat_id: data.telegram_chat_id ?? "",
+        telegram_topic_general: data.telegram_topic_general ? String(data.telegram_topic_general) : "",
+        telegram_topic_login: data.telegram_topic_login ? String(data.telegram_topic_login) : "",
+        telegram_topic_servers: data.telegram_topic_servers ? String(data.telegram_topic_servers) : "",
+        telegram_topic_payments: data.telegram_topic_payments ? String(data.telegram_topic_payments) : "",
+        telegram_topic_automation: data.telegram_topic_automation ? String(data.telegram_topic_automation) : "",
         scheduler_enabled: data.scheduler_enabled,
         scheduler_interval_seconds: data.scheduler_interval_seconds,
         alert_repeat_minutes: data.alert_repeat_minutes,
@@ -77,7 +87,12 @@ function TelegramPage({ onError }: Props) {
       const updated = await api.updateNotificationSettings({
         ...form,
         telegram_bot_token: form.telegram_bot_token || null,
-        telegram_chat_id: form.telegram_chat_id || null
+        telegram_chat_id: form.telegram_chat_id || null,
+        telegram_topic_general: form.telegram_topic_general.trim() ? Number(form.telegram_topic_general) : null,
+        telegram_topic_login: form.telegram_topic_login.trim() ? Number(form.telegram_topic_login) : null,
+        telegram_topic_servers: form.telegram_topic_servers.trim() ? Number(form.telegram_topic_servers) : null,
+        telegram_topic_payments: form.telegram_topic_payments.trim() ? Number(form.telegram_topic_payments) : null,
+        telegram_topic_automation: form.telegram_topic_automation.trim() ? Number(form.telegram_topic_automation) : null
       });
       setSettings(updated);
       setMessage("Настройки уведомлений сохранены.");
@@ -182,6 +197,62 @@ function TelegramPage({ onError }: Props) {
               />
               Включить фоновый планировщик алертов
             </label>
+            <div className="full-width settings-checklist">
+              <strong>Топики Telegram (message_thread_id)</strong>
+              <p className="muted">
+                Если чат с топиками, укажи ID нужного топика для каждого типа уведомлений. Пусто = общий чат/дефолт.
+              </p>
+              <label>
+                Общий топик (fallback)
+                <input
+                  type="number"
+                  min="1"
+                  value={form.telegram_topic_general}
+                  onChange={(event) => setForm({ ...form, telegram_topic_general: event.target.value })}
+                  placeholder="Например: 12"
+                />
+              </label>
+              <label>
+                Топик: входы в панель
+                <input
+                  type="number"
+                  min="1"
+                  value={form.telegram_topic_login}
+                  onChange={(event) => setForm({ ...form, telegram_topic_login: event.target.value })}
+                  placeholder="Например: 21"
+                />
+              </label>
+              <label>
+                Топик: серверные алерты
+                <input
+                  type="number"
+                  min="1"
+                  value={form.telegram_topic_servers}
+                  onChange={(event) => setForm({ ...form, telegram_topic_servers: event.target.value })}
+                  placeholder="Например: 22"
+                />
+              </label>
+              <label>
+                Топик: платежи
+                <input
+                  type="number"
+                  min="1"
+                  value={form.telegram_topic_payments}
+                  onChange={(event) => setForm({ ...form, telegram_topic_payments: event.target.value })}
+                  placeholder="Например: 23"
+                />
+              </label>
+              <label>
+                Топик: автоматизация
+                <input
+                  type="number"
+                  min="1"
+                  value={form.telegram_topic_automation}
+                  onChange={(event) => setForm({ ...form, telegram_topic_automation: event.target.value })}
+                  placeholder="Например: 24"
+                />
+              </label>
+            </div>
             <label>
               Интервал проверки, сек
               <input

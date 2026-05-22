@@ -17,7 +17,7 @@ from app.services.auth_state import validate_user_session
 from app.services.automation import get_automation_preset, list_automation_presets, render_automation_commands
 from app.services.notification_settings import get_or_create_notification_settings
 from app.services.ssh import execute_commands, stream_command_on_server
-from app.services.telegram import format_telegram_message, send_telegram_message, telegram_is_configured
+from app.services.telegram import format_telegram_message, resolve_telegram_topic_id, send_telegram_message, telegram_is_configured
 
 router = APIRouter(prefix="/automation", tags=["automation"])
 
@@ -110,6 +110,7 @@ def run_preset(
                 ),
                 db,
                 parse_mode="HTML",
+                topic_id=resolve_telegram_topic_id(profile, "automation_failed"),
             )
         except Exception:
             pass
@@ -288,6 +289,7 @@ async def run_preset_websocket(websocket: WebSocket):
                     ),
                     db,
                     parse_mode="HTML",
+                    topic_id=resolve_telegram_topic_id(profile, "automation_failed"),
                 )
             except Exception:
                 pass

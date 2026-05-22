@@ -29,7 +29,7 @@ from app.services.auth_state import (
     revoke_session_by_id,
 )
 from app.services.notification_settings import get_or_create_notification_settings
-from app.services.telegram import format_telegram_message, send_telegram_message, telegram_is_configured
+from app.services.telegram import format_telegram_message, resolve_telegram_topic_id, send_telegram_message, telegram_is_configured
 from app.services.two_factor import (
     disable_two_factor,
     enable_two_factor,
@@ -95,6 +95,7 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
                 ),
                 db,
                 parse_mode="HTML",
+                topic_id=resolve_telegram_topic_id(profile, "login"),
             )
         except Exception:
             pass

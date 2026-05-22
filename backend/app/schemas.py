@@ -456,6 +456,11 @@ class TelegramStatusRead(BaseModel):
 class NotificationSettingsRead(BaseModel):
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
+    telegram_topic_general: int | None = None
+    telegram_topic_login: int | None = None
+    telegram_topic_servers: int | None = None
+    telegram_topic_payments: int | None = None
+    telegram_topic_automation: int | None = None
     configured: bool
     scheduler_enabled: bool
     scheduler_interval_seconds: int
@@ -470,6 +475,11 @@ class NotificationSettingsRead(BaseModel):
 class NotificationSettingsUpdate(BaseModel):
     telegram_bot_token: str | None = Field(default=None, max_length=255)
     telegram_chat_id: str | None = Field(default=None, max_length=255)
+    telegram_topic_general: int | None = Field(default=None, ge=1)
+    telegram_topic_login: int | None = Field(default=None, ge=1)
+    telegram_topic_servers: int | None = Field(default=None, ge=1)
+    telegram_topic_payments: int | None = Field(default=None, ge=1)
+    telegram_topic_automation: int | None = Field(default=None, ge=1)
     scheduler_enabled: bool
     scheduler_interval_seconds: int = Field(ge=30, le=86400)
     alert_repeat_minutes: int = Field(ge=5, le=10080)

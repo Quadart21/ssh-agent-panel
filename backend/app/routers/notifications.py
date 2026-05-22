@@ -7,7 +7,7 @@ from app.schemas import NotificationSettingsRead, NotificationSettingsUpdate, Te
 from app.services.alerts import collect_server_alerts, filter_alerts_by_preferences, format_alerts_for_telegram
 from app.services.audit import write_audit_log
 from app.services.notification_settings import get_or_create_notification_settings, visible_notification_token
-from app.services.telegram import format_telegram_message, send_telegram_message, telegram_is_configured
+from app.services.telegram import format_telegram_message, resolve_telegram_topic_id, send_telegram_message, telegram_is_configured
 from app.core.security import encrypt_secret
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
@@ -66,6 +66,14 @@ def _build_test_notification(event_type: str) -> str:
     raise HTTPException(status_code=404, detail="Неизвестный тип тестового уведомления.")
 
 
+def _topic_event_for_alert_category(category: str) -> str:
+    if category == "server_offline":
+        return "server_offline"
+    if category in {"payment_expired", "payment_expiring"}:
+        return "payment_expiring"
+    return "alerts_digest"
+
+
 @router.get("/settings", response_model=NotificationSettingsRead)
 def get_notification_settings(
     db: Session = Depends(get_db),
@@ -75,6 +83,11 @@ def get_notification_settings(
     return NotificationSettingsRead(
         telegram_bot_token=visible_notification_token(profile),
         telegram_chat_id=profile.telegram_chat_id or None,
+        telegram_topic_general=profile.telegram_topic_general,
+        telegram_topic_login=profile.telegram_topic_login,
+        telegram_topic_servers=profile.telegram_topic_servers,
+        telegram_topic_payments=profile.telegram_topic_payments,
+        telegram_topic_automation=profile.telegram_topic_automation,
         configured=telegram_is_configured(db),
         scheduler_enabled=profile.scheduler_enabled,
         scheduler_interval_seconds=profile.scheduler_interval_seconds,
@@ -104,6 +117,11 @@ def update_notification_settings(
     return NotificationSettingsRead(
         telegram_bot_token=visible_notification_token(profile),
         telegram_chat_id=profile.telegram_chat_id or None,
+        telegram_topic_general=profile.telegram_topic_general,
+        telegram_topic_login=profile.telegram_topic_login,
+        telegram_topic_servers=profile.telegram_topic_servers,
+        telegram_topic_payments=profile.telegram_topic_payments,
+        telegram_topic_automation=profile.telegram_topic_automation,
         configured=telegram_is_configured(db),
         scheduler_enabled=profile.scheduler_enabled,
         scheduler_interval_seconds=profile.scheduler_interval_seconds,
@@ -133,6 +151,7 @@ def send_test_telegram(
     db: Session = Depends(get_db),
     current_user: object = Depends(require_admin),
 ):
+    profile = get_or_create_notification_settings(db)
     if not telegram_is_configured(db):
         raise HTTPException(status_code=400, detail="Telegram не настроен. Укажите TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID.")
 
@@ -145,6 +164,7 @@ def send_test_telegram(
             ),
             db,
             parse_mode="HTML",
+            topic_id=resolve_telegram_topic_id(profile, "test"),
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -162,7 +182,13 @@ def send_typed_test_telegram(
     if not telegram_is_configured(db):
         raise HTTPException(status_code=400, detail="Telegram не настроен. Укажите TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID.")
     try:
-        send_telegram_message(_build_test_notification(event_type), db, parse_mode="HTML")
+        profile = get_or_create_notification_settings(db)
+        send_telegram_message(
+            _build_test_notification(event_type),
+            db,
+            parse_mode="HTML",
+            topic_id=resolve_telegram_topic_id(profile, event_type),
+        )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -192,13 +218,30 @@ def send_alerts_to_telegram(
             icon="🟢",
             lines=["Активных алертов сейчас нет."],
         )
+        try:
+            send_telegram_message(
+                message,
+                db,
+                parse_mode="HTML",
+                topic_id=resolve_telegram_topic_id(profile, "alerts_digest"),
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     else:
-        message = format_alerts_for_telegram(alerts, prefix="Сводка алертов")
-
-    try:
-        send_telegram_message(message, db, parse_mode="HTML")
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        grouped: dict[str, list] = {}
+        for alert in alerts:
+            event_type = _topic_event_for_alert_category(alert.category)
+            grouped.setdefault(event_type, []).append(alert)
+        try:
+            for event_type, grouped_alerts in grouped.items():
+                send_telegram_message(
+                    format_alerts_for_telegram(grouped_alerts, prefix="Сводка алертов"),
+                    db,
+                    parse_mode="HTML",
+                    topic_id=resolve_telegram_topic_id(profile, event_type),
+                )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     write_audit_log(db, user=current_user, action="telegram.alerts", target_type="system", target_id="telegram")
     return TmuxActionResponse(ok=True, message="Текущие алерты отправлены в Telegram.")

@@ -266,6 +266,11 @@ export type TelegramStatus = {
 export type NotificationSettings = {
   telegram_bot_token: string | null;
   telegram_chat_id: string | null;
+  telegram_topic_general: number | null;
+  telegram_topic_login: number | null;
+  telegram_topic_servers: number | null;
+  telegram_topic_payments: number | null;
+  telegram_topic_automation: number | null;
   configured: boolean;
   scheduler_enabled: boolean;
   scheduler_interval_seconds: number;

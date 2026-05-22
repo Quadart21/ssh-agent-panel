@@ -13,6 +13,11 @@ def get_or_create_notification_settings(db: Session) -> NotificationSettings:
     profile = NotificationSettings(
         telegram_bot_token=encrypt_secret(settings.telegram_bot_token or None),
         telegram_chat_id=settings.telegram_chat_id or None,
+        telegram_topic_general=None,
+        telegram_topic_login=None,
+        telegram_topic_servers=None,
+        telegram_topic_payments=None,
+        telegram_topic_automation=None,
         scheduler_enabled=settings.scheduler_enabled,
         scheduler_interval_seconds=settings.scheduler_interval_seconds,
         alert_repeat_minutes=settings.alert_repeat_minutes,
