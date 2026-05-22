@@ -1,9 +1,14 @@
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, status
+import hashlib
+import secrets
+import shlex
+
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, status
 from sqlalchemy.orm import Session
 
 from app.core.security import decode_access_token
 from app.core.security import encrypt_secret
+from app.core.config import settings
 from app.db import get_db
 from app.db import SessionLocal
 from app.deps import (
@@ -23,6 +28,7 @@ from app.schemas import (
     CommandExecutionResult,
     ConnectionTestResult,
     DashboardStats,
+    AgentEnrollRead,
     ServerAccountingSummary,
     ServerConnectionCheck,
     ServerCreate,
@@ -33,7 +39,7 @@ from app.schemas import (
 from app.services.accounting import build_accounting_summary, normalize_monthly_cost
 from app.services.alerts import collect_server_alerts
 from app.services.auth_state import validate_user_session
-from app.services.ssh import execute_commands, fetch_server_metrics, stream_command_on_server, test_ssh_connection
+from app.services.ssh import execute_commands, fetch_server_metrics, run_command_on_server, stream_command_on_server, test_ssh_connection
 from app.services.audit import write_audit_log
 
 router = APIRouter(prefix="/servers", tags=["servers"])
@@ -41,10 +47,12 @@ router = APIRouter(prefix="/servers", tags=["servers"])
 
 def serialize_server(server: Server) -> ServerRead:
     model = ServerRead.model_validate(server, from_attributes=True)
+    agent_online = bool(server.agent_last_seen_at and server.agent_last_seen_at >= datetime.utcnow() - timedelta(seconds=90))
     return model.model_copy(
         update={
             "group_name": server.group.name if server.group else None,
             "monthly_equivalent": normalize_monthly_cost(server.monthly_cost, server.billing_period),
+            "agent_online": agent_online,
         }
     )
 
@@ -120,6 +128,7 @@ def servers_accounting_summary(
 @router.post("", response_model=ServerRead, status_code=status.HTTP_201_CREATED)
 def create_server(
     payload: ServerCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: object = Depends(get_current_user),
 ):
@@ -142,9 +151,19 @@ def create_server(
             raise HTTPException(status_code=400, detail=result.message)
 
     encrypted_password = encrypt_secret(payload.password_enc)
-    server = Server(**payload.model_dump(exclude={"test_connection"}))
+    server = Server(**payload.model_dump(exclude={"test_connection", "auto_install_agent"}))
     server.password_enc = encrypted_password
     db.add(server)
+
+    if payload.auto_install_agent and (payload.password_enc or payload.key_path):
+        token = secrets.token_urlsafe(32)
+        server.agent_enabled = True
+        server.agent_token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        try:
+            _install_agent_over_ssh(server, _build_external_base_url(request), token)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Агент не установлен: {exc}") from exc
+
     db.commit()
     db.refresh(server)
     write_audit_log(db, user=current_user, action="server.create", target_type="server", target_id=str(server.id), details=server.name)
@@ -159,6 +178,197 @@ def test_connection(
     ensure_section_access(current_user, "servers")
     ensure_action_access(current_user, "server_create")
     return test_ssh_connection(payload)
+
+
+def _build_agent_install_script(base_url: str, token: str) -> str:
+    heartbeat_url = f"{base_url}/agent/heartbeat"
+    script = f"""#!/usr/bin/env bash
+set -euo pipefail
+cat > /usr/local/bin/panel-agent.py <<'EOF'
+#!/usr/bin/env python3
+import json
+import subprocess
+import time
+from urllib import request
+
+TOKEN = "{token}"
+HEARTBEAT_URL = "{heartbeat_url}"
+VERSION = "1.1.0"
+last_result = None
+
+
+def read_cpu_percent():
+    try:
+        with open("/proc/stat", "r", encoding="utf-8") as f:
+            parts = f.readline().split()
+        user, nice, system, idle, iowait = map(int, parts[1:6])
+        total = user + nice + system + idle + iowait
+        busy = user + nice + system
+        if total <= 0:
+            return 0
+        return int((busy * 100) / total)
+    except Exception:
+        return 0
+
+
+def read_ram_percent():
+    try:
+        total = 0
+        avail = 0
+        with open("/proc/meminfo", "r", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("MemTotal:"):
+                    total = int(line.split()[1])
+                elif line.startswith("MemAvailable:"):
+                    avail = int(line.split()[1])
+        if total <= 0:
+            return 0
+        return int(((total - avail) * 100) / total)
+    except Exception:
+        return 0
+
+
+def read_disk_percent():
+    try:
+        output = subprocess.check_output(["df", "-P", "/"], text=True)
+        line = output.strip().splitlines()[1]
+        value = line.split()[4].replace("%", "")
+        return int(value)
+    except Exception:
+        return 0
+
+
+def read_uptime():
+    try:
+        with open("/proc/uptime", "r", encoding="utf-8") as f:
+            seconds = int(float(f.read().split()[0]))
+        return f"{{seconds}}s"
+    except Exception:
+        return "0s"
+
+
+def post_heartbeat(payload):
+    data = json.dumps(payload).encode("utf-8")
+    req = request.Request(
+        HEARTBEAT_URL,
+        data=data,
+        headers={{"Content-Type": "application/json"}},
+        method="POST",
+    )
+    with request.urlopen(req, timeout=10) as resp:
+        body = resp.read().decode("utf-8", errors="ignore")
+        if not body:
+            return {{}}
+        return json.loads(body)
+
+
+while True:
+    payload = {{
+        "token": TOKEN,
+        "version": VERSION,
+        "cpu_percent": read_cpu_percent(),
+        "ram_percent": read_ram_percent(),
+        "disk_percent": read_disk_percent(),
+        "uptime": read_uptime(),
+    }}
+    if last_result:
+        payload.update(last_result)
+        last_result = None
+    try:
+        response = post_heartbeat(payload)
+        task = response.get("task") if isinstance(response, dict) else None
+        if task and task.get("id") and task.get("command"):
+            command = str(task["command"])
+            try:
+                proc = subprocess.run(
+                    command,
+                    shell=True,
+                    text=True,
+                    capture_output=True,
+                    timeout=300,
+                )
+                last_result = {{
+                    "task_id": int(task["id"]),
+                    "task_status": "done" if proc.returncode == 0 else "error",
+                    "task_stdout": proc.stdout[-16000:],
+                    "task_stderr": proc.stderr[-16000:],
+                    "task_exit_code": int(proc.returncode),
+                }}
+            except Exception as exc:
+                last_result = {{
+                    "task_id": int(task["id"]),
+                    "task_status": "error",
+                    "task_stdout": "",
+                    "task_stderr": str(exc),
+                    "task_exit_code": 1,
+                }}
+            time.sleep(1)
+            continue
+    except Exception:
+        pass
+    time.sleep(30)
+EOF
+
+chmod +x /usr/local/bin/panel-agent.py
+
+cat > /etc/systemd/system/panel-agent.service <<'EOF'
+[Unit]
+Description=SSH Panel Node Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env python3 /usr/local/bin/panel-agent.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now panel-agent
+systemctl status panel-agent --no-pager -l
+"""
+    return script
+
+
+def _build_external_base_url(request: Request) -> str:
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc))
+    return f"{proto}://{host}{settings.api_v1_prefix}"
+
+
+def _install_agent_over_ssh(server: Server, base_url: str, token: str) -> None:
+    script = _build_agent_install_script(base_url, token)
+    command = "bash -lc " + shlex.quote(script)
+    exit_code, output, error = run_command_on_server(server, command, timeout=180)
+    if exit_code != 0:
+        raise RuntimeError(error or output or "Не удалось установить агент на сервер.")
+
+
+@router.post("/{server_id}/agent/enroll", response_model=AgentEnrollRead)
+def enroll_server_agent(
+    server_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: object = Depends(require_admin),
+):
+    server = db.get(Server, server_id)
+    if not server:
+        raise HTTPException(status_code=404, detail="Сервер не найден.")
+
+    token = secrets.token_urlsafe(32)
+    server.agent_enabled = True
+    server.agent_token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    db.commit()
+    db.refresh(server)
+    write_audit_log(db, user=current_user, action="server.agent.enroll", target_type="server", target_id=str(server.id), details=server.name)
+
+    base_url = _build_external_base_url(request)
+    install_script = _build_agent_install_script(base_url, token)
+    return AgentEnrollRead(ok=True, message="Токен агента сгенерирован.", token=token, install_script=install_script)
 
 
 @router.get("/dashboard", response_model=DashboardStats)

@@ -57,6 +57,7 @@ class ServerBase(BaseModel):
 
 class ServerCreate(ServerBase):
     test_connection: bool = True
+    auto_install_agent: bool = True
 
 
 class ServerUpdate(ServerBase):
@@ -69,8 +70,33 @@ class ServerRead(ServerBase):
     updated_at: datetime
     group_name: str | None = None
     monthly_equivalent: float | None = None
+    agent_enabled: bool = False
+    agent_version: str | None = None
+    agent_last_seen_at: datetime | None = None
+    agent_online: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class AgentEnrollRead(BaseModel):
+    ok: bool
+    message: str
+    token: str
+    install_script: str
+
+
+class AgentHeartbeatRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=256)
+    version: str | None = Field(default=None, max_length=32)
+    cpu_percent: int = Field(default=0, ge=0, le=100)
+    ram_percent: int = Field(default=0, ge=0, le=100)
+    disk_percent: int = Field(default=0, ge=0, le=100)
+    uptime: str | None = Field(default=None, max_length=64)
+    task_id: int | None = Field(default=None, ge=1)
+    task_status: str | None = Field(default=None, max_length=16)
+    task_stdout: str | None = None
+    task_stderr: str | None = None
+    task_exit_code: int | None = None
 
 
 class ServerAccountingItem(BaseModel):

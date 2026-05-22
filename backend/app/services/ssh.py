@@ -2,11 +2,13 @@ import json
 import socket
 import time
 import shlex
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import paramiko
 
-from app.models import Server
+from app.db import SessionLocal
+from app.models import AgentTask, Server
 from app.schemas import CommandExecutionResult, ConnectionTestResult, Pm2ProcessRead, ServerConnectionCheck
 from app.core.security import decrypt_secret
 
@@ -80,6 +82,12 @@ def test_ssh_connection(payload: ServerConnectionCheck) -> ConnectionTestResult:
 def execute_commands(server: Server, commands: list[str]) -> list[CommandExecutionResult]:
     if not commands:
         return []
+    if (
+        server.agent_enabled
+        and server.agent_last_seen_at
+        and server.agent_last_seen_at >= datetime.utcnow() - timedelta(seconds=90)
+    ):
+        return _execute_commands_via_agent(server, commands)
     if not server.password_enc and not server.key_path:
         return [
             CommandExecutionResult(
@@ -118,6 +126,67 @@ def execute_commands(server: Server, commands: list[str]) -> list[CommandExecuti
         return results
     finally:
         client.close()
+
+
+def _execute_commands_via_agent(server: Server, commands: list[str]) -> list[CommandExecutionResult]:
+    results: list[CommandExecutionResult] = []
+    timeout_seconds = max(45, len(commands) * 45)
+    deadline = time.time() + timeout_seconds
+    with SessionLocal() as db:
+        created_tasks: list[AgentTask] = []
+        for command in commands:
+            task = AgentTask(server_id=server.id, command=command, status="queued")
+            db.add(task)
+            created_tasks.append(task)
+        db.commit()
+        for task in created_tasks:
+            db.refresh(task)
+
+        pending_ids = {task.id for task in created_tasks}
+        while pending_ids and time.time() < deadline:
+            current = (
+                db.query(AgentTask)
+                .filter(AgentTask.id.in_(list(pending_ids)))
+                .all()
+            )
+            for task in current:
+                if task.status in {"done", "error"}:
+                    results.append(
+                        CommandExecutionResult(
+                            server_id=server.id,
+                            server_name=server.name,
+                            ok=task.status == "done" and int(task.exit_code or 0) == 0,
+                            command=task.command,
+                            stdout=(task.stdout or "").strip(),
+                            stderr=(task.stderr or "").strip(),
+                        )
+                    )
+                    pending_ids.discard(task.id)
+            if pending_ids:
+                time.sleep(1.0)
+
+        if pending_ids:
+            timeout_tasks = (
+                db.query(AgentTask)
+                .filter(AgentTask.id.in_(list(pending_ids)))
+                .all()
+            )
+            for task in timeout_tasks:
+                task.status = "error"
+                task.stderr = "Истек таймаут ожидания выполнения через агент."
+                task.finished_at = datetime.utcnow()
+                results.append(
+                    CommandExecutionResult(
+                        server_id=server.id,
+                        server_name=server.name,
+                        ok=False,
+                        command=task.command,
+                        stdout=(task.stdout or "").strip(),
+                        stderr=(task.stderr or "").strip(),
+                    )
+                )
+            db.commit()
+    return results
 
 
 def ensure_server_credentials(server: Server) -> None:
@@ -541,6 +610,19 @@ def _format_uptime(total_seconds: int) -> str:
 
 
 def fetch_server_metrics(server: Server) -> dict[str, object]:
+    if (
+        server.agent_enabled
+        and server.agent_last_seen_at
+        and server.agent_last_seen_at >= datetime.utcnow() - timedelta(seconds=90)
+    ):
+        return {
+            "online": True,
+            "cpu_percent": int(server.agent_cpu_percent or 0),
+            "ram_percent": int(server.agent_ram_percent or 0),
+            "disk_percent": int(server.agent_disk_percent or 0),
+            "uptime": server.agent_uptime or "agent online",
+        }
+
     tcp_check = test_ssh_connection(
         ServerConnectionCheck(
             ip=server.ip,

@@ -37,6 +37,14 @@ class Server(Base, TimestampMixin):
     currency: Mapped[str | None] = mapped_column(String(8), nullable=True, default="RUB")
     provider: Mapped[str | None] = mapped_column(String(120), nullable=True)
     setup_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    agent_enabled: Mapped[bool] = mapped_column(default=False, nullable=False)
+    agent_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    agent_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    agent_last_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    agent_cpu_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    agent_ram_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    agent_disk_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    agent_uptime: Mapped[str | None] = mapped_column(String(64), nullable=True)
     group_id: Mapped[int | None] = mapped_column(ForeignKey("server_groups.id"), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -156,3 +164,18 @@ class LoginThrottleState(Base):
     failure_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_failed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     blocked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+
+
+class AgentTask(Base):
+    __tablename__ = "agent_tasks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    server_id: Mapped[int] = mapped_column(ForeignKey("servers.id"), nullable=False, index=True)
+    command: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued", index=True)
+    stdout: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    stderr: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

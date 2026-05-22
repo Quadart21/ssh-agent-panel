@@ -124,6 +124,22 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
     }
   }
 
+  async function handleEnrollAgent(id: number) {
+    onError("");
+    try {
+      const response = await api.enrollServerAgent(id);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(response.install_script);
+        window.alert("Скрипт установки агента скопирован в буфер обмена. Выполни его на сервере под root.");
+      } else {
+        window.alert(`Токен агента: ${response.token}\n\nСкопируй install_script из API-ответа вручную.`);
+      }
+      await onReload();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось выпустить токен агента.");
+    }
+  }
+
   function handleEditServer(server: Server) {
     setEditingServerId(server.id);
     setConnectionResult(null);
@@ -171,6 +187,8 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
       canCreate={hasAction(currentUser, "server_create")}
       canEdit={hasAction(currentUser, "server_update")}
       canDelete={hasAction(currentUser, "server_delete")}
+      canEnrollAgent={currentUser?.role === "admin"}
+      onEnrollAgent={(id) => void handleEnrollAgent(id)}
     />
   );
 }

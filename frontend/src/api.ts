@@ -1,5 +1,6 @@
 import type {
   Alert,
+  AgentEnrollResponse,
   AutomationPreset,
   AuditLog,
   BulkCommandResponse,
@@ -267,6 +268,10 @@ export const api = {
   updateServer: (id: number, payload: Record<string, unknown>) =>
     request<Server>(`/servers/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
   deleteServer: (id: number) => request<void>(`/servers/${id}`, { method: "DELETE" }),
+  enrollServerAgent: (id: number) =>
+    request<AgentEnrollResponse>(`/servers/${id}/agent/enroll`, {
+      method: "POST"
+    }),
   listGroups: () => request<Group[]>("/groups"),
   createGroup: (payload: Record<string, unknown>) =>
     request<Group>("/groups", { method: "POST", body: JSON.stringify(payload) }),

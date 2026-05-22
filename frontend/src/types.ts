@@ -24,6 +24,10 @@ export type Server = {
   provider: string | null;
   setup_cost: number | null;
   monthly_equivalent: number | null;
+  agent_enabled: boolean;
+  agent_version: string | null;
+  agent_last_seen_at: string | null;
+  agent_online: boolean;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -109,6 +113,13 @@ export type BulkCommandResponse = {
 export type TmuxActionResponse = {
   ok: boolean;
   message: string;
+};
+
+export type AgentEnrollResponse = {
+  ok: boolean;
+  message: string;
+  token: string;
+  install_script: string;
 };
 
 export type Pm2Process = {

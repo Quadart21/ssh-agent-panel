@@ -40,6 +40,8 @@ type Props = {
   canCreate: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  canEnrollAgent: boolean;
+  onEnrollAgent: (id: number) => void;
 };
 
 function ServersPage({
@@ -59,7 +61,9 @@ function ServersPage({
   onDelete,
   canCreate,
   canEdit,
-  canDelete
+  canDelete,
+  canEnrollAgent,
+  onEnrollAgent
 }: Props) {
   return (
     <div className="page-stack">
@@ -236,6 +240,10 @@ function ServersPage({
                     </span>
                   </div>
                   <p className="muted">{server.group_name ?? "Группа не назначена"}</p>
+                  <p className="muted">
+                    Агент: {server.agent_online ? "онлайн" : server.agent_enabled ? "ожидает heartbeat" : "не установлен"}
+                    {server.agent_version ? ` · v${server.agent_version}` : ""}
+                  </p>
                   {server.monthly_cost != null ? (
                     <p className="accounting-line">
                       {formatMoney(server.monthly_cost, server.currency)}{" "}
@@ -273,6 +281,11 @@ function ServersPage({
                       {canDelete ? (
                         <button className="danger" type="button" onClick={() => onDelete(server.id)}>
                           Удалить
+                        </button>
+                      ) : null}
+                      {canEnrollAgent ? (
+                        <button className="ghost" type="button" onClick={() => onEnrollAgent(server.id)}>
+                          Выпустить агент
                         </button>
                       ) : null}
                     </div>
