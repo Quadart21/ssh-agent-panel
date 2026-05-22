@@ -34,7 +34,25 @@ class ServerBase(BaseModel):
     key_path: str | None = Field(default=None, max_length=255)
     group_id: int | None = None
     pay_until: datetime | None = None
+    monthly_cost: float | None = Field(default=None, ge=0)
+    billing_period: str = Field(default="monthly", max_length=16)
+    currency: str = Field(default="RUB", max_length=8)
+    provider: str | None = Field(default=None, max_length=120)
+    setup_cost: float | None = Field(default=None, ge=0)
     notes: str | None = None
+
+    @field_validator("billing_period")
+    @classmethod
+    def validate_billing_period(cls, value: str) -> str:
+        normalized = (value or "monthly").strip().lower()
+        if normalized not in {"monthly", "yearly", "quarterly"}:
+            raise ValueError("Период оплаты: monthly, yearly или quarterly.")
+        return normalized
+
+    @field_validator("currency")
+    @classmethod
+    def validate_currency(cls, value: str) -> str:
+        return (value or "RUB").strip().upper()[:8]
 
 
 class ServerCreate(ServerBase):
@@ -50,8 +68,41 @@ class ServerRead(ServerBase):
     created_at: datetime
     updated_at: datetime
     group_name: str | None = None
+    monthly_equivalent: float | None = None
 
     model_config = {"from_attributes": True}
+
+
+class ServerAccountingItem(BaseModel):
+    server_id: int
+    server_name: str
+    group_name: str
+    provider: str | None = None
+    monthly_cost: float | None = None
+    billing_period: str = "monthly"
+    currency: str = "RUB"
+    monthly_equivalent: float | None = None
+    pay_until: datetime | None = None
+    setup_cost: float | None = None
+
+
+class ServerAccountingGroupTotal(BaseModel):
+    group_name: str
+    currency: str
+    monthly_total: float
+    server_count: int
+
+
+class ServerAccountingSummary(BaseModel):
+    primary_currency: str
+    total_monthly: float
+    total_yearly: float
+    total_setup_cost: float
+    servers_with_cost: int
+    servers_without_cost: int
+    totals_by_currency: dict[str, float]
+    by_group: list[ServerAccountingGroupTotal]
+    items: list[ServerAccountingItem]
 
 
 class ServerConnectionCheck(BaseModel):

@@ -1,7 +1,7 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 import { api } from "../api";
-import type { ConnectionTestResult, Group, Server, ServerMetricSnapshot, User } from "../types";
+import type { ConnectionTestResult, Group, Server, ServerAccountingSummary, ServerMetricSnapshot, User } from "../types";
 import ServersPage from "./ServersPage";
 
 type Props = {
@@ -22,6 +22,11 @@ const emptyServerForm = {
   key_path: "",
   group_id: "",
   pay_until: "",
+  monthly_cost: "",
+  billing_period: "monthly",
+  currency: "RUB",
+  provider: "",
+  setup_cost: "",
   notes: "",
   test_connection: true
 };
@@ -37,6 +42,24 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
   const [form, setForm] = useState(emptyServerForm);
   const [editingServerId, setEditingServerId] = useState<number | null>(null);
   const [connectionResult, setConnectionResult] = useState<ConnectionTestResult | null>(null);
+  const [accounting, setAccounting] = useState<ServerAccountingSummary | null>(null);
+  const [accountingLoading, setAccountingLoading] = useState(true);
+
+  async function loadAccounting() {
+    setAccountingLoading(true);
+    try {
+      setAccounting(await api.serversAccounting());
+    } catch (err) {
+      setAccounting(null);
+      onError(err instanceof Error ? err.message : "Не удалось загрузить бухгалтерию.");
+    } finally {
+      setAccountingLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadAccounting();
+  }, [servers.length]);
 
   async function handleSaveServer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,7 +70,12 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
         group_id: form.group_id ? Number(form.group_id) : null,
         pay_until: form.pay_until ? new Date(form.pay_until).toISOString() : null,
         password_enc: form.password_enc || null,
-        key_path: form.key_path || null
+        key_path: form.key_path || null,
+        monthly_cost: form.monthly_cost.trim() ? Number(form.monthly_cost) : null,
+        setup_cost: form.setup_cost.trim() ? Number(form.setup_cost) : null,
+        provider: form.provider.trim() || null,
+        billing_period: form.billing_period,
+        currency: form.currency
       };
       if (editingServerId) {
         await api.updateServer(editingServerId, payload);
@@ -58,6 +86,7 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
       setEditingServerId(null);
       setConnectionResult(null);
       await onReload();
+      await loadAccounting();
     } catch (err) {
       onError(err instanceof Error ? err.message : "Не удалось сохранить сервер.");
     }
@@ -89,6 +118,7 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
         setConnectionResult(null);
       }
       await onReload();
+      await loadAccounting();
     } catch (err) {
       onError(err instanceof Error ? err.message : "Не удалось удалить сервер.");
     }
@@ -106,6 +136,11 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
       key_path: server.key_path ?? "",
       group_id: server.group_id ? String(server.group_id) : "",
       pay_until: server.pay_until ? new Date(server.pay_until).toISOString().slice(0, 16) : "",
+      monthly_cost: server.monthly_cost != null ? String(server.monthly_cost) : "",
+      billing_period: server.billing_period || "monthly",
+      currency: server.currency || "RUB",
+      provider: server.provider ?? "",
+      setup_cost: server.setup_cost != null ? String(server.setup_cost) : "",
       notes: server.notes ?? "",
       test_connection: false
     });
@@ -122,6 +157,8 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
       groups={groups}
       servers={servers}
       metrics={metrics}
+      accounting={accounting}
+      accountingLoading={accountingLoading}
       form={form}
       setForm={setForm}
       connectionResult={connectionResult}

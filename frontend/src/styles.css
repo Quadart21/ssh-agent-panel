@@ -1225,6 +1225,64 @@ main#main-content {
   color: #7ae9b5;
 }
 
+.accounting-panel.span-two {
+  grid-column: 1 / -1;
+}
+
+.accounting-stats {
+  margin-bottom: var(--space-4);
+}
+
+.accounting-currency-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.accounting-groups h3,
+.accounting-table-wrap h3 {
+  margin: var(--space-4) 0 var(--space-3);
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.accounting-line {
+  margin: var(--space-2) 0 0;
+  font-size: 0.9rem;
+  color: var(--accent-2);
+}
+
+.accounting-table-wrap {
+  overflow-x: auto;
+}
+
+.accounting-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.accounting-table th,
+.accounting-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.accounting-table th {
+  color: var(--text-tertiary);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 650;
+}
+
+.accounting-table tbody tr:hover {
+  background: rgba(94, 200, 255, 0.04);
+}
+
 /* ——— Responsive ——— */
 @media (max-width: 1100px) {
   .dashboard-grid {

@@ -1,6 +1,8 @@
 import type { CSSProperties, FormEvent } from "react";
 
-import type { ConnectionTestResult, Group, Server, ServerMetricSnapshot } from "../types";
+import type { ConnectionTestResult, Group, Server, ServerAccountingSummary, ServerMetricSnapshot } from "../types";
+import { billingPeriodLabel, formatMoney } from "../utils/formatMoney";
+import ServersAccountingPanel from "./ServersAccountingPanel";
 
 type ServerForm = {
   name: string;
@@ -11,6 +13,11 @@ type ServerForm = {
   key_path: string;
   group_id: string;
   pay_until: string;
+  monthly_cost: string;
+  billing_period: string;
+  currency: string;
+  provider: string;
+  setup_cost: string;
   notes: string;
   test_connection: boolean;
 };
@@ -19,6 +26,8 @@ type Props = {
   groups: Group[];
   servers: Server[];
   metrics: ServerMetricSnapshot[];
+  accounting: ServerAccountingSummary | null;
+  accountingLoading: boolean;
   form: ServerForm;
   setForm: (form: ServerForm) => void;
   connectionResult: ConnectionTestResult | null;
@@ -37,6 +46,8 @@ function ServersPage({
   groups,
   servers,
   metrics,
+  accounting,
+  accountingLoading,
   form,
   setForm,
   connectionResult,
@@ -56,9 +67,11 @@ function ServersPage({
         <div>
           <p className="eyebrow">Серверы</p>
           <h1>Управление узлами и доступом</h1>
-          <p className="hero-copy">Добавляйте серверы, проверяйте SSH и держите инвентарь в одном месте.</p>
+          <p className="hero-copy">Добавляйте серверы, проверяйте SSH, ведите оплату и расходы по каждому узлу.</p>
         </div>
       </section>
+
+      <ServersAccountingPanel summary={accounting} loading={accountingLoading} />
 
       {connectionResult ? (
         <div className={`banner ${connectionResult.ok ? "success" : "error"}`}>
@@ -135,6 +148,55 @@ function ServersPage({
                 onChange={(event) => setForm({ ...form, pay_until: event.target.value })}
               />
             </label>
+            <label>
+              Стоимость тарифа
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder="1500"
+                value={form.monthly_cost}
+                onChange={(event) => setForm({ ...form, monthly_cost: event.target.value })}
+              />
+            </label>
+            <label>
+              Период оплаты
+              <select
+                value={form.billing_period}
+                onChange={(event) => setForm({ ...form, billing_period: event.target.value })}
+              >
+                <option value="monthly">Ежемесячно</option>
+                <option value="quarterly">Ежеквартально</option>
+                <option value="yearly">Ежегодно</option>
+              </select>
+            </label>
+            <label>
+              Валюта
+              <select value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value })}>
+                <option value="RUB">RUB</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+              </select>
+            </label>
+            <label>
+              Провайдер / хостинг
+              <input
+                value={form.provider}
+                onChange={(event) => setForm({ ...form, provider: event.target.value })}
+                placeholder="Hetzner, Selectel…"
+              />
+            </label>
+            <label>
+              Разовые затраты
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder="0"
+                value={form.setup_cost}
+                onChange={(event) => setForm({ ...form, setup_cost: event.target.value })}
+              />
+            </label>
             <label className="full-width">
               Заметки
               <textarea rows={3} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
@@ -174,6 +236,22 @@ function ServersPage({
                     </span>
                   </div>
                   <p className="muted">{server.group_name ?? "Группа не назначена"}</p>
+                  {server.monthly_cost != null ? (
+                    <p className="accounting-line">
+                      {formatMoney(server.monthly_cost, server.currency)}{" "}
+                      <span className="muted">{billingPeriodLabel(server.billing_period)}</span>
+                      {server.monthly_equivalent != null &&
+                      server.billing_period !== "monthly" ? (
+                        <> · ≈ {formatMoney(server.monthly_equivalent, server.currency)} / мес.</>
+                      ) : null}
+                      {server.provider ? <> · {server.provider}</> : null}
+                    </p>
+                  ) : (
+                    <p className="muted">Стоимость не указана</p>
+                  )}
+                  {server.pay_until ? (
+                    <p className="muted">Оплачен до: {new Date(server.pay_until).toLocaleString("ru-RU")}</p>
+                  ) : null}
                   {metric ? (
                     <div className="server-metric-visuals">
                       <MetricRing label="CPU" value={metric.cpu_percent} tone="sky" />

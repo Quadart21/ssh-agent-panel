@@ -38,7 +38,25 @@ def build_backup_payload(db: Session) -> dict[str, Any]:
         "servers": [
             _row_to_dict(
                 item,
-                ["id", "name", "ip", "port", "login", "password_enc", "key_path", "pay_until", "group_id", "notes", "created_at", "updated_at"],
+                [
+                    "id",
+                    "name",
+                    "ip",
+                    "port",
+                    "login",
+                    "password_enc",
+                    "key_path",
+                    "pay_until",
+                    "monthly_cost",
+                    "billing_period",
+                    "currency",
+                    "provider",
+                    "setup_cost",
+                    "group_id",
+                    "notes",
+                    "created_at",
+                    "updated_at",
+                ],
             )
             for item in db.query(Server).all()
         ],
@@ -153,6 +171,11 @@ def restore_backup_payload(db: Session, payload: dict[str, Any]) -> None:
                 password_enc=item.get("password_enc"),
                 key_path=item.get("key_path"),
                 pay_until=_parse_datetime(item.get("pay_until")),
+                monthly_cost=item.get("monthly_cost"),
+                billing_period=item.get("billing_period") or "monthly",
+                currency=item.get("currency") or "RUB",
+                provider=item.get("provider"),
+                setup_cost=item.get("setup_cost"),
                 group_id=item.get("group_id"),
                 notes=item.get("notes"),
                 created_at=_parse_datetime(item.get("created_at")) or datetime.utcnow(),

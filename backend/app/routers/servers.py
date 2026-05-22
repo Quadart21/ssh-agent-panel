@@ -23,12 +23,14 @@ from app.schemas import (
     CommandExecutionResult,
     ConnectionTestResult,
     DashboardStats,
+    ServerAccountingSummary,
     ServerConnectionCheck,
     ServerCreate,
     ServerMetricSnapshot,
     ServerRead,
     ServerUpdate,
 )
+from app.services.accounting import build_accounting_summary, normalize_monthly_cost
 from app.services.alerts import collect_server_alerts
 from app.services.auth_state import validate_user_session
 from app.services.ssh import execute_commands, fetch_server_metrics, stream_command_on_server, test_ssh_connection
@@ -39,7 +41,22 @@ router = APIRouter(prefix="/servers", tags=["servers"])
 
 def serialize_server(server: Server) -> ServerRead:
     model = ServerRead.model_validate(server, from_attributes=True)
-    return model.model_copy(update={"group_name": server.group.name if server.group else None})
+    return model.model_copy(
+        update={
+            "group_name": server.group.name if server.group else None,
+            "monthly_equivalent": normalize_monthly_cost(server.monthly_cost, server.billing_period),
+        }
+    )
+
+
+def _servers_query_for_user(db: Session, current_user: User):
+    query = db.query(Server)
+    allowed_ids = get_allowed_server_ids(current_user)
+    if current_user.role != "admin":
+        if not allowed_ids:
+            return query.filter(Server.id == -1)
+        query = query.filter(Server.id.in_(allowed_ids))
+    return query
 
 
 def collect_target_servers(payload: BulkCommandRequest, db: Session, current_user: User) -> tuple[list[Server], list[str]]:
@@ -86,14 +103,18 @@ def list_servers(
     current_user: object = Depends(get_current_user),
 ):
     ensure_section_access(current_user, "servers")
-    query = db.query(Server)
-    allowed_ids = get_allowed_server_ids(current_user)
-    if current_user.role != "admin":
-        if not allowed_ids:
-            return []
-        query = query.filter(Server.id.in_(allowed_ids))
-    servers = query.order_by(Server.created_at.desc()).all()
+    servers = _servers_query_for_user(db, current_user).order_by(Server.created_at.desc()).all()
     return [serialize_server(server) for server in servers]
+
+
+@router.get("/accounting", response_model=ServerAccountingSummary)
+def servers_accounting_summary(
+    db: Session = Depends(get_db),
+    current_user: object = Depends(get_current_user),
+):
+    ensure_section_access(current_user, "servers")
+    servers = _servers_query_for_user(db, current_user).order_by(Server.name.asc()).all()
+    return build_accounting_summary(servers)
 
 
 @router.post("", response_model=ServerRead, status_code=status.HTTP_201_CREATED)

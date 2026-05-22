@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -32,6 +32,11 @@ class Server(Base, TimestampMixin):
     password_enc: Mapped[str | None] = mapped_column(String(255), nullable=True)
     key_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     pay_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    monthly_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    billing_period: Mapped[str | None] = mapped_column(String(16), nullable=True, default="monthly")
+    currency: Mapped[str | None] = mapped_column(String(8), nullable=True, default="RUB")
+    provider: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    setup_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
     group_id: Mapped[int | None] = mapped_column(ForeignKey("server_groups.id"), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 

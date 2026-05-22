@@ -18,9 +18,47 @@ export type Server = {
   group_id: number | null;
   group_name: string | null;
   pay_until: string | null;
+  monthly_cost: number | null;
+  billing_period: string;
+  currency: string;
+  provider: string | null;
+  setup_cost: number | null;
+  monthly_equivalent: number | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type ServerAccountingItem = {
+  server_id: number;
+  server_name: string;
+  group_name: string;
+  provider: string | null;
+  monthly_cost: number | null;
+  billing_period: string;
+  currency: string;
+  monthly_equivalent: number | null;
+  pay_until: string | null;
+  setup_cost: number | null;
+};
+
+export type ServerAccountingGroupTotal = {
+  group_name: string;
+  currency: string;
+  monthly_total: number;
+  server_count: number;
+};
+
+export type ServerAccountingSummary = {
+  primary_currency: string;
+  total_monthly: number;
+  total_yearly: number;
+  total_setup_cost: number;
+  servers_with_cost: number;
+  servers_without_cost: number;
+  totals_by_currency: Record<string, number>;
+  by_group: ServerAccountingGroupTotal[];
+  items: ServerAccountingItem[];
 };
 
 export type Pattern = {

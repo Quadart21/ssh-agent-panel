@@ -13,6 +13,7 @@ import type {
   Pattern,
   SecurityReport,
   Server,
+  ServerAccountingSummary,
   ServerMetricSnapshot,
   TelegramStatus,
   Pm2LogsResponse,
@@ -255,6 +256,7 @@ export const api = {
   },
   listAlerts: () => request<Alert[]>("/servers/alerts"),
   listServers: () => request<Server[]>("/servers"),
+  serversAccounting: () => request<ServerAccountingSummary>("/servers/accounting"),
   createServer: (payload: Record<string, unknown>) =>
     request<Server>("/servers", { method: "POST", body: JSON.stringify(payload) }),
   updateServer: (id: number, payload: Record<string, unknown>) =>
