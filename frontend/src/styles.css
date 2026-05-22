@@ -1461,6 +1461,23 @@ main#main-content {
   flex-wrap: wrap;
 }
 
+.bulk-options {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  max-width: 420px;
+}
+
+.bulk-options label {
+  display: grid;
+  gap: var(--space-1);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 .bulk-format-card {
   display: grid;
   gap: var(--space-2);

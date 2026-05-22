@@ -46,6 +46,7 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
   const [accounting, setAccounting] = useState<ServerAccountingSummary | null>(null);
   const [accountingLoading, setAccountingLoading] = useState(true);
   const [bulkInput, setBulkInput] = useState("");
+  const [bulkGroupId, setBulkGroupId] = useState("");
   const [bulkStatus, setBulkStatus] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
 
@@ -184,6 +185,9 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
         onError(`Неверный порт в строке: "${row}"`);
         return;
       }
+      const lineGroupId = groupRaw ? resolveGroupId(groupRaw) : null;
+      const defaultGroupId = bulkGroupId ? Number(bulkGroupId) : null;
+
       items.push({
         name,
         ip,
@@ -191,7 +195,7 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
         port: Math.trunc(portValue),
         password_enc: password || null,
         key_path: null,
-        group_id: resolveGroupId(groupRaw || ""),
+        group_id: lineGroupId ?? defaultGroupId,
         pay_until: null,
         monthly_cost: null,
         billing_period: "monthly",
@@ -269,6 +273,8 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
       onEnrollAgent={(id) => void handleEnrollAgent(id)}
       bulkInput={bulkInput}
       setBulkInput={setBulkInput}
+      bulkGroupId={bulkGroupId}
+      setBulkGroupId={setBulkGroupId}
       onBulkCreate={() => void handleBulkCreate()}
       bulkStatus={bulkStatus}
       bulkBusy={bulkBusy}

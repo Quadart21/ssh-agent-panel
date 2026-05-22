@@ -32,6 +32,8 @@ type Props = {
   onEnrollAgent: (id: number) => void;
   bulkInput: string;
   setBulkInput: (value: string) => void;
+  bulkGroupId: string;
+  setBulkGroupId: (value: string) => void;
   onBulkCreate: () => void;
   bulkStatus: string;
   bulkBusy: boolean;
@@ -73,6 +75,8 @@ function ServersPage({
   onEnrollAgent,
   bulkInput,
   setBulkInput,
+  bulkGroupId,
+  setBulkGroupId,
   onBulkCreate,
   bulkStatus,
   bulkBusy
@@ -263,8 +267,11 @@ function ServersPage({
 
       {activeTab === "bulk" ? (
         <ServersBulkPanel
+          groups={groups}
           bulkInput={bulkInput}
           setBulkInput={setBulkInput}
+          bulkGroupId={bulkGroupId}
+          setBulkGroupId={setBulkGroupId}
           onBulkCreate={onBulkCreate}
           bulkStatus={bulkStatus}
           bulkBusy={bulkBusy}
