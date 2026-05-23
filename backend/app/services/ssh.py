@@ -703,7 +703,11 @@ def _fetch_ssh_metrics(server: Server) -> dict[str, object] | None:
     if not _server_has_credentials(server):
         return None
 
-    exit_code, output, error = run_command_on_server(server, _REMOTE_METRICS_COMMAND, timeout=20)
+    try:
+        exit_code, output, error = run_command_on_server(server, _REMOTE_METRICS_COMMAND, timeout=20)
+    except Exception:
+        return None
+
     if exit_code != 0:
         return None
 

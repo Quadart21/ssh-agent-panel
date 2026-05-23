@@ -51,16 +51,44 @@ from app.services.audit import write_audit_log
 router = APIRouter(prefix="/servers", tags=["servers"])
 
 
+def _failed_metrics_snapshot(message: str = "ошибка опроса") -> dict[str, object]:
+    return {
+        "online": False,
+        "cpu_percent": 0,
+        "ram_percent": 0,
+        "disk_percent": 0,
+        "uptime": message,
+        "metrics_available": False,
+        "metrics_source": "error",
+    }
+
+
 def _refresh_server_metrics(db: Session, server: Server) -> ServerMetricSnapshot:
-    snapshot = fetch_server_metrics(server)
-    return persist_metrics_snapshot(db, server, snapshot)
+    try:
+        snapshot = fetch_server_metrics(server)
+        return persist_metrics_snapshot(db, server, snapshot)
+    except Exception:
+        db.rollback()
+        try:
+            return persist_metrics_snapshot(db, server, _failed_metrics_snapshot())
+        except Exception:
+            return read_cached_metric_snapshot(server)
 
 
 def _refresh_server_metrics_by_id(server_id: int) -> ServerMetricSnapshot:
     with SessionLocal() as db:
         server = db.get(Server, server_id)
         if server is None:
-            raise ValueError("Сервер не найден.")
+            return ServerMetricSnapshot(
+                server_id=server_id,
+                cpu_percent=0,
+                ram_percent=0,
+                disk_percent=0,
+                uptime="не найден",
+                online=False,
+                metrics_available=False,
+                collected_at=None,
+            )
         return _refresh_server_metrics(db, server)
 
 
