@@ -58,6 +58,12 @@
   --bg: var(--bg-0);
   --bg-soft: var(--surface);
 
+  --text-primary: var(--text);
+  --text-muted: var(--text-secondary);
+  --surface-elevated: var(--surface-raised);
+  --surface-base: var(--surface);
+  --border-soft: var(--border);
+
   font-family: var(--font-sans);
   background-color: var(--bg-0);
   background-image:
@@ -1330,6 +1336,11 @@ main#main-content {
 .page-tab.active {
   border-color: rgba(94, 200, 255, 0.45);
   background: rgba(94, 200, 255, 0.08);
+  color: var(--text);
+}
+
+.page-tab.active span {
+  color: var(--text);
 }
 
 .servers-toolbar {
@@ -2236,4 +2247,90 @@ main#main-content {
     align-items: flex-start;
     justify-items: start;
   }
+}
+
+.server-checks-page .server-check-variant,
+.server-checks-page .check-run-item {
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: none;
+  font-weight: 500;
+  text-align: left;
+}
+
+.server-checks-page .server-check-variant:hover:not(:disabled),
+.server-checks-page .check-run-item:hover:not(:disabled) {
+  filter: none;
+  background: rgba(94, 200, 255, 0.08);
+  color: var(--text);
+}
+
+.server-checks-page .server-check-variant.active {
+  background: rgba(94, 200, 255, 0.12);
+  color: var(--text);
+}
+
+.server-checks-page .server-check-variant strong,
+.server-checks-page .check-run-item strong,
+.server-checks-page .check-report-hero-copy h3,
+.server-checks-page .check-report-block-head h4,
+.server-checks-page .check-scorecard strong,
+.server-checks-page .check-bar-head strong,
+.server-checks-page .check-tile-body strong,
+.server-checks-page .check-report-section-head strong {
+  color: var(--text);
+}
+
+.server-checks-page .server-check-variant p,
+.server-checks-page .check-scorecard .muted,
+.server-checks-page .check-scorecard small,
+.server-checks-page .check-tile-body span,
+.server-checks-page .check-run-item .muted,
+.server-checks-page .check-health-ring-inner span,
+.server-checks-page .check-report-status-badge .muted {
+  color: var(--text-secondary);
+}
+
+.server-checks-page .check-scorecard dt,
+.server-checks-page .check-report-block-head .muted {
+  color: var(--text-tertiary);
+}
+
+.server-checks-page .check-scorecard dd,
+.server-checks-page .check-bar-head span,
+.server-checks-page .check-highlight p,
+.server-checks-page .check-report-hero-copy .hero-copy,
+.server-checks-page .check-report-hero-copy .eyebrow {
+  color: var(--text-secondary);
+}
+
+.server-checks-page .check-health-ring-inner strong {
+  color: var(--accent);
+}
+
+.server-checks-page .page-tab {
+  color: var(--text-secondary);
+}
+
+.server-checks-page .page-tab span {
+  color: var(--text);
+}
+
+.server-checks-page .page-tab small {
+  color: var(--text-tertiary);
+}
+
+.server-checks-page .page-tab.active span {
+  color: var(--accent);
+}
+
+.server-checks-page .check-empty-visual,
+.server-checks-page .server-checks-empty {
+  color: var(--text-secondary);
+}
+
+.server-checks-page .server-check-raw pre {
+  color: var(--text-secondary);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
 }
