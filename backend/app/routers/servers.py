@@ -350,7 +350,9 @@ cat > /usr/local/bin/panel-agent.py <<'EOF'
 import json
 import os
 import subprocess
+import sys
 import time
+from urllib import error as urlerror
 from urllib import request
 
 TOKEN = "{token}"
@@ -422,14 +424,25 @@ def post_heartbeat(payload):
     req = request.Request(
         HEARTBEAT_URL,
         data=data,
-        headers={{"Content-Type": "application/json"}},
+        headers={{
+            "Content-Type": "application/json",
+            "User-Agent": f"SSHPanel-Agent/{{VERSION}}",
+        }},
         method="POST",
     )
-    with request.urlopen(req, timeout=10) as resp:
-        body = resp.read().decode("utf-8", errors="ignore")
-        if not body:
-            return {{}}
-        return json.loads(body)
+    try:
+        with request.urlopen(req, timeout=15) as resp:
+            body = resp.read().decode("utf-8", errors="ignore")
+            if not body:
+                return {{}}
+            return json.loads(body)
+    except urlerror.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore")
+        print(f"panel-agent heartbeat HTTP {{exc.code}}: {{detail[:500]}}", file=sys.stderr, flush=True)
+        raise
+    except Exception as exc:
+        print(f"panel-agent heartbeat failed: {{exc}}", file=sys.stderr, flush=True)
+        raise
 
 
 def execute_task(command):
@@ -485,8 +498,8 @@ while True:
                 }}
             time.sleep(1)
             continue
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"panel-agent loop error: {{exc}}", file=sys.stderr, flush=True)
     time.sleep(30)
 EOF
 
@@ -509,7 +522,8 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now panel-agent
+systemctl enable panel-agent
+systemctl restart panel-agent
 systemctl status panel-agent --no-pager -l
 """
     return script
