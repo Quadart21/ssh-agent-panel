@@ -1,16 +1,35 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db import get_db
 from app.deps import get_current_user, require_admin
-from app.schemas import NotificationSettingsRead, NotificationSettingsUpdate, TelegramStatusRead, TmuxActionResponse
+from app.schemas import NotificationSettingsRead, NotificationSettingsUpdate, TelegramStatusRead, TelegramWebhookRead, TmuxActionResponse
 from app.services.alerts import collect_server_alerts, filter_alerts_by_preferences, format_alerts_for_telegram
 from app.services.audit import write_audit_log
 from app.services.notification_settings import get_or_create_notification_settings, visible_notification_token
-from app.services.telegram import format_telegram_message, resolve_telegram_topic_id, send_telegram_message, telegram_is_configured
+from app.services.payment_notifications import handle_payment_callback
+from app.services.telegram import (
+    delete_telegram_webhook,
+    format_telegram_message,
+    get_telegram_webhook_info,
+    resolve_telegram_topic_id,
+    send_telegram_message,
+    set_telegram_webhook,
+    telegram_is_configured,
+)
 from app.core.security import encrypt_secret
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
+
+
+def _build_telegram_webhook_url() -> str:
+    base = settings.frontend_origin.rstrip("/")
+    path = f"{settings.api_v1_prefix}/notifications/telegram/incoming"
+    secret = (settings.telegram_webhook_secret or "").strip()
+    if secret:
+        path += f"/{secret}"
+    return f"{base}{path}"
 
 
 def _build_test_notification(event_type: str) -> str:
@@ -212,6 +231,7 @@ def send_alerts_to_telegram(
         raise HTTPException(status_code=400, detail="Telegram не настроен. Укажите TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID.")
 
     alerts = filter_alerts_by_preferences(collect_server_alerts(db), profile)
+    alerts = [alert for alert in alerts if alert.category not in {"payment_expired", "payment_expiring"}]
     if not alerts:
         message = format_telegram_message(
             "Сводка алертов",
@@ -245,3 +265,72 @@ def send_alerts_to_telegram(
 
     write_audit_log(db, user=current_user, action="telegram.alerts", target_type="system", target_id="telegram")
     return TmuxActionResponse(ok=True, message="Текущие алерты отправлены в Telegram.")
+
+
+@router.get("/telegram/webhook-info", response_model=TelegramWebhookRead)
+def telegram_webhook_status(
+    db: Session = Depends(get_db),
+    _: object = Depends(get_current_user),
+):
+    webhook_url = _build_telegram_webhook_url()
+    info = get_telegram_webhook_info(db) if telegram_is_configured(db) else {}
+    telegram_url = info.get("url") or None
+    return TelegramWebhookRead(
+        configured=telegram_is_configured(db),
+        webhook_url=webhook_url,
+        webhook_active=bool(telegram_url),
+        telegram_webhook_url=telegram_url,
+    )
+
+
+@router.post("/telegram/webhook/set", response_model=TmuxActionResponse)
+def register_telegram_webhook(
+    db: Session = Depends(get_db),
+    current_user: object = Depends(require_admin),
+):
+    if not telegram_is_configured(db):
+        raise HTTPException(status_code=400, detail="Telegram не настроен.")
+    webhook_url = _build_telegram_webhook_url()
+    try:
+        set_telegram_webhook(webhook_url, db)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    write_audit_log(db, user=current_user, action="telegram.webhook.set", target_type="system", target_id="telegram", details=webhook_url)
+    return TmuxActionResponse(ok=True, message=f"Webhook зарегистрирован: {webhook_url}")
+
+
+@router.delete("/telegram/webhook/set", response_model=TmuxActionResponse)
+def unregister_telegram_webhook(
+    db: Session = Depends(get_db),
+    current_user: object = Depends(require_admin),
+):
+    if not telegram_is_configured(db):
+        raise HTTPException(status_code=400, detail="Telegram не настроен.")
+    try:
+        delete_telegram_webhook(db)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    write_audit_log(db, user=current_user, action="telegram.webhook.delete", target_type="system", target_id="telegram")
+    return TmuxActionResponse(ok=True, message="Webhook Telegram удалён.")
+
+
+@router.post("/telegram/incoming")
+@router.post("/telegram/incoming/{secret}")
+async def telegram_incoming_webhook(
+    request: Request,
+    secret: str | None = None,
+    db: Session = Depends(get_db),
+):
+    expected = (settings.telegram_webhook_secret or "").strip()
+    if expected and secret != expected:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    payload = await request.json()
+    callback = payload.get("callback_query")
+    if not callback:
+        return {"ok": True}
+
+    data = callback.get("data") or ""
+    if data.startswith("pay:"):
+        handle_payment_callback(db, data, callback.get("id") or "")
+    return {"ok": True}

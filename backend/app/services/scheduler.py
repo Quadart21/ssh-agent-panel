@@ -3,6 +3,7 @@ import asyncio
 from app.db import SessionLocal
 from app.services.notification_settings import get_or_create_notification_settings
 from app.services.alerts import sync_alert_notifications
+from app.services.payment_notifications import sync_payment_notifications
 
 
 def run_scheduler_cycle() -> int:
@@ -10,6 +11,7 @@ def run_scheduler_cycle() -> int:
         profile = get_or_create_notification_settings(db)
         if profile.scheduler_enabled:
             sync_alert_notifications(db)
+            sync_payment_notifications(db)
         return max(profile.scheduler_interval_seconds, 30)
 
 

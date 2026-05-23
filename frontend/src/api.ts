@@ -22,6 +22,7 @@ import type {
   ServerAccountingSummary,
   ServerMetricSnapshot,
   TelegramStatus,
+  TelegramWebhookInfo,
   Pm2LogsResponse,
   Pm2Process,
   TmuxActionResponse,
@@ -210,6 +211,15 @@ export const api = {
   sendTelegramAlerts: () =>
     request<TmuxActionResponse>("/notifications/telegram/alerts", {
       method: "POST"
+    }),
+  telegramWebhookInfo: () => request<TelegramWebhookInfo>("/notifications/telegram/webhook-info"),
+  registerTelegramWebhook: () =>
+    request<TmuxActionResponse>("/notifications/telegram/webhook/set", {
+      method: "POST"
+    }),
+  unregisterTelegramWebhook: () =>
+    request<TmuxActionResponse>("/notifications/telegram/webhook/set", {
+      method: "DELETE"
     }),
   listPanelUsers: () => request<User[]>("/panel-users"),
   createPanelUser: (payload: Record<string, unknown>) =>

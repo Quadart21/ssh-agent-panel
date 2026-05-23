@@ -289,6 +289,13 @@ export type TelegramStatus = {
   chat_id: string | null;
 };
 
+export type TelegramWebhookInfo = {
+  configured: boolean;
+  webhook_url: string | null;
+  webhook_active: boolean;
+  telegram_webhook_url: string | null;
+};
+
 export type NotificationSettings = {
   telegram_bot_token: string | null;
   telegram_chat_id: string | null;

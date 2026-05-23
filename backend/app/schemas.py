@@ -498,6 +498,13 @@ class TelegramStatusRead(BaseModel):
     chat_id: str | None = None
 
 
+class TelegramWebhookRead(BaseModel):
+    configured: bool
+    webhook_url: str | None = None
+    webhook_active: bool = False
+    telegram_webhook_url: str | None = None
+
+
 class NotificationSettingsRead(BaseModel):
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None

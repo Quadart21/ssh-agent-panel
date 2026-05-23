@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     admin_password: str = "replace-with-a-strong-admin-password"
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+    telegram_webhook_secret: str = ""
     cloudflare_api_token: str = ""
     cloudflare_account_id: str = ""
     scheduler_enabled: bool = True

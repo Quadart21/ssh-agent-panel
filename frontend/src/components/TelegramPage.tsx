@@ -2,7 +2,7 @@ import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 
 import { api } from "../api";
-import type { NotificationSettings } from "../types";
+import type { NotificationSettings, TelegramWebhookInfo } from "../types";
 
 type Props = {
   onError: (message: string) => void;
@@ -37,6 +37,7 @@ const testNotificationKinds = [
 
 function TelegramPage({ onError }: Props) {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
+  const [webhookInfo, setWebhookInfo] = useState<TelegramWebhookInfo | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -48,6 +49,12 @@ function TelegramPage({ onError }: Props) {
     try {
       const data = await api.notificationSettings();
       setSettings(data);
+      try {
+        const webhook = await api.telegramWebhookInfo();
+        setWebhookInfo(webhook);
+      } catch {
+        setWebhookInfo(null);
+      }
       setForm({
         telegram_bot_token: data.telegram_bot_token ?? "",
         telegram_chat_id: data.telegram_chat_id ?? "",
@@ -122,6 +129,36 @@ function TelegramPage({ onError }: Props) {
       setMessage(`${label}: ${response.message}`);
     } catch (err) {
       onError(err instanceof Error ? err.message : `Не удалось отправить уведомление '${label}'.`);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleRegisterWebhook() {
+    onError("");
+    setSending(true);
+    try {
+      const response = await api.registerTelegramWebhook();
+      setMessage(response.message);
+      const webhook = await api.telegramWebhookInfo();
+      setWebhookInfo(webhook);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось зарегистрировать webhook.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleUnregisterWebhook() {
+    onError("");
+    setSending(true);
+    try {
+      const response = await api.unregisterTelegramWebhook();
+      setMessage(response.message);
+      const webhook = await api.telegramWebhookInfo();
+      setWebhookInfo(webhook);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось удалить webhook.");
     } finally {
       setSending(false);
     }
@@ -332,7 +369,26 @@ function TelegramPage({ onError }: Props) {
             <p className="muted">CHAT_ID: {settings?.telegram_chat_id ?? "не указан"}</p>
             <p>{message}</p>
           </div>
+          <div className="result-card">
+            <div className="server-card-row">
+              <strong>Webhook для кнопки «Оплатил»</strong>
+              <span className={`status-pill ${webhookInfo?.webhook_active ? "online" : "offline"}`}>
+                {webhookInfo?.webhook_active ? "активен" : "не активен"}
+              </span>
+            </div>
+            <p className="muted">
+              Уведомления об оплате: за 7 дней, за 3 дня, затем 3 дня просрочки с кнопкой «Оплатил». После 3 дней
+              просрочки сервер удаляется из панели.
+            </p>
+            {webhookInfo?.webhook_url ? <p className="muted">URL: {webhookInfo.webhook_url}</p> : null}
+          </div>
           <div className="compact-form">
+            <button type="button" onClick={() => void handleRegisterWebhook()} disabled={sending}>
+              Зарегистрировать webhook
+            </button>
+            <button type="button" className="ghost" onClick={() => void handleUnregisterWebhook()} disabled={sending}>
+              Удалить webhook
+            </button>
             <button type="button" onClick={() => void handleTestSend()} disabled={sending}>
               Отправить тестовое сообщение
             </button>

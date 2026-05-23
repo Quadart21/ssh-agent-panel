@@ -736,10 +736,16 @@ def update_server(
     if payload.group_id and not db.get(ServerGroup, payload.group_id):
         raise HTTPException(status_code=404, detail="Группа не найдена.")
 
+    old_pay_until = server.pay_until
     for field, value in payload.model_dump().items():
         if field == "password_enc":
             value = encrypt_secret(value)
         setattr(server, field, value)
+
+    if server.pay_until and (old_pay_until is None or server.pay_until > old_pay_until):
+        from app.services.payment_notifications import reset_payment_notification_state
+
+        reset_payment_notification_state(db, server.id)
 
     db.commit()
     db.refresh(server)

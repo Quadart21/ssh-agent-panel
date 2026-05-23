@@ -134,9 +134,10 @@ def sync_alert_notifications(db: Session) -> tuple[int, int]:
             state.is_active = False
 
     sent_count = 0
-    if sendable_alerts and telegram_is_configured(db):
+    telegram_alerts = [alert for alert in sendable_alerts if alert.category not in {"payment_expired", "payment_expiring"}]
+    if telegram_alerts and telegram_is_configured(db):
         grouped: dict[str, list[AlertRead]] = {}
-        for alert in sendable_alerts:
+        for alert in telegram_alerts:
             key = _topic_event_for_alert_category(alert.category)
             grouped.setdefault(key, []).append(alert)
         for event_type, grouped_alerts in grouped.items():
@@ -146,9 +147,9 @@ def sync_alert_notifications(db: Session) -> tuple[int, int]:
                 parse_mode="HTML",
                 topic_id=resolve_telegram_topic_id(profile, event_type),
             )
-        for alert in sendable_alerts:
+        for alert in telegram_alerts:
             existing_states[alert_fingerprint(alert)].last_sent_at = now
-        sent_count = len(sendable_alerts)
+        sent_count = len(telegram_alerts)
 
     db.commit()
     return sent_count, len(alerts)

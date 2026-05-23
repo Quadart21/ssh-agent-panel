@@ -105,6 +105,28 @@ class AlertNotificationState(Base):
     last_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
 
 
+class ServerPaymentNotificationState(Base):
+    __tablename__ = "server_payment_notification_states"
+
+    server_id: Mapped[int] = mapped_column(ForeignKey("servers.id", ondelete="CASCADE"), primary_key=True)
+    sent_7d_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    sent_3d_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    overdue_notices_sent: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_overdue_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class PaymentNotificationBatch(Base):
+    __tablename__ = "payment_notification_batches"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    category: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    server_ids: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    telegram_message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
 class NotificationSettings(Base, TimestampMixin):
     __tablename__ = "notification_settings"
 
