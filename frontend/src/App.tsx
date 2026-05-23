@@ -7,7 +7,7 @@ import MetricsEmbedWidget from "./components/MetricsEmbedWidget";
 import AppChrome from "./layout/AppChrome";
 import AppDock from "./layout/AppDock";
 import AppSidebar from "./layout/AppSidebar";
-import SubnavStrip from "./layout/SubnavStrip";
+import MobileHeader from "./layout/MobileHeader";
 import { sections, userHasSectionAccess } from "./navigation";
 import type { NavGroup } from "./navigation";
 import AppRoutes from "./routes/AppRoutes";
@@ -247,19 +247,19 @@ function App() {
 
   return (
     <div className="workspace-shell workspace-shell--adaptive">
-      <AppChrome
+      <AppChrome topBarTitle={activeSection?.label ?? "Панель"} />
+
+      <MobileHeader
         topBarTitle={activeSection?.label ?? "Панель"}
         currentUser={currentUser}
         onLogout={handleLogout}
-        showMobileBar
+        sections={activeGroupSections}
       />
 
       <AppSidebar permissionAwareSections={permissionAwareSections} currentUser={currentUser} onLogout={handleLogout} />
 
       <div className="content-shell">
         {error ? <div className="banner error">{error}</div> : null}
-
-        <SubnavStrip sections={activeGroupSections} variant="compact" />
 
         <main id="main-content">
           <AppRoutes
