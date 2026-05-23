@@ -20,6 +20,8 @@ import type {
   SecurityReport,
   Server,
   ServerAccountingSummary,
+  ServerCheckGroup,
+  ServerCheckReport,
   ServerMetricSnapshot,
   TelegramStatus,
   TelegramWebhookInfo,
@@ -287,6 +289,11 @@ export const api = {
   deleteServer: (id: number) => request<void>(`/servers/${id}`, { method: "DELETE" }),
   enrollServerAgent: (id: number) =>
     request<AgentEnrollResponse>(`/servers/${id}/agent/enroll`, {
+      method: "POST"
+    }),
+  serverChecksCatalog: () => request<ServerCheckGroup[]>("/server-checks/catalog"),
+  runServerCheck: (serverId: number, checkId: string) =>
+    request<ServerCheckReport>(`/server-checks/${serverId}/run/${encodeURIComponent(checkId)}`, {
       method: "POST"
     }),
   listGroups: () => request<Group[]>("/groups"),

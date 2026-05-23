@@ -467,6 +467,48 @@ class Fail2BanUnbanRequest(BaseModel):
     ip: str = Field(min_length=3, max_length=120)
 
 
+class ServerCheckItemRead(BaseModel):
+    id: str
+    title: str
+    description: str
+    estimated_seconds: int
+    timeout: int
+
+
+class ServerCheckGroupRead(BaseModel):
+    id: str
+    label: str
+    icon: str
+    hint: str
+    checks: list[ServerCheckItemRead] = Field(default_factory=list)
+
+
+class ServerCheckSectionItemRead(BaseModel):
+    label: str
+    value: str
+
+
+class ServerCheckSectionRead(BaseModel):
+    title: str
+    status: str
+    lines: list[str] = Field(default_factory=list)
+    items: list[ServerCheckSectionItemRead] = Field(default_factory=list)
+
+
+class ServerCheckReportRead(BaseModel):
+    server_id: int
+    server_name: str
+    check_id: str
+    check_title: str
+    group: str
+    ok: bool
+    exit_code: int
+    duration_ms: int
+    summary: str
+    sections: list[ServerCheckSectionRead] = Field(default_factory=list)
+    raw_excerpt: str = ""
+
+
 class AutomationPresetRead(BaseModel):
     key: str
     name: str

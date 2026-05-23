@@ -27,6 +27,7 @@ const Pm2Panel = lazy(() => import("../components/Pm2Panel"));
 const PatternsRoute = lazy(() => import("../components/PatternsRoute"));
 const SecurityPage = lazy(() => import("../components/SecurityPage"));
 const ServersRoute = lazy(() => import("../components/ServersRoute"));
+const ServerChecksPage = lazy(() => import("../components/ServerChecksPage"));
 const DomainsRoute = lazy(() => import("../components/DomainsRoute"));
 const SessionsPage = lazy(() => import("../components/SessionsPage"));
 const SystemPage = lazy(() => import("../components/SystemPage"));
@@ -86,6 +87,10 @@ function AppRoutes({
               onReload={onReload}
             />
           }
+        />
+        <Route
+          path="/server-checks"
+          element={<ServerChecksPage servers={servers} onError={setError} />}
         />
         <Route
           path="/groups"

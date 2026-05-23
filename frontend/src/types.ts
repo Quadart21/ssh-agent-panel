@@ -276,6 +276,48 @@ export type SecurityReport = {
   fail2ban_jails: Fail2BanJail[];
 };
 
+export type ServerCheckItem = {
+  id: string;
+  title: string;
+  description: string;
+  estimated_seconds: number;
+  timeout: number;
+};
+
+export type ServerCheckGroup = {
+  id: string;
+  label: string;
+  icon: string;
+  hint: string;
+  checks: ServerCheckItem[];
+};
+
+export type ServerCheckSectionItem = {
+  label: string;
+  value: string;
+};
+
+export type ServerCheckSection = {
+  title: string;
+  status: string;
+  lines: string[];
+  items: ServerCheckSectionItem[];
+};
+
+export type ServerCheckReport = {
+  server_id: number;
+  server_name: string;
+  check_id: string;
+  check_title: string;
+  group: string;
+  ok: boolean;
+  exit_code: number;
+  duration_ms: number;
+  summary: string;
+  sections: ServerCheckSection[];
+  raw_excerpt: string;
+};
+
 export type AutomationPreset = {
   key: string;
   name: string;

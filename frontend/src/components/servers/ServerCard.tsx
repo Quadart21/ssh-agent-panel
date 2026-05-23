@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 import type { Server, ServerMetricSnapshot } from "../../types";
 import { billingPeriodLabel, formatMoney } from "../../utils/formatMoney";
 import { isPaymentExpired, isPaymentExpiringSoon } from "./helpers";
@@ -98,25 +100,26 @@ function ServerCard({
         <p className="muted">Метрики недоступны — узел офлайн или ещё не опрошен.</p>
       )}
 
-      {canEdit || canDelete || canEnrollAgent ? (
-        <div className="card-actions">
-          {canEdit ? (
-            <button className="ghost" type="button" onClick={() => onEdit(server)}>
-              {isEditing ? "Редактируется…" : "Редактировать"}
-            </button>
-          ) : null}
-          {canEnrollAgent ? (
-            <button className="ghost" type="button" onClick={() => onEnrollAgent(server.id)}>
-              Выпустить агент
-            </button>
-          ) : null}
-          {canDelete ? (
-            <button className="danger" type="button" onClick={() => onDelete(server.id)}>
-              Удалить
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+      <div className="card-actions">
+        <Link className="ghost button-link" to={`/server-checks?server=${server.id}`}>
+          Диагностика
+        </Link>
+        {canEdit ? (
+          <button className="ghost" type="button" onClick={() => onEdit(server)}>
+            {isEditing ? "Редактируется…" : "Редактировать"}
+          </button>
+        ) : null}
+        {canEnrollAgent ? (
+          <button className="ghost" type="button" onClick={() => onEnrollAgent(server.id)}>
+            Выпустить агент
+          </button>
+        ) : null}
+        {canDelete ? (
+          <button className="danger" type="button" onClick={() => onDelete(server.id)}>
+            Удалить
+          </button>
+        ) : null}
+      </div>
     </article>
   );
 }
