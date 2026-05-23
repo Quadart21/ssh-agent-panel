@@ -304,6 +304,46 @@ export type ServerCheckSection = {
   items: ServerCheckSectionItem[];
 };
 
+export type ServerCheckScorecard = {
+  label: string;
+  value: string;
+  hint: string | null;
+  tone: string;
+  icon: string;
+};
+
+export type ServerCheckTile = {
+  title: string;
+  status: string;
+  detail: string | null;
+};
+
+export type ServerCheckBar = {
+  label: string;
+  value: number;
+  max_value: number;
+  unit: string;
+  tone: string;
+};
+
+export type ServerCheckHighlight = {
+  icon: string;
+  text: string;
+  tone: string;
+};
+
+export type ServerCheckVisual = {
+  health: string;
+  health_label: string;
+  passed: number;
+  failed: number;
+  warnings: number;
+  scorecards: ServerCheckScorecard[];
+  tiles: ServerCheckTile[];
+  bars: ServerCheckBar[];
+  highlights: ServerCheckHighlight[];
+};
+
 export type ServerCheckReport = {
   server_id: number;
   server_name: string;
@@ -314,6 +354,7 @@ export type ServerCheckReport = {
   exit_code: number;
   duration_ms: number;
   summary: string;
+  visual: ServerCheckVisual;
   sections: ServerCheckSection[];
   raw_excerpt: string;
 };

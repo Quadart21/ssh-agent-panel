@@ -495,6 +495,46 @@ class ServerCheckSectionRead(BaseModel):
     items: list[ServerCheckSectionItemRead] = Field(default_factory=list)
 
 
+class ServerCheckScorecardRead(BaseModel):
+    label: str
+    value: str
+    hint: str | None = None
+    tone: str = "neutral"
+    icon: str = "📊"
+
+
+class ServerCheckTileRead(BaseModel):
+    title: str
+    status: str
+    detail: str | None = None
+
+
+class ServerCheckBarRead(BaseModel):
+    label: str
+    value: float
+    max_value: float
+    unit: str
+    tone: str = "info"
+
+
+class ServerCheckHighlightRead(BaseModel):
+    icon: str
+    text: str
+    tone: str = "neutral"
+
+
+class ServerCheckVisualRead(BaseModel):
+    health: str
+    health_label: str
+    passed: int = 0
+    failed: int = 0
+    warnings: int = 0
+    scorecards: list[ServerCheckScorecardRead] = Field(default_factory=list)
+    tiles: list[ServerCheckTileRead] = Field(default_factory=list)
+    bars: list[ServerCheckBarRead] = Field(default_factory=list)
+    highlights: list[ServerCheckHighlightRead] = Field(default_factory=list)
+
+
 class ServerCheckReportRead(BaseModel):
     server_id: int
     server_name: str
@@ -505,6 +545,7 @@ class ServerCheckReportRead(BaseModel):
     exit_code: int
     duration_ms: int
     summary: str
+    visual: ServerCheckVisualRead
     sections: list[ServerCheckSectionRead] = Field(default_factory=list)
     raw_excerpt: str = ""
 

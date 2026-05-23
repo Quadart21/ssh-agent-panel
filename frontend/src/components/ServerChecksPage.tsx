@@ -2,20 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { api } from "../api";
+import ServerCheckReportView from "./ServerCheckReportView";
 import type { Server, ServerCheckGroup, ServerCheckReport } from "../types";
 
 type Props = {
   servers: Server[];
   onError: (message: string) => void;
 };
-
-function statusLabel(status: string) {
-  if (status === "success") return "Успех";
-  if (status === "error") return "Ошибка";
-  if (status === "warning") return "Внимание";
-  if (status === "info") return "Метрики";
-  return "Инфо";
-}
 
 function formatDuration(ms: number) {
   const seconds = Math.max(1, Math.round(ms / 1000));
@@ -122,8 +115,8 @@ function ServerChecksPage({ servers, onError }: Props) {
           <p className="eyebrow">Диагностика</p>
           <h1>Проверка серверов</h1>
           <p className="hero-copy">
-            Сеть, бенчмарки, регион IP, DPI, геоблокировки и CPU — каждый тип проверки в отдельной вкладке с
-            структурированным отчётом вместо сырого терминала.
+            Сеть, бенчмарки, регион IP, DPI, геоблокировки и CPU — результаты в виде наглядного GUI-отчёта: карточки,
+            шкалы, статусы сервисов и health-score.
           </p>
         </div>
       </section>
@@ -217,10 +210,10 @@ function ServerChecksPage({ servers, onError }: Props) {
 
             <article className="panel server-checks-report-panel">
               <div className="panel-head">
-                <h2>Отчёт</h2>
+                <h2>GUI-отчёт</h2>
                 {report ? (
                   <span className={`status-pill ${report.ok ? "online" : "offline"}`}>
-                    {report.ok ? "успешно" : "с ошибкой"} · код {report.exit_code}
+                    {report.visual.health_label} · код {report.exit_code}
                   </span>
                 ) : (
                   <span className="muted">{running ? "Сбор данных…" : "Ожидает запуск"}</span>
@@ -229,57 +222,13 @@ function ServerChecksPage({ servers, onError }: Props) {
 
               {!report ? (
                 <div className="server-checks-empty">
-                  <p>{running ? "Скрипт выполняется на удалённом сервере…" : "Здесь появится структурированный отчёт после запуска."}</p>
+                  <div className="check-empty-visual">
+                    <span className="check-empty-visual-icon">{running ? "⏳" : "📊"}</span>
+                    <p>{running ? "Скрипт выполняется на удалённом сервере…" : "Запустите проверку — здесь появится визуальный отчёт."}</p>
+                  </div>
                 </div>
               ) : (
-                <div className="server-checks-report">
-                  <div className="server-checks-report-hero">
-                    <div>
-                      <p className="eyebrow">{report.check_title}</p>
-                      <h3>{report.server_name}</h3>
-                      <p className="hero-copy">{report.summary}</p>
-                    </div>
-                    <div className="server-checks-report-meta">
-                      <span className="server-chip">⏱ {formatDuration(report.duration_ms)}</span>
-                      <span className={`status-pill ${report.ok ? "online" : "offline"}`}>{report.ok ? "OK" : "FAIL"}</span>
-                    </div>
-                  </div>
-
-                  <div className="server-checks-sections">
-                    {report.sections.map((section, index) => (
-                      <article className={`server-check-section status-${section.status}`} key={`${section.title}-${index}`}>
-                        <div className="server-check-section-head">
-                          <strong>{section.title}</strong>
-                          <span className={`status-pill section-${section.status}`}>{statusLabel(section.status)}</span>
-                        </div>
-                        {section.items.length ? (
-                          <dl className="server-check-metrics">
-                            {section.items.map((item) => (
-                              <div key={`${item.label}-${item.value}`}>
-                                <dt>{item.label}</dt>
-                                <dd>{item.value}</dd>
-                              </div>
-                            ))}
-                          </dl>
-                        ) : null}
-                        {section.lines.length ? (
-                          <ul className="server-check-lines">
-                            {section.lines.map((line) => (
-                              <li key={line}>{line}</li>
-                            ))}
-                          </ul>
-                        ) : null}
-                      </article>
-                    ))}
-                  </div>
-
-                  {report.raw_excerpt ? (
-                    <details className="server-check-raw">
-                      <summary>Технический фрагмент вывода</summary>
-                      <pre>{report.raw_excerpt}</pre>
-                    </details>
-                  ) : null}
-                </div>
+                <ServerCheckReportView report={report} formatDuration={formatDuration} />
               )}
             </article>
           </section>

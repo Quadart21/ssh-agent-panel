@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import ensure_section_access, ensure_server_access, get_current_user
 from app.models import Server
-from app.schemas import ServerCheckGroupRead, ServerCheckReportRead, ServerCheckSectionRead
+from app.schemas import ServerCheckGroupRead, ServerCheckReportRead, ServerCheckSectionRead, ServerCheckVisualRead
 from app.services.audit import write_audit_log
 from app.services.server_checks import get_check_catalog, run_server_check
 
@@ -58,6 +58,7 @@ def run_check_on_server(
         exit_code=report["exit_code"],
         duration_ms=report["duration_ms"],
         summary=report["summary"],
+        visual=ServerCheckVisualRead.model_validate(report["visual"]),
         sections=[ServerCheckSectionRead.model_validate(section) for section in report["sections"]],
         raw_excerpt=report.get("raw_excerpt") or "",
     )
