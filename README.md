@@ -1,114 +1,114 @@
 # SSH Control Panel
 
-**Production-ready web panel for managing Linux server fleets over SSH.**
+**Production-ready веб-панель для управления парком Linux-серверов по SSH.**
 
-Centralized inventory, interactive terminal, bulk operations, PM2, billing reminders, Cloudflare DNS, Telegram alerts, RBAC, audit log, and backup — in one interface.
+Единый интерфейс: инвентарь, терминал, массовые команды, PM2, напоминания об оплате, Cloudflare DNS, Telegram-алерты, RBAC, аудит и бэкапы.
 
-Repository: [Quadart21/ssh-agent-panel](https://github.com/Quadart21/ssh-agent-panel)
-
----
-
-## Contents
-
-- [Features](#features)
-- [Architecture](#architecture)
-- [Tech stack](#tech-stack)
-- [Project structure](#project-structure)
-- [Quick start (development)](#quick-start-development)
-- [Production deployment](#production-deployment)
-- [Environment variables](#environment-variables)
-- [Telegram & payment reminders](#telegram--payment-reminders)
-- [Permissions (RBAC)](#permissions-rbac)
-- [API overview](#api-overview)
-- [Updating production](#updating-production)
+Репозиторий: [Quadart21/ssh-agent-panel](https://github.com/Quadart21/ssh-agent-panel)
 
 ---
 
-## Features
+## Содержание
 
-### Overview
-
-| Section | Description |
-|---------|-------------|
-| **Dashboard** | Fleet summary, online/offline status, quick metrics |
-| **Alerts** | SSH offline servers, payment warnings (dashboard view) |
-
-### Infrastructure
-
-| Section | Description |
-|---------|-------------|
-| **Servers** | Inventory with groups, filters, cards, bulk import, accounting tab |
-| **Groups** | Organize servers by project, region, or role |
-| **Domains** | Cloudflare DNS zones and records from the panel |
-| **Linux users** | Create and manage users on remote servers |
-
-### Operations
-
-| Section | Description |
-|---------|-------------|
-| **Commands** | Run command patterns on one server, a group, or the whole fleet |
-| **Automation** | Multi-step presets with live WebSocket progress |
-| **Terminal** | Interactive SSH session in the browser (xterm.js) |
-| **PM2** | List, start, stop, restart, delete apps; view logs; cluster support |
-| **Patterns** | Reusable command templates |
-
-### Security
-
-| Section | Description |
-|---------|-------------|
-| **Firewall** | UFW status and rules on remote hosts |
-| **Security** | SSH / fail2ban reports |
-| **Sessions** | Active panel sessions, revoke access |
-| **2FA** | TOTP with recovery codes |
-| **Telegram** | Notifications, scheduler, webhook for inline buttons |
-
-### Administration
-
-| Section | Description |
-|---------|-------------|
-| **Panel users** | RBAC: sections, actions, server/group scope |
-| **System** | Backup export/import, maintenance |
-| **Audit** | Full action log with export |
-
-### Server agent (optional)
-
-Lightweight agent for CPU/RAM/disk metrics and remote task execution. Installed from the panel on Linux hosts.
-
-### Billing & payments
-
-Per-server fields: `pay_until`, `provider`, `monthly_cost`, `currency`, `billing_period`.
-
-Automated Telegram workflow:
-
-1. **7 days** before expiry — first reminder  
-2. **3 days** before expiry — second reminder  
-3. **Overdue** — daily reminders for **3 days**  
-4. After 3 overdue days — server **auto-deleted** from the panel  
-
-Each payment message includes server count, provider, amount, and a **«Оплатил»** button.  
-Click → choose extension (30 / 90 / 180 / 365 days) → `pay_until` updated in the panel.
+- [Возможности](#возможности)
+- [Архитектура](#архитектура)
+- [Стек технологий](#стек-технологий)
+- [Структура проекта](#структура-проекта)
+- [Быстрый старт (разработка)](#быстрый-старт-разработка)
+- [Production-деплой](#production-деплой)
+- [Переменные окружения](#переменные-окружения)
+- [Telegram и напоминания об оплате](#telegram-и-напоминания-об-оплате)
+- [Права доступа (RBAC)](#права-доступа-rbac)
+- [Обзор API](#обзор-api)
+- [Обновление на сервере](#обновление-на-сервере)
 
 ---
 
-## Architecture
+## Возможности
+
+### Обзор
+
+| Раздел | Описание |
+|--------|----------|
+| **Дашборд** | Сводка по парку, онлайн/офлайн, быстрые метрики |
+| **Уведомления** | Алерты: офлайн-серверы, предупреждения об оплате |
+
+### Инфраструктура
+
+| Раздел | Описание |
+|--------|----------|
+| **Серверы** | Инвентарь: группы, фильтры, карточки, массовый импорт, бухгалтерия |
+| **Группы** | Организация серверов по проектам, регионам, ролям |
+| **Домены** | Управление DNS-зонами и записями Cloudflare |
+| **Linux-пользователи** | Создание и управление пользователями на удалённых хостах |
+
+### Операции
+
+| Раздел | Описание |
+|--------|----------|
+| **Команды** | Массовый запуск шаблонов на одном сервере, группе или всём парке |
+| **Автоматизация** | Многошаговые сценарии с live-прогрессом по WebSocket |
+| **Терминал** | Интерактивная SSH-сессия в браузере (xterm.js) |
+| **PM2** | Список, старт, стоп, рестарт, удаление; логи; cluster-режим |
+| **Шаблоны** | Переиспользуемые наборы команд |
+
+### Безопасность
+
+| Раздел | Описание |
+|--------|----------|
+| **Firewall** | Статус UFW и правила на удалённых хостах |
+| **Безопасность** | Отчёты SSH / fail2ban |
+| **Сессии** | Активные сессии панели, отзыв доступа |
+| **2FA** | TOTP с recovery-кодами |
+| **Telegram** | Уведомления, планировщик, webhook для inline-кнопок |
+
+### Администрирование
+
+| Раздел | Описание |
+|--------|----------|
+| **Доступ** | RBAC: разделы, действия, scope по серверам/группам |
+| **Система** | Экспорт/импорт бэкапа, обслуживание |
+| **Аудит** | Журнал всех действий с экспортом |
+
+### Агент на сервере (опционально)
+
+Лёгкий агент для метрик CPU/RAM/Disk и удалённых задач. Устанавливается из панели на Linux-хостах.
+
+### Бухгалтерия и оплата
+
+Поля на каждом сервере: `pay_until`, `provider`, `monthly_cost`, `currency`, `billing_period`.
+
+Автоматический сценарий в Telegram:
+
+1. **За 7 дней** до истечения — первое напоминание  
+2. **За 3 дня** — второе напоминание  
+3. **Просрочка** — ежедневные уведомления **3 дня**  
+4. После 3 дней просрочки — сервер **автоматически удаляется** из панели  
+
+В каждом сообщении: количество серверов, провайдер, сумма, список хостов.  
+Под сообщением кнопка **«Оплатил»** → выбор срока (30 / 90 / 180 / 365 дней) → `pay_until` обновляется в панели.
+
+---
+
+## Архитектура
 
 ```mermaid
 flowchart TB
-    subgraph Client
+    subgraph Client["Клиент"]
         Browser[React SPA]
     end
 
-    subgraph Server
+    subgraph Server["Сервер"]
         Nginx[nginx]
         API[FastAPI backend]
-        Scheduler[Background scheduler]
+        Scheduler[Фоновый планировщик]
         DB[(PostgreSQL)]
     end
 
-    subgraph External
+    subgraph External["Внешние сервисы"]
         TG[Telegram Bot API]
         CF[Cloudflare API]
-        SSH[Linux servers via SSH]
+        SSH[Linux-серверы по SSH]
     end
 
     Browser --> Nginx
@@ -125,46 +125,46 @@ flowchart TB
 
 ---
 
-## Tech stack
+## Стек технологий
 
-| Layer | Stack |
-|-------|-------|
+| Слой | Технологии |
+|------|------------|
 | **Backend** | Python 3.11+, FastAPI, SQLAlchemy 2, Alembic, Paramiko |
 | **Frontend** | React 18, TypeScript, Vite, React Router, xterm.js |
-| **Database** | PostgreSQL (primary) |
-| **Auth** | JWT + session tracking, bcrypt, TOTP 2FA |
-| **Secrets** | Fernet encryption for stored SSH passwords |
-| **Deploy** | systemd + nginx + certbot |
+| **База данных** | PostgreSQL |
+| **Аутентификация** | JWT + учёт сессий, bcrypt, TOTP 2FA |
+| **Секреты** | Fernet-шифрование паролей SSH |
+| **Деплой** | systemd + nginx + certbot |
 
 ---
 
-## Project structure
+## Структура проекта
 
 ```text
 SSH_client_GUI/
 ├── backend/
 │   ├── app/
-│   │   ├── routers/        # API endpoints
-│   │   ├── services/       # SSH, alerts, telegram, cloudflare, backup…
-│   │   ├── models.py       # SQLAlchemy models
+│   │   ├── routers/        # API-эндпоинты
+│   │   ├── services/       # SSH, алерты, telegram, cloudflare, backup…
+│   │   ├── models.py       # SQLAlchemy-модели
 │   │   └── main.py
-│   └── migrations/         # Alembic revisions (0001–0009)
+│   └── migrations/         # Alembic-миграции (0001–0009)
 ├── frontend/
 │   └── src/
-│       ├── components/     # Pages and UI blocks
-│       ├── navigation/     # Sidebar, RBAC sections
-│       └── api.ts          # REST client
+│       ├── components/     # Страницы и UI-блоки
+│       ├── navigation/     # Сайдбар, RBAC-секции
+│       └── api.ts          # REST-клиент
 └── deploy/
-    ├── env/                # Production .env templates
+    ├── env/                # Production .env-шаблоны
     ├── nginx/
     └── systemd/
 ```
 
 ---
 
-## Quick start (development)
+## Быстрый старт (разработка)
 
-### Requirements
+### Требования
 
 - Python 3.11+
 - Node.js 20+
@@ -177,14 +177,14 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env               # edit DATABASE_URL, SECRET_KEY, ADMIN_*
+cp .env.example .env               # отредактируй DATABASE_URL, SECRET_KEY, ADMIN_*
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-On startup the backend:
+При старте backend автоматически:
 
-- runs Alembic migrations automatically;
-- creates the first admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+- применяет Alembic-миграции;
+- создаёт первого админа из `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 
 ### Frontend
 
@@ -195,9 +195,9 @@ cp .env.example .env
 npm run dev
 ```
 
-Open `http://localhost:5173`. API defaults to the same origin behind a reverse proxy.
+Открой `http://localhost:5173`. API по умолчанию берёт origin браузера (удобно за reverse proxy).
 
-### Dev on Windows
+### Dev на Windows
 
 ```powershell
 .\run_dev.ps1
@@ -205,11 +205,11 @@ Open `http://localhost:5173`. API defaults to the same origin behind a reverse p
 
 ---
 
-## Production deployment
+## Production-деплой
 
-Suggested path on the server: `/opt/gui-ssh-manager`
+Рекомендуемый путь на сервере: `/opt/gui-ssh-manager`
 
-Detailed templates: [deploy/README.md](./deploy/README.md)
+Подробные шаблоны: [deploy/README.md](./deploy/README.md)
 
 ### 1. PostgreSQL
 
@@ -220,7 +220,7 @@ CREATE DATABASE ssh_panel OWNER ssh_panel;
 \q
 ```
 
-### 2. Application
+### 2. Приложение
 
 ```bash
 git clone https://github.com/Quadart21/ssh-agent-panel.git /opt/gui-ssh-manager
@@ -228,7 +228,7 @@ cd /opt/gui-ssh-manager/backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp ../deploy/env/backend.production.env .env   # edit all secrets
+cp ../deploy/env/backend.production.env .env   # замени все секреты
 
 cd ../frontend
 npm install
@@ -255,70 +255,70 @@ sudo certbot --nginx -d your-domain.example
 
 ---
 
-## Environment variables
+## Переменные окружения
 
-### Backend (required)
+### Backend (обязательные)
 
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `SECRET_KEY` | JWT signing key (replace before production) |
-| `ADMIN_EMAIL` | Bootstrap admin login |
-| `ADMIN_PASSWORD` | Bootstrap admin password |
-| `FRONTEND_ORIGIN` | Public panel URL, e.g. `https://panel.example.com` |
-| `ALLOWED_HOSTS` | Comma-separated hostnames for TrustedHost middleware |
+| Переменная | Описание |
+|------------|----------|
+| `DATABASE_URL` | Строка подключения к PostgreSQL |
+| `SECRET_KEY` | Ключ подписи JWT (замени перед production) |
+| `ADMIN_EMAIL` | Email bootstrap-админа |
+| `ADMIN_PASSWORD` | Пароль bootstrap-админа |
+| `FRONTEND_ORIGIN` | Публичный URL панели, напр. `https://panel.example.com` |
+| `ALLOWED_HOSTS` | Hostname через запятую для TrustedHost middleware |
 
-### Backend (optional)
+### Backend (опциональные)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ENCRYPTION_KEY` | derived from `SECRET_KEY` | Fernet key for stored passwords |
-| `TELEGRAM_BOT_TOKEN` | — | Bot token from @BotFather |
-| `TELEGRAM_CHAT_ID` | — | Target chat / supergroup |
-| `TELEGRAM_WEBHOOK_SECRET` | — | `secret_token` for webhook validation |
-| `CLOUDFLARE_API_TOKEN` | — | DNS management |
-| `CLOUDFLARE_ACCOUNT_ID` | — | Cloudflare account |
-| `SCHEDULER_ENABLED` | `true` | Background alert & payment scheduler |
-| `SCHEDULER_INTERVAL_SECONDS` | `300` | Scheduler tick interval |
-| `ALERT_REPEAT_MINUTES` | `180` | Repeat interval for offline alerts |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | `720` | JWT lifetime |
-| `LOGIN_MAX_ATTEMPTS` | `5` | Brute-force protection |
-| `SESSION_INACTIVITY_MINUTES` | `720` | Auto logout |
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `ENCRYPTION_KEY` | из `SECRET_KEY` | Fernet-ключ для паролей SSH |
+| `TELEGRAM_BOT_TOKEN` | — | Токен бота от @BotFather |
+| `TELEGRAM_CHAT_ID` | — | Chat / supergroup ID |
+| `TELEGRAM_WEBHOOK_SECRET` | — | `secret_token` для проверки webhook |
+| `CLOUDFLARE_API_TOKEN` | — | Управление DNS |
+| `CLOUDFLARE_ACCOUNT_ID` | — | ID аккаунта Cloudflare |
+| `SCHEDULER_ENABLED` | `true` | Фоновый планировщик алертов и оплат |
+| `SCHEDULER_INTERVAL_SECONDS` | `300` | Интервал проверки |
+| `ALERT_REPEAT_MINUTES` | `180` | Повтор офлайн-алертов |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `720` | Время жизни JWT |
+| `LOGIN_MAX_ATTEMPTS` | `5` | Защита от брутфорса |
+| `SESSION_INACTIVITY_MINUTES` | `720` | Автовыход по неактивности |
 
 ### Frontend
 
-| Variable | Description |
-|----------|-------------|
-| `VITE_API_BASE_URL` | REST API base, e.g. `https://panel.example.com/api/v1` |
-| `VITE_TERMINAL_WS_BASE_URL` | WebSocket URL for SSH terminal |
+| Переменная | Описание |
+|------------|----------|
+| `VITE_API_BASE_URL` | База REST API, напр. `https://panel.example.com/api/v1` |
+| `VITE_TERMINAL_WS_BASE_URL` | WebSocket URL для SSH-терминала |
 
-If omitted, the frontend uses the current browser origin (works behind nginx reverse proxy).
+Если не заданы — frontend использует текущий origin браузера (работает за nginx reverse proxy).
 
 ---
 
-## Telegram & payment reminders
+## Telegram и напоминания об оплате
 
-### Setup
+### Настройка
 
-1. Create a bot via [@BotFather](https://t.me/BotFather), get **token** and **chat id**.
-2. Add to backend `.env`:
+1. Создай бота через [@BotFather](https://t.me/BotFather), получи **токен** и **chat id**.
+2. Добавь в `.env` backend:
 
 ```env
 TELEGRAM_BOT_TOKEN=123456:ABC...
 TELEGRAM_CHAT_ID=-1001234567890
-TELEGRAM_WEBHOOK_SECRET=your-random-secret
+TELEGRAM_WEBHOOK_SECRET=случайная-строка
 FRONTEND_ORIGIN=https://panel.example.com
 ```
 
-3. Restart backend, open **Telegram** section in the panel.
-4. Click **«Зарегистрировать webhook»** (or register manually):
+3. Перезапусти backend, открой раздел **Telegram** в панели.
+4. Нажми **«Зарегистрировать webhook»** (или вручную):
 
 ```bash
 curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
   -H "Content-Type: application/json" \
   -d '{
     "url": "https://panel.example.com/api/v1/notifications/telegram/incoming",
-    "secret_token": "your-random-secret",
+    "secret_token": "случайная-строка",
     "allowed_updates": ["callback_query"]
   }'
 ```
@@ -328,7 +328,7 @@ curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
 ```powershell
 $body = @{
   url = "https://panel.example.com/api/v1/notifications/telegram/incoming"
-  secret_token = "your-random-secret"
+  secret_token = "случайная-строка"
   allowed_updates = @("callback_query")
 } | ConvertTo-Json
 
@@ -338,62 +338,65 @@ Invoke-RestMethod -Method Post `
   -Body $body
 ```
 
-### Notification types
+> В PowerShell используй **`/bot`**, не `/b` в URL.  
+> Для кнопки «Оплатил» достаточно `"callback_query"`.
 
-| Event | Telegram topic setting |
-|-------|------------------------|
-| Login | `telegram_topic_login` |
-| Server offline | `telegram_topic_servers` |
-| Payment reminders | `telegram_topic_payments` |
-| Automation errors | `telegram_topic_automation` |
+### Типы уведомлений
 
-Topics map to Telegram forum `message_thread_id` (optional).
+| Событие | Настройка топика |
+|---------|------------------|
+| Вход в панель | `telegram_topic_login` |
+| Офлайн-сервер | `telegram_topic_servers` |
+| Напоминания об оплате | `telegram_topic_payments` |
+| Ошибки автоматизации | `telegram_topic_automation` |
 
-### Server billing fields
+Топики соответствуют `message_thread_id` в Telegram-форуме (опционально).
 
-Fill on each server (Servers → edit / accounting):
+### Поля оплаты на сервере
 
-- **pay_until** — payment deadline  
-- **provider** — e.g. Hetzner, ServHost  
+Заполни в карточке сервера (Серверы → редактирование / бухгалтерия):
+
+- **pay_until** — дата оплаты  
+- **provider** — провайдер (Hetzner, ServHost и т.д.)  
 - **monthly_cost** + **currency** + **billing_period**
 
 ---
 
-## Permissions (RBAC)
+## Права доступа (RBAC)
 
-Panel users can be restricted by:
+Пользователи панели ограничиваются по:
 
-- **Sections** — which pages are visible (servers, terminal, domains…)
-- **Actions** — create/update/delete servers, run commands, manage domains…
-- **Scope** — all servers, specific groups, or individual servers
+- **Разделам** — какие страницы видны (серверы, терминал, домены…)  
+- **Действиям** — создание/редактирование/удаление серверов, запуск команд, управление DNS…  
+- **Scope** — все серверы, конкретные группы или отдельные хосты  
 
-Admin users have full access including panel users, audit, and system backup.
+Администраторы имеют полный доступ, включая пользователей панели, аудит и системный бэкап.
 
 ---
 
-## API overview
+## Обзор API
 
-Base path: `/api/v1`
+Базовый путь: `/api/v1`
 
-| Area | Examples |
-|------|----------|
+| Область | Примеры |
+|---------|---------|
 | **Auth** | `POST /auth/login`, `GET /auth/me`, `GET /auth/sessions` |
-| **Servers** | `GET /servers`, `POST /servers`, `POST /servers/run-commands` |
-| **Terminal** | `WS /terminal/ws/{server_id}` |
-| **Automation** | `GET /automation/presets`, `WS /automation/ws/run` |
+| **Серверы** | `GET /servers`, `POST /servers`, `POST /servers/run-commands` |
+| **Терминал** | `WS /terminal/ws/{server_id}` |
+| **Автоматизация** | `GET /automation/presets`, `WS /automation/ws/run` |
 | **PM2** | `GET /pm2/{server_id}/apps`, `POST …/restart` |
-| **Domains** | `GET /domains/zones`, `POST /domains/records` |
-| **Notifications** | `GET /notifications/settings`, `POST /notifications/telegram/webhook/set` |
-| **Audit** | `GET /audit/logs` |
+| **Домены** | `GET /domains/zones`, `POST /domains/records` |
+| **Уведомления** | `GET /notifications/settings`, `POST /notifications/telegram/webhook/set` |
+| **Аудит** | `GET /audit/logs` |
 | **Health** | `GET /health` |
 
-Interactive docs (when enabled): `/docs`
+Интерактивная документация (если включена): `/docs`
 
 ---
 
-## Updating production
+## Обновление на сервере
 
-Standard update on the server:
+Стандартная команда:
 
 ```bash
 cd /opt/gui-ssh-manager && git pull \
@@ -403,20 +406,20 @@ cd /opt/gui-ssh-manager && git pull \
   && sudo systemctl reload nginx
 ```
 
-Migrations run automatically on backend startup.
+Миграции применяются автоматически при старте backend.
 
 ---
 
-## Security notes
+## Безопасность
 
-- Replace `SECRET_KEY`, admin password, and database credentials before going live.
-- Use HTTPS everywhere; terminal WebSocket requires `wss://`.
-- Restrict panel access by IP in nginx if needed.
-- Revoke Telegram bot token if it was exposed; regenerate via @BotFather.
-- Stored SSH passwords are encrypted; prefer SSH keys where possible.
+- Замени `SECRET_KEY`, пароль админа и credentials БД перед выходом в production.
+- Используй HTTPS везде; терминал требует `wss://`.
+- При необходимости ограничь доступ к панели по IP в nginx.
+- Если токен Telegram попал в чат — перевыпусти через @BotFather (`/revoke`).
+- Пароли SSH хранятся зашифрованными; по возможности используй SSH-ключи.
 
 ---
 
-## License
+## Лицензия
 
-Private / internal use. Adjust licensing as needed for your organization.
+Private / internal use. Настрой лицензию под свою организацию.
