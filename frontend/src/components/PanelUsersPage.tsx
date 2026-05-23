@@ -1,9 +1,8 @@
 import type { FormEvent } from "react";
 
 import { summarizeAccess } from "../navigation/panelPermissions";
-import type { User } from "../types";
+import type { PanelUserCreated, Server, User } from "../types";
 import PanelUserEditor, { type PanelUserEditorState } from "./PanelUserEditor";
-import type { Server } from "../types";
 
 type Props = {
   users: User[];
@@ -14,9 +13,14 @@ type Props = {
   editorForm: PanelUserEditorState;
   setEditorForm: (form: PanelUserEditorState) => void;
   busy: boolean;
+  generatingPassword: boolean;
+  createdResult: PanelUserCreated | null;
+  onDismissCreatedResult: () => void;
+  onCopyCreatedCredentials: () => void;
   onStartCreate: () => void;
   onStartEdit: (user: User) => void;
   onCancelEditor: () => void;
+  onGeneratePassword: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onLogoutAllSessions: (userId: number) => void;
 };
@@ -30,9 +34,14 @@ function PanelUsersPage({
   editorForm,
   setEditorForm,
   busy,
+  generatingPassword,
+  createdResult,
+  onDismissCreatedResult,
+  onCopyCreatedCredentials,
   onStartCreate,
   onStartEdit,
   onCancelEditor,
+  onGeneratePassword,
   onSubmit,
   onLogoutAllSessions
 }: Props) {
@@ -43,8 +52,7 @@ function PanelUsersPage({
           <p className="eyebrow">Доступ</p>
           <h1>Пользователи панели</h1>
           <p className="hero-copy">
-            Выдавайте доступ по понятным профилям: только просмотр, оператор, редактор или администратор. Без длинных
-            списков галочек.
+            Создавайте аккаунты с автогенерацией пароля и отправкой полных данных входа в Telegram.
           </p>
         </div>
         {!editorOpen ? (
@@ -54,6 +62,47 @@ function PanelUsersPage({
         ) : null}
       </section>
 
+      {createdResult ? (
+        <section className="panel panel-user-created-banner">
+          <div className="panel-head">
+            <div>
+              <h2>Пользователь создан</h2>
+              <p className="muted">
+                {createdResult.telegram_sent
+                  ? "Данные для входа отправлены в Telegram."
+                  : createdResult.telegram_note ?? "Telegram-уведомление не отправлено."}
+              </p>
+            </div>
+            <button type="button" className="ghost" onClick={onDismissCreatedResult}>
+              Скрыть
+            </button>
+          </div>
+          <div className="panel-user-created-grid">
+            <div>
+              <span className="muted">Email</span>
+              <strong>{createdResult.email}</strong>
+            </div>
+            <div>
+              <span className="muted">Пароль</span>
+              <strong className="panel-user-created-password">{createdResult.issued_password}</strong>
+            </div>
+            <div>
+              <span className="muted">Имя</span>
+              <strong>{createdResult.full_name}</strong>
+            </div>
+            <div>
+              <span className="muted">Роль</span>
+              <strong>{createdResult.role === "admin" ? "Администратор" : "Пользователь"}</strong>
+            </div>
+          </div>
+          <div className="card-actions">
+            <button type="button" className="ghost" onClick={onCopyCreatedCredentials}>
+              Скопировать данные
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       {editorOpen ? (
         <PanelUserEditor
           mode={editorMode}
@@ -62,6 +111,8 @@ function PanelUsersPage({
           servers={servers}
           onSubmit={onSubmit}
           onCancel={onCancelEditor}
+          onGeneratePassword={onGeneratePassword}
+          generatingPassword={generatingPassword}
           busy={busy}
         />
       ) : null}
@@ -81,7 +132,9 @@ function PanelUsersPage({
                 <div>
                   <strong>{user.full_name}</strong>
                   <p className="muted">{user.email}</p>
-                  <p className="panel-user-access-line">{summarizeAccess(user.role, user.section_permissions, user.action_permissions)}</p>
+                  <p className="panel-user-access-line">
+                    {summarizeAccess(user.role, user.section_permissions, user.action_permissions)}
+                  </p>
                   {user.role !== "admin" && user.allowed_server_ids.length > 0 ? (
                     <p className="muted">Серверов: {user.allowed_server_ids.length}</p>
                   ) : user.role !== "admin" ? (

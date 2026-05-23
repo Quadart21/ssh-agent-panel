@@ -81,3 +81,21 @@ def verify_totp_code(secret: str, code: str) -> bool:
 
 def generate_recovery_codes(count: int = 8) -> list[str]:
     return [secrets.token_hex(4) for _ in range(count)]
+
+
+def generate_panel_password(length: int = 16) -> str:
+    import string
+
+    if length < 12:
+        length = 12
+    lowercase = secrets.choice(string.ascii_lowercase)
+    uppercase = secrets.choice(string.ascii_uppercase)
+    digit = secrets.choice(string.digits)
+    special = secrets.choice("!@#$%^&*-_=+")
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*-_=+"
+    rest = [secrets.choice(alphabet) for _ in range(length - 4)]
+    chars = [lowercase, uppercase, digit, special, *rest]
+    secrets.SystemRandom().shuffle(chars)
+    password = "".join(chars)
+    validate_password_strength(password)
+    return password

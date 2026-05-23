@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react";
 
 import { api } from "../api";
 import { createEmptyEditorState, editorStateFromUser } from "../navigation/panelPermissions";
-import type { Server, User } from "../types";
+import type { PanelUserCreated, Server, User } from "../types";
 import { type PanelUserEditorState } from "./PanelUserEditor";
 import PanelUsersPage from "./PanelUsersPage";
 
@@ -20,17 +20,35 @@ function PanelUsersRoute({ users, servers, currentUser, onError, onReload }: Pro
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [editorForm, setEditorForm] = useState<PanelUserEditorState>(createEmptyEditorState());
   const [busy, setBusy] = useState(false);
+  const [generatingPassword, setGeneratingPassword] = useState(false);
+  const [createdResult, setCreatedResult] = useState<PanelUserCreated | null>(null);
 
-  function openCreate() {
+  async function generatePasswordIntoForm() {
+    setGeneratingPassword(true);
+    onError("");
+    try {
+      const generated = await api.generatePanelUserPassword();
+      setEditorForm((current) => ({ ...current, password: generated.password }));
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось сгенерировать пароль.");
+    } finally {
+      setGeneratingPassword(false);
+    }
+  }
+
+  async function openCreate() {
     setEditorMode("create");
     setEditingUserId(null);
+    setCreatedResult(null);
     setEditorForm(createEmptyEditorState());
     setEditorOpen(true);
+    await generatePasswordIntoForm();
   }
 
   function openEdit(user: User) {
     setEditorMode("edit");
     setEditingUserId(user.id);
+    setCreatedResult(null);
     setEditorForm(editorStateFromUser(user));
     setEditorOpen(true);
   }
@@ -62,20 +80,23 @@ function PanelUsersRoute({ users, servers, currentUser, onError, onReload }: Pro
       };
 
       if (editorMode === "create") {
-        await api.createPanelUser({
+        const created = await api.createPanelUser({
           ...payload,
           email: editorForm.email,
-          password: editorForm.password
+          password: editorForm.password.trim() || null,
+          notify_telegram: editorForm.notify_telegram
         });
+        setCreatedResult(created);
+        closeEditor();
+        await onReload();
       } else if (editingUserId) {
         await api.updatePanelUser(editingUserId, {
           ...payload,
           password: editorForm.password || null
         });
+        closeEditor();
+        await onReload();
       }
-
-      closeEditor();
-      await onReload();
     } catch (err) {
       onError(err instanceof Error ? err.message : "Не удалось сохранить пользователя.");
     } finally {
@@ -93,6 +114,22 @@ function PanelUsersRoute({ users, servers, currentUser, onError, onReload }: Pro
     }
   }
 
+  async function copyCreatedCredentials() {
+    if (!createdResult) {
+      return;
+    }
+    const text = [
+      `Панель: ${window.location.origin}`,
+      `Email: ${createdResult.email}`,
+      `Пароль: ${createdResult.issued_password}`
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      onError("Не удалось скопировать данные в буфер обмена.");
+    }
+  }
+
   return (
     <PanelUsersPage
       users={users}
@@ -103,9 +140,14 @@ function PanelUsersRoute({ users, servers, currentUser, onError, onReload }: Pro
       editorForm={editorForm}
       setEditorForm={setEditorForm}
       busy={busy}
-      onStartCreate={openCreate}
+      generatingPassword={generatingPassword}
+      createdResult={createdResult}
+      onDismissCreatedResult={() => setCreatedResult(null)}
+      onCopyCreatedCredentials={() => void copyCreatedCredentials()}
+      onStartCreate={() => void openCreate()}
       onStartEdit={openEdit}
       onCancelEditor={closeEditor}
+      onGeneratePassword={() => void generatePasswordIntoForm()}
       onSubmit={(event) => void handleSubmit(event)}
       onLogoutAllSessions={(userId) => void handleLogoutAllPanelUserSessions(userId)}
     />

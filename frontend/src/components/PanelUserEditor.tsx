@@ -24,6 +24,8 @@ type Props = {
   servers: Server[];
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
+  onGeneratePassword: () => void;
+  generatingPassword?: boolean;
   busy?: boolean;
 };
 
@@ -66,7 +68,17 @@ function syncPermissions(form: PanelUserEditorState, next: Partial<PanelUserEdit
   return merged;
 }
 
-function PanelUserEditor({ mode, form, setForm, servers, onSubmit, onCancel, busy = false }: Props) {
+function PanelUserEditor({
+  mode,
+  form,
+  setForm,
+  servers,
+  onSubmit,
+  onCancel,
+  onGeneratePassword,
+  generatingPassword = false,
+  busy = false
+}: Props) {
   const isAdmin = form.role === "admin" || form.preset === "admin";
   const groupedModules = sectionGroups
     .filter((group) => group.key !== "administration")
@@ -137,16 +149,34 @@ function PanelUserEditor({ mode, form, setForm, servers, onSubmit, onCancel, bus
                 required
               />
             </label>
-            <label>
+            <label className="full-width">
               {mode === "create" ? "Пароль" : "Новый пароль"}
-              <input
-                type="password"
-                value={form.password}
-                onChange={(event) => updateForm({ password: event.target.value })}
-                required={mode === "create"}
-                placeholder={mode === "edit" ? "Оставьте пустым, если менять не нужно" : ""}
-              />
+              <div className="panel-user-password-row">
+                <input
+                  type="text"
+                  value={form.password}
+                  onChange={(event) => updateForm({ password: event.target.value })}
+                  placeholder={mode === "edit" ? "Оставьте пустым, если менять не нужно" : "Сгенерируется автоматически, если пусто"}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                {mode === "create" ? (
+                  <button type="button" className="ghost" disabled={generatingPassword || busy} onClick={onGeneratePassword}>
+                    {generatingPassword ? "…" : "Сгенерировать"}
+                  </button>
+                ) : null}
+              </div>
             </label>
+            {mode === "create" ? (
+              <label className="checkbox full-width">
+                <input
+                  type="checkbox"
+                  checked={form.notify_telegram}
+                  onChange={(event) => updateForm({ notify_telegram: event.target.checked })}
+                />
+                Отправить логин и пароль в Telegram
+              </label>
+            ) : null}
             <label className="checkbox full-width">
               <input
                 type="checkbox"

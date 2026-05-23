@@ -626,12 +626,13 @@ class TwoFactorRecoveryCodesRead(BaseModel):
 class PanelUserCreate(BaseModel):
     email: str = Field(min_length=5, max_length=255)
     full_name: str = Field(min_length=2, max_length=120)
-    password: str = Field(min_length=8, max_length=255)
+    password: str | None = Field(default=None, max_length=255)
     role: str = Field(default="user", min_length=4, max_length=32)
     is_active: bool = True
     section_permissions: list[str] = Field(default_factory=list)
     action_permissions: list[str] = Field(default_factory=list)
     allowed_server_ids: list[int] = Field(default_factory=list)
+    notify_telegram: bool = True
 
     @field_validator("role")
     @classmethod
@@ -640,6 +641,16 @@ class PanelUserCreate(BaseModel):
         if cleaned not in {"admin", "user"}:
             raise ValueError("Роль должна быть admin или user.")
         return cleaned
+
+
+class PanelUserCreatedRead(UserRead):
+    issued_password: str
+    telegram_sent: bool
+    telegram_note: str | None = None
+
+
+class PanelUserPasswordGeneratedRead(BaseModel):
+    password: str
 
 
 class PanelUserUpdate(BaseModel):

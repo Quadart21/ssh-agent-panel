@@ -56,6 +56,7 @@ def resolve_telegram_topic_id(profile: NotificationSettings | None, event_type: 
         "payment_notice_3d": profile.telegram_topic_payments,
         "payment_overdue": profile.telegram_topic_payments,
         "automation_failed": profile.telegram_topic_automation,
+        "panel_user_created": profile.telegram_topic_login,
         "alerts_digest": profile.telegram_topic_general,
         "test": profile.telegram_topic_general,
     }

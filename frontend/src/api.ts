@@ -17,7 +17,7 @@ import type {
   LinuxUserOperationResponse,
   MetricsEmbed,
   NotificationSettings,
-  Pattern,
+  PanelUserCreated,
   PublicEmbedMetrics,
   SecurityReport,
   Server,
@@ -224,8 +224,9 @@ export const api = {
       method: "DELETE"
     }),
   listPanelUsers: () => request<User[]>("/panel-users"),
+  generatePanelUserPassword: () => request<{ password: string }>("/panel-users/generate-password"),
   createPanelUser: (payload: Record<string, unknown>) =>
-    request<User>("/panel-users", {
+    request<PanelUserCreated>("/panel-users", {
       method: "POST",
       body: JSON.stringify(payload)
     }),

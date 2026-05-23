@@ -2638,6 +2638,39 @@ main#main-content {
   flex-wrap: wrap;
 }
 
+.panel-user-password-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2);
+}
+
+.panel-user-created-banner {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border-soft));
+}
+
+.panel-user-created-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.panel-user-created-grid span {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: var(--text-secondary);
+}
+
+.panel-user-created-grid strong {
+  color: var(--text);
+  word-break: break-word;
+}
+
+.panel-user-created-password {
+  font-family: var(--font-mono);
+  color: var(--accent);
+}
+
 @media (max-width: 860px) {
   .permission-module-card,
   .panel-user-card-main,

@@ -322,6 +322,7 @@ export function createEmptyEditorState(): import("../types").PanelUserForm & {
     section_permissions: applied.section_permissions,
     action_permissions: applied.action_permissions,
     allowed_server_ids: [],
+    notify_telegram: true,
     preset,
     moduleLevels: { ...presetConfig.levels },
     serverScope: "all"
@@ -339,6 +340,7 @@ export function editorStateFromUser(user: import("../types").User) {
     section_permissions: user.section_permissions,
     action_permissions: user.action_permissions,
     allowed_server_ids: user.allowed_server_ids,
+    notify_telegram: true,
     preset,
     moduleLevels: moduleLevelsFromPermissions(user.section_permissions, user.action_permissions),
     serverScope: user.role === "admin" || user.allowed_server_ids.length === 0 ? ("all" as const) : ("selected" as const)

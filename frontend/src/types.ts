@@ -176,6 +176,13 @@ export type PanelUserForm = {
   section_permissions: string[];
   action_permissions: string[];
   allowed_server_ids: number[];
+  notify_telegram: boolean;
+};
+
+export type PanelUserCreated = User & {
+  issued_password: string;
+  telegram_sent: boolean;
+  telegram_note: string | null;
 };
 
 export type TokenResponse = {
