@@ -2456,3 +2456,198 @@ main#main-content {
   grid-template-columns: 1fr auto;
   gap: var(--space-2);
 }
+
+.panel-users-page .page-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.panel-users-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.panel-user-card {
+  padding: var(--space-4);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface-base);
+}
+
+.panel-user-card-main {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.panel-user-card-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.panel-user-access-line {
+  margin-top: 0.35rem;
+  color: var(--accent);
+  font-size: 0.92rem;
+}
+
+.panel-user-editor-form {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.panel-user-section h3 {
+  margin: 0 0 var(--space-3);
+}
+
+.panel-user-section-note {
+  margin: 0 0 var(--space-3);
+}
+
+.access-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+
+.access-preset-card {
+  display: grid;
+  gap: 0.35rem;
+  text-align: left;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background: var(--surface-base);
+  cursor: pointer;
+}
+
+.access-preset-card.active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.access-preset-card span {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+.permission-module-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.permission-module-group h4 {
+  margin: 0 0 var(--space-2);
+}
+
+.permission-module-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--bg-1);
+}
+
+.permission-module-card + .permission-module-card {
+  margin-top: var(--space-2);
+}
+
+.access-level-switch {
+  display: inline-flex;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.access-level-option {
+  border: 0;
+  background: transparent;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.access-level-option.active {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+
+.server-scope-switch {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.server-scope-option {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.server-scope-option.active {
+  border-color: var(--accent);
+}
+
+.server-scope-option small {
+  display: block;
+  color: var(--text-secondary);
+}
+
+.server-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-2);
+}
+
+.server-picker-item {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+}
+
+.server-picker-item small {
+  display: block;
+  color: var(--text-secondary);
+}
+
+.panel-user-admin-note {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.panel-user-editor-actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 860px) {
+  .permission-module-card,
+  .panel-user-card-main,
+  .panel-users-page .page-hero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .panel-user-card-side {
+    flex-direction: row;
+    align-items: center;
+  }
+}

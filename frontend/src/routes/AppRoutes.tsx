@@ -112,14 +112,7 @@ function AppRoutes({
           path="/panel-users"
           element={
             currentUser.role === "admin" ? (
-              <PanelUsersRoute
-                users={panelUsers}
-                servers={servers}
-                currentUser={currentUser}
-                onError={setError}
-                onReload={onReload}
-                permissionSections={[...permissionSections]}
-              />
+              <PanelUsersRoute users={panelUsers} servers={servers} currentUser={currentUser} onError={setError} onReload={onReload} />
             ) : (
               <Navigate to="/dashboard" replace />
             )

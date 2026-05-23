@@ -1,7 +1,9 @@
 import { FormEvent, useState } from "react";
 
 import { api } from "../api";
-import type { PanelUserForm, Server, User } from "../types";
+import { createEmptyEditorState, editorStateFromUser } from "../navigation/panelPermissions";
+import type { Server, User } from "../types";
+import { type PanelUserEditorState } from "./PanelUserEditor";
 import PanelUsersPage from "./PanelUsersPage";
 
 type Props = {
@@ -10,55 +12,74 @@ type Props = {
   currentUser: User | null;
   onError: (message: string) => void;
   onReload: () => Promise<void>;
-  permissionSections: string[];
 };
 
-const emptyPanelUserForm: PanelUserForm = {
-  email: "",
-  full_name: "",
-  password: "",
-  role: "user",
-  is_active: true,
-  section_permissions: [],
-  action_permissions: [],
-  allowed_server_ids: []
-};
+function PanelUsersRoute({ users, servers, currentUser, onError, onReload }: Props) {
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [editorForm, setEditorForm] = useState<PanelUserEditorState>(createEmptyEditorState());
+  const [busy, setBusy] = useState(false);
 
-function PanelUsersRoute({ users, servers, currentUser, onError, onReload, permissionSections }: Props) {
-  const [createForm, setCreateForm] = useState(emptyPanelUserForm);
-  const [editStates, setEditStates] = useState<Record<number, PanelUserForm>>({});
-
-  async function handleCreatePanelUser(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    onError("");
-    try {
-      await api.createPanelUser(createForm);
-      setCreateForm(emptyPanelUserForm);
-      await onReload();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Не удалось создать пользователя панели.");
-    }
+  function openCreate() {
+    setEditorMode("create");
+    setEditingUserId(null);
+    setEditorForm(createEmptyEditorState());
+    setEditorOpen(true);
   }
 
-  async function handleUpdatePanelUser(userId: number) {
-    const state = editStates[userId];
-    if (!state) {
+  function openEdit(user: User) {
+    setEditorMode("edit");
+    setEditingUserId(user.id);
+    setEditorForm(editorStateFromUser(user));
+    setEditorOpen(true);
+  }
+
+  function closeEditor() {
+    setEditorOpen(false);
+    setEditingUserId(null);
+    setEditorForm(createEmptyEditorState());
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onError("");
+
+    if (editorForm.role !== "admin" && editorForm.serverScope === "selected" && editorForm.allowed_server_ids.length === 0) {
+      onError("Выберите хотя бы один сервер или включите доступ ко всем серверам.");
       return;
     }
-    onError("");
+
+    setBusy(true);
     try {
-      await api.updatePanelUser(userId, {
-        full_name: state.full_name,
-        password: state.password || null,
-        role: state.role,
-        is_active: state.is_active,
-        section_permissions: state.section_permissions,
-        action_permissions: state.action_permissions,
-        allowed_server_ids: state.allowed_server_ids
-      });
+      const payload = {
+        full_name: editorForm.full_name,
+        role: editorForm.role,
+        is_active: editorForm.is_active,
+        section_permissions: editorForm.section_permissions,
+        action_permissions: editorForm.action_permissions,
+        allowed_server_ids: editorForm.role === "admin" || editorForm.serverScope === "all" ? [] : editorForm.allowed_server_ids
+      };
+
+      if (editorMode === "create") {
+        await api.createPanelUser({
+          ...payload,
+          email: editorForm.email,
+          password: editorForm.password
+        });
+      } else if (editingUserId) {
+        await api.updatePanelUser(editingUserId, {
+          ...payload,
+          password: editorForm.password || null
+        });
+      }
+
+      closeEditor();
       await onReload();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Не удалось обновить пользователя панели.");
+      onError(err instanceof Error ? err.message : "Не удалось сохранить пользователя.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -77,14 +98,16 @@ function PanelUsersRoute({ users, servers, currentUser, onError, onReload, permi
       users={users}
       servers={servers}
       currentUser={currentUser}
-      createForm={createForm}
-      setCreateForm={setCreateForm}
-      editStates={editStates}
-      setEditStates={setEditStates}
-      onCreate={handleCreatePanelUser}
-      onUpdate={(userId) => void handleUpdatePanelUser(userId)}
+      editorOpen={editorOpen}
+      editorMode={editorMode}
+      editorForm={editorForm}
+      setEditorForm={setEditorForm}
+      busy={busy}
+      onStartCreate={openCreate}
+      onStartEdit={openEdit}
+      onCancelEditor={closeEditor}
+      onSubmit={(event) => void handleSubmit(event)}
       onLogoutAllSessions={(userId) => void handleLogoutAllPanelUserSessions(userId)}
-      permissionSections={permissionSections}
     />
   );
 }
