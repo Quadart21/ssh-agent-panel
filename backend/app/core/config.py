@@ -3,8 +3,25 @@ from hashlib import sha256
 import json
 from typing import Any
 
+from cryptography.fernet import Fernet
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _derive_encryption_key(secret_key: str) -> str:
+    derived_key = urlsafe_b64encode(sha256(secret_key.encode("utf-8")).digest())
+    return derived_key.decode("utf-8")
+
+
+def _is_valid_fernet_key(value: str) -> bool:
+    candidate = value.strip()
+    if not candidate:
+        return False
+    try:
+        Fernet(candidate.encode("utf-8"))
+    except Exception:
+        return False
+    return True
 
 
 class Settings(BaseSettings):
@@ -79,6 +96,5 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-if not settings.encryption_key:
-    derived_key = urlsafe_b64encode(sha256(settings.secret_key.encode("utf-8")).digest())
-    settings.encryption_key = derived_key.decode("utf-8")
+if not _is_valid_fernet_key(settings.encryption_key):
+    settings.encryption_key = _derive_encryption_key(settings.secret_key)
