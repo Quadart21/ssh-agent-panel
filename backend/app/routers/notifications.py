@@ -25,11 +25,7 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 def _build_telegram_webhook_url() -> str:
     base = settings.frontend_origin.rstrip("/")
-    path = f"{settings.api_v1_prefix}/notifications/telegram/incoming"
-    secret = (settings.telegram_webhook_secret or "").strip()
-    if secret:
-        path += f"/{secret}"
-    return f"{base}{path}"
+    return f"{base}{settings.api_v1_prefix}/notifications/telegram/incoming"
 
 
 def _build_test_notification(event_type: str) -> str:
@@ -291,8 +287,9 @@ def register_telegram_webhook(
     if not telegram_is_configured(db):
         raise HTTPException(status_code=400, detail="Telegram не настроен.")
     webhook_url = _build_telegram_webhook_url()
+    secret = (settings.telegram_webhook_secret or "").strip()
     try:
-        set_telegram_webhook(webhook_url, db)
+        set_telegram_webhook(webhook_url, db, secret_token=secret or None)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     write_audit_log(db, user=current_user, action="telegram.webhook.set", target_type="system", target_id="telegram", details=webhook_url)
@@ -322,8 +319,11 @@ async def telegram_incoming_webhook(
     db: Session = Depends(get_db),
 ):
     expected = (settings.telegram_webhook_secret or "").strip()
-    if expected and secret != expected:
-        raise HTTPException(status_code=403, detail="Forbidden")
+    if expected:
+        header_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        path_ok = secret == expected
+        if header_secret != expected and not path_ok:
+            raise HTTPException(status_code=403, detail="Forbidden")
 
     payload = await request.json()
     callback = payload.get("callback_query")

@@ -172,18 +172,23 @@ def get_telegram_webhook_info(db: Session | None = None) -> dict[str, Any]:
     return result.get("result") or {}
 
 
-def set_telegram_webhook(webhook_url: str, db: Session | None = None) -> None:
+def set_telegram_webhook(
+    webhook_url: str,
+    db: Session | None = None,
+    *,
+    secret_token: str | None = None,
+) -> None:
     token, _ = _resolve_credentials(db)
     if not token:
         raise RuntimeError("Telegram не настроен.")
-    telegram_api_request(
-        token,
-        "setWebhook",
-        {
-            "url": webhook_url,
-            "allowed_updates": ["callback_query"],
-        },
-    )
+    payload: dict[str, Any] = {
+        "url": webhook_url,
+        "allowed_updates": ["callback_query"],
+        "drop_pending_updates": False,
+    }
+    if secret_token:
+        payload["secret_token"] = secret_token
+    telegram_api_request(token, "setWebhook", payload)
 
 
 def delete_telegram_webhook(db: Session | None = None) -> None:
