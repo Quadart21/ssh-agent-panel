@@ -359,6 +359,35 @@ export type ServerCheckReport = {
   raw_excerpt: string;
 };
 
+export type ServerCheckRunQueued = {
+  run_id: string;
+  status: string;
+  message: string;
+  panel_url: string;
+};
+
+export type ServerCheckRunSummary = {
+  id: string;
+  server_id: number;
+  server_name: string | null;
+  check_id: string;
+  check_title: string;
+  check_group: string;
+  status: string;
+  requested_by_email: string;
+  ok: boolean | null;
+  summary: string | null;
+  duration_ms: number | null;
+  error_message: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+};
+
+export type ServerCheckRunDetail = ServerCheckRunSummary & {
+  report: ServerCheckReport | null;
+};
+
 export type AutomationPreset = {
   key: string;
   name: string;

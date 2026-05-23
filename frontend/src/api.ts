@@ -22,6 +22,9 @@ import type {
   ServerAccountingSummary,
   ServerCheckGroup,
   ServerCheckReport,
+  ServerCheckRunDetail,
+  ServerCheckRunQueued,
+  ServerCheckRunSummary,
   ServerMetricSnapshot,
   TelegramStatus,
   TelegramWebhookInfo,
@@ -292,8 +295,13 @@ export const api = {
       method: "POST"
     }),
   serverChecksCatalog: () => request<ServerCheckGroup[]>("/server-checks/catalog"),
-  runServerCheck: (serverId: number, checkId: string) =>
-    request<ServerCheckReport>(`/server-checks/${serverId}/run/${encodeURIComponent(checkId)}`, {
+  listServerCheckRuns: (serverId?: number) =>
+    request<ServerCheckRunSummary[]>(
+      serverId ? `/server-checks/runs?server_id=${serverId}` : "/server-checks/runs"
+    ),
+  getServerCheckRun: (runId: string) => request<ServerCheckRunDetail>(`/server-checks/runs/${encodeURIComponent(runId)}`),
+  queueServerCheck: (serverId: number, checkId: string) =>
+    request<ServerCheckRunQueued>(`/server-checks/${serverId}/queue/${encodeURIComponent(checkId)}`, {
       method: "POST"
     }),
   listGroups: () => request<Group[]>("/groups"),

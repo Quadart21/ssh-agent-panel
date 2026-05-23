@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { api } from "../api";
 import ServerCheckReportView from "./ServerCheckReportView";
-import type { Server, ServerCheckGroup, ServerCheckReport } from "../types";
+import type { Server, ServerCheckGroup, ServerCheckReport, ServerCheckRunSummary } from "../types";
 
 type Props = {
   servers: Server[];
@@ -20,17 +20,27 @@ function formatDuration(ms: number) {
   return rest ? `${minutes} мин ${rest} сек` : `${minutes} мин`;
 }
 
+function runStatusLabel(status: string) {
+  if (status === "queued") return "В очереди";
+  if (status === "running") return "Выполняется";
+  if (status === "completed") return "Готово";
+  if (status === "failed") return "Ошибка";
+  return status;
+}
+
 function ServerChecksPage({ servers, onError }: Props) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [catalog, setCatalog] = useState<ServerCheckGroup[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [activeGroupId, setActiveGroupId] = useState("");
   const [selectedCheckId, setSelectedCheckId] = useState("");
+  const [runs, setRuns] = useState<ServerCheckRunSummary[]>([]);
   const [report, setReport] = useState<ServerCheckReport | null>(null);
-  const [running, setRunning] = useState(false);
+  const [queueing, setQueueing] = useState(false);
   const [status, setStatus] = useState("Выберите сервер и тип проверки.");
 
   const selectedServerId = searchParams.get("server") ?? "";
+  const selectedRunId = searchParams.get("run") ?? "";
 
   const activeGroup = useMemo(
     () => catalog.find((group) => group.id === activeGroupId) ?? null,
@@ -45,6 +55,42 @@ function ServerChecksPage({ servers, onError }: Props) {
   const selectedServer = useMemo(
     () => servers.find((server) => String(server.id) === selectedServerId) ?? null,
     [servers, selectedServerId]
+  );
+
+  const hasActiveRuns = useMemo(
+    () => runs.some((run) => run.status === "queued" || run.status === "running"),
+    [runs]
+  );
+
+  const loadRuns = useCallback(async () => {
+    try {
+      const data = await api.listServerCheckRuns(selectedServerId ? Number(selectedServerId) : undefined);
+      setRuns(data);
+    } catch {
+      setRuns([]);
+    }
+  }, [selectedServerId]);
+
+  const loadRunReport = useCallback(
+    async (runId: string) => {
+      onError("");
+      try {
+        const detail = await api.getServerCheckRun(runId);
+        if (detail.report) {
+          setReport(detail.report);
+          setStatus("Отчёт загружен.");
+        } else if (detail.status === "failed") {
+          setReport(null);
+          setStatus(detail.error_message ?? "Проверка завершилась с ошибкой.");
+        } else {
+          setReport(null);
+          setStatus(`Статус: ${runStatusLabel(detail.status)}. Ожидайте уведомление в Telegram.`);
+        }
+      } catch (err) {
+        onError(err instanceof Error ? err.message : "Не удалось загрузить отчёт.");
+      }
+    },
+    [onError]
   );
 
   useEffect(() => {
@@ -66,6 +112,37 @@ function ServerChecksPage({ servers, onError }: Props) {
   }, []);
 
   useEffect(() => {
+    void loadRuns();
+  }, [loadRuns]);
+
+  useEffect(() => {
+    if (!hasActiveRuns) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      void loadRuns();
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [hasActiveRuns, loadRuns]);
+
+  useEffect(() => {
+    if (!selectedRunId) {
+      return;
+    }
+    void loadRunReport(selectedRunId);
+  }, [selectedRunId, loadRunReport]);
+
+  useEffect(() => {
+    if (!selectedRunId) {
+      return;
+    }
+    const current = runs.find((run) => run.id === selectedRunId);
+    if (current && (current.status === "completed" || current.status === "failed")) {
+      void loadRunReport(selectedRunId);
+    }
+  }, [runs, selectedRunId, loadRunReport]);
+
+  useEffect(() => {
     if (!activeGroup?.checks.length) {
       setSelectedCheckId("");
       return;
@@ -82,29 +159,39 @@ function ServerChecksPage({ servers, onError }: Props) {
     } else {
       next.delete("server");
     }
+    next.delete("run");
     setSearchParams(next);
     setReport(null);
-    setStatus("Выберите тип проверки и нажмите «Запустить».");
+    setStatus("Выберите тип проверки и запустите в фоне.");
   }
 
-  async function handleRunCheck() {
+  function openRun(run: ServerCheckRunSummary) {
+    const next = new URLSearchParams(searchParams);
+    next.set("server", String(run.server_id));
+    next.set("run", run.id);
+    setSearchParams(next);
+  }
+
+  async function handleQueueCheck() {
     if (!selectedServerId || !selectedCheckId) {
       onError("Выберите сервер и скрипт проверки.");
       return;
     }
     onError("");
-    setRunning(true);
+    setQueueing(true);
     setReport(null);
-    setStatus(`Запуск «${selectedCheck?.title ?? selectedCheckId}» на ${selectedServer?.name ?? "сервере"}…`);
     try {
-      const result = await api.runServerCheck(Number(selectedServerId), selectedCheckId);
-      setReport(result);
-      setStatus(result.ok ? "Проверка завершена успешно." : "Проверка завершена с ошибками.");
+      const queued = await api.queueServerCheck(Number(selectedServerId), selectedCheckId);
+      setStatus(queued.message);
+      const next = new URLSearchParams(searchParams);
+      next.set("run", queued.run_id);
+      setSearchParams(next);
+      await loadRuns();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Не удалось выполнить проверку.");
-      setStatus("Проверка не выполнена.");
+      onError(err instanceof Error ? err.message : "Не удалось поставить проверку в очередь.");
+      setStatus("Не удалось запустить проверку.");
     } finally {
-      setRunning(false);
+      setQueueing(false);
     }
   }
 
@@ -115,8 +202,8 @@ function ServerChecksPage({ servers, onError }: Props) {
           <p className="eyebrow">Диагностика</p>
           <h1>Проверка серверов</h1>
           <p className="hero-copy">
-            Сеть, бенчмарки, регион IP, DPI, геоблокировки и CPU — результаты в виде наглядного GUI-отчёта: карточки,
-            шкалы, статусы сервисов и health-score.
+            Проверки запускаются в фоне — можно закрыть страницу. Когда GUI-отчёт будет готов, придёт уведомление в
+            Telegram со ссылкой на панель.
           </p>
         </div>
       </section>
@@ -185,7 +272,7 @@ function ServerChecksPage({ servers, onError }: Props) {
                     onClick={() => {
                       setSelectedCheckId(check.id);
                       setReport(null);
-                      setStatus("Готово к запуску.");
+                      setStatus("Готово к запуску в фоне.");
                     }}
                   >
                     <strong>{check.title}</strong>
@@ -196,15 +283,44 @@ function ServerChecksPage({ servers, onError }: Props) {
               </div>
 
               <div className="server-checks-actions">
-                <button type="button" onClick={() => void handleRunCheck()} disabled={running || !selectedServerId || !selectedCheckId}>
-                  {running ? "Выполняется…" : "Запустить проверку"}
+                <button type="button" onClick={() => void handleQueueCheck()} disabled={queueing || !selectedServerId || !selectedCheckId}>
+                  {queueing ? "Постановка в очередь…" : "Запустить в фоне"}
                 </button>
                 <p className="muted">{status}</p>
-                {selectedCheck ? (
-                  <p className="muted server-checks-warning">
-                    Бенчмарки и YABS могут выполняться несколько минут. Не закрывайте вкладку до завершения.
-                  </p>
-                ) : null}
+                <p className="muted server-checks-warning">
+                  Страницу можно закрыть — результат сохранится в панели, а Telegram сообщит, когда отчёт готов.
+                </p>
+              </div>
+
+              <div className="check-runs-list">
+                <div className="check-report-block-head">
+                  <h4>Последние запуски</h4>
+                  {hasActiveRuns ? <span className="status-pill pending">есть активные</span> : null}
+                </div>
+                {runs.length ? (
+                  <div className="check-runs-items">
+                    {runs.map((run) => (
+                      <button
+                        key={run.id}
+                        type="button"
+                        className={`check-run-item status-${run.status}`}
+                        onClick={() => openRun(run)}
+                      >
+                        <div>
+                          <strong>{run.check_title}</strong>
+                          <span className="muted">
+                            {run.server_name ?? `#${run.server_id}`} · {new Date(run.created_at).toLocaleString("ru-RU")}
+                          </span>
+                        </div>
+                        <span className={`status-pill ${run.status === "completed" && run.ok ? "online" : run.status === "failed" ? "offline" : "pending"}`}>
+                          {runStatusLabel(run.status)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="muted">Запусков пока нет.</p>
+                )}
               </div>
             </article>
 
@@ -215,16 +331,22 @@ function ServerChecksPage({ servers, onError }: Props) {
                   <span className={`status-pill ${report.ok ? "online" : "offline"}`}>
                     {report.visual.health_label} · код {report.exit_code}
                   </span>
+                ) : hasActiveRuns ? (
+                  <span className="status-pill pending">выполняется в фоне</span>
                 ) : (
-                  <span className="muted">{running ? "Сбор данных…" : "Ожидает запуск"}</span>
+                  <span className="muted">Откройте готовый запуск или дождитесь Telegram</span>
                 )}
               </div>
 
               {!report ? (
                 <div className="server-checks-empty">
                   <div className="check-empty-visual">
-                    <span className="check-empty-visual-icon">{running ? "⏳" : "📊"}</span>
-                    <p>{running ? "Скрипт выполняется на удалённом сервере…" : "Запустите проверку — здесь появится визуальный отчёт."}</p>
+                    <span className="check-empty-visual-icon">{hasActiveRuns ? "⏳" : "📊"}</span>
+                    <p>
+                      {hasActiveRuns
+                        ? "Проверка выполняется на сервере. Можете уйти со страницы — пришлём уведомление в Telegram."
+                        : "Выберите готовый запуск слева или запустите новую проверку."}
+                    </p>
                   </div>
                 </div>
               ) : (

@@ -550,6 +550,35 @@ class ServerCheckReportRead(BaseModel):
     raw_excerpt: str = ""
 
 
+class ServerCheckRunQueuedRead(BaseModel):
+    run_id: str
+    status: str
+    message: str
+    panel_url: str
+
+
+class ServerCheckRunSummaryRead(BaseModel):
+    id: str
+    server_id: int
+    server_name: str | None = None
+    check_id: str
+    check_title: str
+    check_group: str
+    status: str
+    requested_by_email: str
+    ok: bool | None = None
+    summary: str | None = None
+    duration_ms: int | None = None
+    error_message: str | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
+class ServerCheckRunDetailRead(ServerCheckRunSummaryRead):
+    report: ServerCheckReportRead | None = None
+
+
 class AutomationPresetRead(BaseModel):
     key: str
     name: str
