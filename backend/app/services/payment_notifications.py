@@ -1,14 +1,15 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from html import escape
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models import PaymentNotificationBatch, Server, ServerPaymentNotificationState
 from app.services.audit import write_audit_log
 from app.services.notification_settings import get_or_create_notification_settings, telegram_credentials
 from app.services.telegram import (
     edit_telegram_message,
-    format_telegram_message,
     resolve_telegram_topic_id,
     send_telegram_message,
     telegram_is_configured,
@@ -28,8 +29,17 @@ def _format_server_cost(server: Server) -> str:
     if server.monthly_cost is None:
         return "—"
     currency = server.currency or "RUB"
-    period = server.billing_period or "monthly"
-    return f"{server.monthly_cost:.2f} {currency} / {period}"
+    period = _billing_period_label(server.billing_period)
+    return f"{server.monthly_cost:.0f} {currency}/{period}"
+
+
+def _billing_period_label(period: str | None) -> str:
+    mapping = {
+        "monthly": "мес",
+        "yearly": "год",
+        "quarterly": "кв",
+    }
+    return mapping.get((period or "monthly").strip().lower(), period or "мес")
 
 
 def _format_total_cost(servers: list[Server]) -> str:
@@ -41,38 +51,70 @@ def _format_total_cost(servers: list[Server]) -> str:
         totals[currency] = totals.get(currency, 0.0) + float(server.monthly_cost)
     if not totals:
         return "—"
-    return ", ".join(f"{amount:.2f} {currency}" for currency, amount in sorted(totals.items()))
+    return " + ".join(f"{amount:.0f} {currency}" for currency, amount in sorted(totals.items()))
 
 
-def _format_server_lines(servers: list[Server]) -> list[str]:
-    lines: list[str] = []
-    for server in servers:
-        provider = server.provider or "не указан"
-        pay_until = server.pay_until.strftime("%Y-%m-%d") if server.pay_until else "—"
-        lines.append(f"{server.name} ({server.ip})")
-        lines.append(f"  Провайдер: {provider}")
-        lines.append(f"  Сумма: {_format_server_cost(server)}")
-        lines.append(f"  Оплатить до: {pay_until}")
-    return lines
+def _format_pay_until(pay_until: datetime | None) -> str:
+    if not pay_until:
+        return "—"
+    return pay_until.strftime("%d.%m.%Y")
 
 
-def _category_meta(category: str) -> tuple[str, str]:
+def _category_meta(category: str) -> tuple[str, str, str]:
     if category == "payment_notice_7d":
-        return "⏳", "Оплата через 7 дней"
+        return "⏳", "Оплата через 7 дней", "Напоминание: до истечения срока осталась неделя."
     if category == "payment_notice_3d":
-        return "⚠️", "Оплата через 3 дня"
+        return "⚠️", "Оплата через 3 дня", "Срок оплаты истекает в ближайшие дни."
     if category == "payment_overdue":
-        return "🔴", "Оплата просрочена"
-    return "💸", "Уведомление об оплате"
+        return "🔴", "Оплата просрочена", "Сервер будет удалён из панели после 3 дней просрочки."
+    return "💸", "Уведомление об оплате", ""
 
 
-def format_payment_batch_message(category: str, servers: list[Server]) -> str:
-    icon, title = _category_meta(category)
-    facts = [
-        ("Серверов", str(len(servers))),
-        ("Сумма", _format_total_cost(servers)),
+def format_payment_batch_message(category: str, servers: list[Server], *, status_suffix: str | None = None) -> str:
+    icon, title, subtitle = _category_meta(category)
+    providers = sorted({server.provider or "не указан" for server in servers})
+    provider_line = providers[0] if len(providers) == 1 else ", ".join(providers)
+
+    lines = [
+        f"<b>{icon} {escape(settings.app_display_name)}</b>",
+        "━━━━━━━━━━━━━━━━━━━━",
+        f"<b>{escape(title)}</b>",
     ]
-    return format_telegram_message(title, icon=icon, facts=facts, lines=_format_server_lines(servers))
+    if subtitle:
+        lines.append(f"<i>{escape(subtitle)}</i>")
+    lines.extend(
+        [
+            "",
+            "📊 <b>Сводка</b>",
+            f"• Серверов: <b>{len(servers)}</b>",
+            f"• Сумма: <b>{escape(_format_total_cost(servers))}</b>",
+            f"• Провайдер: <b>{escape(provider_line)}</b>",
+            "",
+            "🖥 <b>Серверы</b>",
+        ]
+    )
+
+    for index, server in enumerate(servers, start=1):
+        lines.append(f"<b>{index}.</b> {escape(server.name)}")
+        lines.append(f"    🌐 <code>{escape(server.ip)}</code>")
+        lines.append(f"    💳 {escape(_format_server_cost(server))}")
+        lines.append(f"    📅 до <b>{escape(_format_pay_until(server.pay_until))}</b>")
+        if len(providers) > 1:
+            lines.append(f"    🏢 {escape(server.provider or 'не указан')}")
+        if index != len(servers):
+            lines.append("")
+
+    if status_suffix:
+        lines.extend(["", status_suffix])
+
+    lines.extend(
+        [
+            "",
+            "━━━━━━━━━━━━━━━━━━━━",
+            f"<i>🕒 {datetime.now(timezone.utc).strftime('%d.%m.%Y %H:%M UTC')}</i>",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _paid_keyboard(batch_id: str) -> dict:
@@ -290,8 +332,9 @@ def handle_payment_callback(db: Session, callback_data: str, callback_query_id: 
     if action == "paid":
         answer_callback_query(callback_query_id, db=db, text="Выберите срок продления.")
         send_telegram_message(
-            "На сколько продлить оплату?",
+            "💳 <b>На сколько продлить оплату?</b>\n\nВыберите срок продления для серверов из уведомления.",
             db,
+            parse_mode="HTML",
             reply_markup=extension_keyboard(batch_id),
         )
         return "paid_prompt"
@@ -333,20 +376,19 @@ def handle_payment_callback(db: Session, callback_data: str, callback_query_id: 
 
         if batch.telegram_chat_id and batch.telegram_message_id:
             refreshed = db.query(Server).filter(Server.id.in_(batch.server_ids)).all()
-            suffix = f"\n\n✅ <b>Оплатил</b> — продлено на {days} дн."
-            if refreshed:
-                dates = ", ".join(
-                    server.pay_until.strftime("%Y-%m-%d")
-                    for server in refreshed[:5]
-                    if server.pay_until
-                )
-                if dates:
-                    suffix += f"\nНовая дата: {dates}"
+            dates = ", ".join(
+                _format_pay_until(server.pay_until)
+                for server in refreshed[:5]
+                if server.pay_until
+            )
+            status = f"✅ <b>Оплачено</b> — продлено на <b>{days} дн.</b>"
+            if dates:
+                status += f"\n📅 Новая дата: <b>{escape(dates)}</b>"
             try:
                 edit_telegram_message(
                     batch.telegram_chat_id,
                     batch.telegram_message_id,
-                    format_payment_batch_message(batch.category, refreshed) + suffix,
+                    format_payment_batch_message(batch.category, refreshed, status_suffix=status),
                     db=db,
                     parse_mode="HTML",
                 )
