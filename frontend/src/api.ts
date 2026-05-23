@@ -304,6 +304,10 @@ export const api = {
     request<ServerCheckRunQueued>(`/server-checks/${serverId}/queue/${encodeURIComponent(checkId)}`, {
       method: "POST"
     }),
+  cancelServerCheckRun: (runId: string) =>
+    request<{ ok: boolean; message: string }>(`/server-checks/runs/${encodeURIComponent(runId)}/cancel`, {
+      method: "POST"
+    }),
   listGroups: () => request<Group[]>("/groups"),
   createGroup: (payload: Record<string, unknown>) =>
     request<Group>("/groups", { method: "POST", body: JSON.stringify(payload) }),

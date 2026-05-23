@@ -11,11 +11,14 @@ from app.core.config import settings
 from app.db import SessionLocal, run_startup_migrations
 from app.routers import agent, automation, audit, auth, domains, firewall, groups, linux_users, notifications, panel_users, patterns, pm2, security, server_checks, servers, system, terminal
 from app.services.scheduler import scheduler_loop
+from app.services.server_check_jobs import recover_server_check_runs
 
 run_startup_migrations()
 
 with SessionLocal() as db:
     ensure_admin_user(db)
+
+recover_server_check_runs()
 
 
 @asynccontextmanager

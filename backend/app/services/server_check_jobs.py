@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -10,6 +10,9 @@ from app.services.audit import write_audit_log
 from app.services.notification_settings import get_or_create_notification_settings
 from app.services.server_checks import CHECKS_BY_ID, run_server_check
 from app.services.telegram import format_telegram_message, resolve_telegram_topic_id, send_telegram_message, telegram_is_configured
+
+STALE_QUEUED_MINUTES = 10
+STALE_RUNNING_BUFFER_SECONDS = 180
 
 
 def panel_report_url(server_id: int, run_id: str) -> str:
@@ -37,7 +40,75 @@ def serialize_run_summary(run: ServerCheckRun, server_name: str | None = None) -
     }
 
 
+def _check_timeout_seconds(check_id: str) -> int:
+    check = CHECKS_BY_ID.get(check_id)
+    return check.timeout if check else 300
+
+
+def _mark_run_failed(run: ServerCheckRun, *, message: str, error: str, notify: bool = False, server: Server | None = None) -> None:
+    run.status = "failed"
+    run.ok = False
+    run.summary = message
+    run.error_message = error
+    run.finished_at = datetime.utcnow()
+
+
+def expire_stale_server_check_runs(db: Session) -> int:
+    now = datetime.utcnow()
+    expired = 0
+    runs = db.query(ServerCheckRun).filter(ServerCheckRun.status.in_(("queued", "running"))).all()
+    for run in runs:
+        if run.status == "queued":
+            if now - run.created_at <= timedelta(minutes=STALE_QUEUED_MINUTES):
+                continue
+            _mark_run_failed(
+                run,
+                message="Проверка не была запущена.",
+                error="Задача зависла в очереди (возможен перезапуск панели).",
+            )
+            expired += 1
+            continue
+
+        started = run.started_at or run.created_at
+        limit_seconds = _check_timeout_seconds(run.check_id) + STALE_RUNNING_BUFFER_SECONDS
+        if now - started <= timedelta(seconds=limit_seconds):
+            continue
+        _mark_run_failed(
+            run,
+            message="Проверка остановлена по таймауту.",
+            error=f"Превышено {limit_seconds} сек ожидания. Скрипт мог зависнуть или панель перезапускалась.",
+        )
+        expired += 1
+
+    if expired:
+        db.commit()
+    return expired
+
+
+def recover_server_check_runs() -> None:
+    with SessionLocal() as db:
+        expire_stale_server_check_runs(db)
+
+
+def cancel_server_check_run(db: Session, run_id: str) -> ServerCheckRun:
+    expire_stale_server_check_runs(db)
+    run = db.get(ServerCheckRun, run_id)
+    if run is None:
+        raise ValueError("Запуск проверки не найден.")
+    if run.status not in {"queued", "running"}:
+        raise RuntimeError("Эту проверку уже нельзя отменить.")
+    _mark_run_failed(
+        run,
+        message="Проверка отменена вручную.",
+        error="Остановлено пользователем из панели.",
+    )
+    db.commit()
+    db.refresh(run)
+    return run
+
+
 def queue_server_check(db: Session, *, server: Server, check_id: str, user: User) -> ServerCheckRun:
+    expire_stale_server_check_runs(db)
     check = CHECKS_BY_ID.get(check_id)
     if check is None:
         raise ValueError("Неизвестная проверка.")
@@ -80,6 +151,7 @@ def queue_server_check(db: Session, *, server: Server, check_id: str, user: User
 
 def execute_server_check_run(run_id: str) -> None:
     with SessionLocal() as db:
+        expire_stale_server_check_runs(db)
         run = db.get(ServerCheckRun, run_id)
         if run is None or run.status != "queued":
             return
@@ -90,9 +162,7 @@ def execute_server_check_run(run_id: str) -> None:
 
         server = db.get(Server, run.server_id)
         if server is None:
-            run.status = "failed"
-            run.error_message = "Сервер не найден."
-            run.finished_at = datetime.utcnow()
+            _mark_run_failed(run, message="Сервер не найден.", error="Сервер удалён из панели.")
             db.commit()
             _notify_server_check_complete(db, run, None)
             return
@@ -107,23 +177,27 @@ def execute_server_check_run(run_id: str) -> None:
             run.exit_code = int(report.get("exit_code") or 0)
             run.error_message = None
         except Exception as exc:
-            run.status = "failed"
-            run.ok = False
-            run.summary = "Проверка завершилась с ошибкой."
-            run.error_message = str(exc)
-        run.finished_at = datetime.utcnow()
-        db.commit()
-        db.refresh(run)
+            _mark_run_failed(
+                run,
+                message="Проверка завершилась с ошибкой.",
+                error=str(exc),
+            )
+        finally:
+            if run.finished_at is None:
+                run.finished_at = datetime.utcnow()
+            db.commit()
+            db.refresh(run)
 
-        write_audit_log(
-            db,
-            user=None,
-            action="server.check.complete",
-            target_type="server",
-            target_id=str(run.server_id),
-            details=f"{run.check_id} ({run.id}): {run.summary}",
-        )
-        _notify_server_check_complete(db, run, server)
+            write_audit_log(
+                db,
+                user=None,
+                action="server.check.complete",
+                target_type="server",
+                target_id=str(run.server_id),
+                details=f"{run.check_id} ({run.id}): {run.summary}",
+            )
+            if server is not None:
+                _notify_server_check_complete(db, run, server)
 
 
 def _notify_server_check_complete(db: Session, run: ServerCheckRun, server: Server | None) -> None:
@@ -164,6 +238,7 @@ def _notify_server_check_complete(db: Session, run: ServerCheckRun, server: Serv
 
 
 def list_server_check_runs(db: Session, *, server_id: int | None = None, limit: int = 30) -> list[dict[str, object]]:
+    expire_stale_server_check_runs(db)
     query = db.query(ServerCheckRun, Server.name).join(Server, Server.id == ServerCheckRun.server_id)
     if server_id is not None:
         query = query.filter(ServerCheckRun.server_id == server_id)
@@ -172,6 +247,7 @@ def list_server_check_runs(db: Session, *, server_id: int | None = None, limit: 
 
 
 def get_server_check_run(db: Session, run_id: str) -> tuple[ServerCheckRun, str] | None:
+    expire_stale_server_check_runs(db)
     row = (
         db.query(ServerCheckRun, Server.name)
         .join(Server, Server.id == ServerCheckRun.server_id)

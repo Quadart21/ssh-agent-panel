@@ -12,8 +12,10 @@ from app.schemas import (
     ServerCheckRunSummaryRead,
     ServerCheckSectionRead,
     ServerCheckVisualRead,
+    TmuxActionResponse,
 )
 from app.services.server_check_jobs import (
+    cancel_server_check_run,
     execute_server_check_run,
     get_server_check_run,
     list_server_check_runs,
@@ -117,3 +119,27 @@ def queue_check_on_server(
         message="Проверка запущена в фоне. Когда отчёт будет готов, придёт уведомление в Telegram.",
         panel_url=panel_report_url(server.id, run.id),
     )
+
+
+@router.post("/runs/{run_id}/cancel", response_model=TmuxActionResponse)
+def cancel_server_check_run_endpoint(
+    run_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    ensure_section_access(current_user, "servers")
+    row = get_server_check_run(db, run_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Запуск проверки не найден.")
+    run, _ = row
+    server = db.get(Server, run.server_id)
+    if server is None:
+        raise HTTPException(status_code=404, detail="Сервер не найден.")
+    ensure_server_access(current_user, server)
+    try:
+        cancel_server_check_run(db, run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return TmuxActionResponse(ok=True, message="Проверка отменена. Можно запустить новую.")

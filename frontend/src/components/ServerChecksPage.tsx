@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { api } from "../api";
@@ -20,6 +20,25 @@ function formatDuration(ms: number) {
   return rest ? `${minutes} мин ${rest} сек` : `${minutes} мин`;
 }
 
+function formatElapsedSince(isoDate: string) {
+  const started = new Date(isoDate).getTime();
+  if (Number.isNaN(started)) {
+    return "";
+  }
+  const seconds = Math.max(0, Math.floor((Date.now() - started) / 1000));
+  if (seconds < 60) {
+    return `${seconds} сек`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  if (minutes < 60) {
+    return rest ? `${minutes} мин ${rest} сек` : `${minutes} мин`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const minuteRest = minutes % 60;
+  return minuteRest ? `${hours} ч ${minuteRest} мин` : `${hours} ч`;
+}
+
 function runStatusLabel(status: string) {
   if (status === "queued") return "В очереди";
   if (status === "running") return "Выполняется";
@@ -37,6 +56,8 @@ function ServerChecksPage({ servers, onError }: Props) {
   const [runs, setRuns] = useState<ServerCheckRunSummary[]>([]);
   const [report, setReport] = useState<ServerCheckReport | null>(null);
   const [queueing, setQueueing] = useState(false);
+  const [cancellingRunId, setCancellingRunId] = useState("");
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [status, setStatus] = useState("Выберите сервер и тип проверки.");
 
   const selectedServerId = searchParams.get("server") ?? "";
@@ -120,6 +141,7 @@ function ServerChecksPage({ servers, onError }: Props) {
       return;
     }
     const timer = window.setInterval(() => {
+      setNowTick(Date.now());
       void loadRuns();
     }, 5000);
     return () => window.clearInterval(timer);
@@ -170,6 +192,36 @@ function ServerChecksPage({ servers, onError }: Props) {
     next.set("server", String(run.server_id));
     next.set("run", run.id);
     setSearchParams(next);
+  }
+
+  async function handleCancelRun(run: ServerCheckRunSummary, event: MouseEvent) {
+    event.stopPropagation();
+    if (cancellingRunId) {
+      return;
+    }
+    onError("");
+    setCancellingRunId(run.id);
+    try {
+      const result = await api.cancelServerCheckRun(run.id);
+      setStatus(result.message);
+      await loadRuns();
+      if (selectedRunId === run.id) {
+        void loadRunReport(run.id);
+      }
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось отменить проверку.");
+    } finally {
+      setCancellingRunId("");
+    }
+  }
+
+  function runElapsedLabel(run: ServerCheckRunSummary) {
+    if (run.status !== "queued" && run.status !== "running") {
+      return null;
+    }
+    const since = run.started_at ?? run.created_at;
+    void nowTick;
+    return formatElapsedSince(since);
   }
 
   async function handleQueueCheck() {
@@ -299,24 +351,47 @@ function ServerChecksPage({ servers, onError }: Props) {
                 </div>
                 {runs.length ? (
                   <div className="check-runs-items">
-                    {runs.map((run) => (
-                      <button
+                    {runs.map((run) => {
+                      const elapsed = runElapsedLabel(run);
+                      const isActive = run.status === "queued" || run.status === "running";
+                      return (
+                      <div
                         key={run.id}
-                        type="button"
                         className={`check-run-item status-${run.status}`}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => openRun(run)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            openRun(run);
+                          }
+                        }}
                       >
                         <div>
                           <strong>{run.check_title}</strong>
                           <span className="muted">
                             {run.server_name ?? `#${run.server_id}`} · {new Date(run.created_at).toLocaleString("ru-RU")}
+                            {elapsed ? ` · ${elapsed}` : ""}
                           </span>
                         </div>
-                        <span className={`status-pill ${run.status === "completed" && run.ok ? "online" : run.status === "failed" ? "offline" : "pending"}`}>
-                          {runStatusLabel(run.status)}
-                        </span>
-                      </button>
-                    ))}
+                        <div className="check-run-item-actions">
+                          {isActive ? (
+                            <button
+                              type="button"
+                              className="ghost check-run-cancel"
+                              disabled={cancellingRunId === run.id}
+                              onClick={(event) => void handleCancelRun(run, event)}
+                            >
+                              {cancellingRunId === run.id ? "…" : "Отменить"}
+                            </button>
+                          ) : null}
+                          <span className={`status-pill ${run.status === "completed" && run.ok ? "online" : run.status === "failed" ? "offline" : "pending"}`}>
+                            {runStatusLabel(run.status)}
+                          </span>
+                        </div>
+                      </div>
+                    )})}
                   </div>
                 ) : (
                   <p className="muted">Запусков пока нет.</p>

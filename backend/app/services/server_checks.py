@@ -193,9 +193,9 @@ def get_check_catalog() -> list[dict[str, object]]:
     return groups
 
 
-def _wrap_remote_command(command: str) -> str:
+def _wrap_remote_command(command: str, timeout: int) -> str:
     escaped = command.replace("'", "'\"'\"'")
-    return f"bash -lc '{escaped}'"
+    return f"timeout -k 20 {timeout}s bash -lc '{escaped}'"
 
 
 def _strip_ansi(text: str) -> str:
@@ -595,7 +595,11 @@ def run_server_check(server: Server, check_id: str) -> dict[str, object]:
         raise ValueError("Неизвестная проверка.")
 
     started = time.perf_counter()
-    exit_code, stdout, stderr = run_command_on_server(server, _wrap_remote_command(check.command), timeout=check.timeout)
+    exit_code, stdout, stderr = run_command_on_server(
+        server,
+        _wrap_remote_command(check.command, check.timeout),
+        timeout=check.timeout + 60,
+    )
     duration_ms = int((time.perf_counter() - started) * 1000)
     report = parse_check_report(check, exit_code=exit_code, stdout=stdout, stderr=stderr, duration_ms=duration_ms)
     report["server_id"] = server.id
