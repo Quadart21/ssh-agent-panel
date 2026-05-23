@@ -159,10 +159,14 @@ function App() {
 
   async function handleLogin(email: string, password: string, otpCode?: string, recoveryCode?: string) {
     setError("");
-    const response = await api.login(email, password, otpCode, recoveryCode);
-    setStoredToken(response.access_token);
-    setAuthToken(response.access_token);
-    setCurrentUser(response.user);
+    try {
+      const response = await api.login(email, password, otpCode, recoveryCode);
+      setStoredToken(response.access_token);
+      setAuthToken(response.access_token);
+      setCurrentUser(response.user);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось выполнить вход.");
+    }
   }
 
   async function handleChangeOwnPassword(currentPassword: string, newPassword: string) {

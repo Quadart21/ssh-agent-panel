@@ -1,5 +1,6 @@
 from base64 import urlsafe_b64encode
 from hashlib import sha256
+import json
 from typing import Any
 
 from pydantic import field_validator
@@ -44,8 +45,22 @@ class Settings(BaseSettings):
     def parse_csv_list(cls, value: Any) -> Any:
         if value is None or value == "":
             return []
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
         if isinstance(value, str):
-            return [item.strip() for item in value.split(",") if item.strip()]
+            stripped = value.strip()
+            if stripped.startswith("["):
+                try:
+                    parsed = json.loads(stripped)
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed if str(item).strip()]
+                except json.JSONDecodeError:
+                    pass
+            return [
+                item.strip().strip('"').strip("'")
+                for item in stripped.split(",")
+                if item.strip().strip('"').strip("'")
+            ]
         return value
 
     @property
