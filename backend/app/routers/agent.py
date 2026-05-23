@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import AgentTask, Server
 from app.schemas import AgentHeartbeatRequest
+from app.services.metrics_cache import apply_metrics_snapshot
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -25,6 +26,18 @@ def agent_heartbeat(payload: AgentHeartbeatRequest, db: Session = Depends(get_db
     server.agent_ram_percent = payload.ram_percent
     server.agent_disk_percent = payload.disk_percent
     server.agent_uptime = payload.uptime or ""
+    apply_metrics_snapshot(
+        server,
+        {
+            "cpu_percent": payload.cpu_percent,
+            "ram_percent": payload.ram_percent,
+            "disk_percent": payload.disk_percent,
+            "uptime": payload.uptime or "agent online",
+            "online": True,
+            "metrics_available": True,
+            "metrics_source": "agent",
+        },
+    )
 
     if payload.task_id:
         task = (

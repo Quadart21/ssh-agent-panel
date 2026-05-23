@@ -90,6 +90,7 @@ export type ServerMetricSnapshot = {
   uptime: string;
   online: boolean;
   metrics_available?: boolean;
+  collected_at?: string | null;
 };
 
 export type ConnectionTestResult = {

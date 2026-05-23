@@ -8,8 +8,9 @@ from app.core.config import settings
 from app.db import get_db
 from app.deps import ensure_section_access, ensure_server_access, get_current_user
 from app.models import MetricsEmbed, Server, User
-from app.schemas import MetricsEmbedCreate, MetricsEmbedRead, MetricsEmbedUpdate, PublicEmbedMetricsRead, PublicEmbedServerMetricsRead
+from app.schemas import MetricsEmbedCreate, MetricsEmbedRead, MetricsEmbedUpdate, PublicEmbedMetricsRead, PublicEmbedServerMetricsRead, ServerMetricSnapshot
 from app.services.audit import write_audit_log
+from app.services.metrics_cache import read_cached_metric_snapshot
 from app.services.ssh import fetch_server_metrics
 
 router = APIRouter(tags=["metric-embeds"])
@@ -196,16 +197,29 @@ def public_embed_metrics(token: str, response: Response, db: Session = Depends(g
         server = servers_by_id.get(server_id)
         if server is None:
             continue
-        snapshot = fetch_server_metrics(server)
+        if server.metrics_collected_at:
+            snapshot = read_cached_metric_snapshot(server)
+        else:
+            live = fetch_server_metrics(server)
+            snapshot = ServerMetricSnapshot(
+                server_id=server.id,
+                cpu_percent=int(live["cpu_percent"]),
+                ram_percent=int(live["ram_percent"]),
+                disk_percent=int(live["disk_percent"]),
+                uptime=str(live["uptime"]),
+                online=bool(live["online"]),
+                metrics_available=bool(live.get("metrics_available", False)),
+                collected_at=None,
+            )
         payload.append(
             PublicEmbedServerMetricsRead(
                 name=server.name,
-                cpu_percent=int(snapshot["cpu_percent"]),
-                ram_percent=int(snapshot["ram_percent"]),
-                disk_percent=int(snapshot["disk_percent"]),
-                uptime=str(snapshot["uptime"]),
-                online=bool(snapshot["online"]),
-                metrics_available=bool(snapshot.get("metrics_available", True)),
+                cpu_percent=snapshot.cpu_percent,
+                ram_percent=snapshot.ram_percent,
+                disk_percent=snapshot.disk_percent,
+                uptime=snapshot.uptime,
+                online=snapshot.online,
+                metrics_available=snapshot.metrics_available,
             )
         )
     return PublicEmbedMetricsRead(

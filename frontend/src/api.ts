@@ -360,6 +360,14 @@ export const api = {
     }),
   dashboard: () => request<DashboardStats>("/servers/dashboard"),
   metrics: () => request<ServerMetricSnapshot[]>("/servers/metrics"),
+  refreshAllMetrics: () =>
+    request<ServerMetricSnapshot[]>("/servers/metrics/refresh-all", {
+      method: "POST"
+    }),
+  refreshServerMetrics: (serverId: number) =>
+    request<ServerMetricSnapshot>(`/servers/${serverId}/metrics/refresh`, {
+      method: "POST"
+    }),
   listPm2Apps: (serverId: number, runAsUser?: string) =>
     request<Pm2Process[]>(appendQuery(`/pm2/${serverId}/apps`, { run_as_user: runAsUser })),
   startPm2App: (serverId: number, payload: Record<string, unknown>) =>

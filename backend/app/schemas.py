@@ -212,6 +212,7 @@ class ServerMetricSnapshot(BaseModel):
     uptime: str
     online: bool
     metrics_available: bool = True
+    collected_at: datetime | None = None
 
 
 class BulkCommandRequest(BaseModel):

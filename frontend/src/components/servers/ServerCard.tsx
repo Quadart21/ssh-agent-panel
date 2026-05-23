@@ -13,6 +13,8 @@ type Props = {
   onEdit: (server: Server) => void;
   onDelete: (id: number) => void;
   onEnrollAgent: (id: number) => void;
+  onRefreshMetrics: (id: number) => void;
+  metricsRefreshing: boolean;
 };
 
 function agentLabel(server: Server): { text: string; tone: "online" | "pending" | "offline" } {
@@ -34,7 +36,9 @@ function ServerCard({
   canEnrollAgent,
   onEdit,
   onDelete,
-  onEnrollAgent
+  onEnrollAgent,
+  onRefreshMetrics,
+  metricsRefreshing
 }: Props) {
   const agent = agentLabel(server);
   const paymentExpired = isPaymentExpired(server.pay_until);
@@ -103,7 +107,23 @@ function ServerCard({
         </div>
       )}
 
+      {metric?.collected_at ? (
+        <p className="metrics-collected-at muted">
+          Сохранено: {new Date(metric.collected_at).toLocaleString("ru-RU")}
+        </p>
+      ) : (
+        <p className="metrics-collected-at muted">Состояние ещё не сохранялось</p>
+      )}
+
       <div className="card-actions">
+        <button
+          type="button"
+          className="ghost btn-sm"
+          disabled={metricsRefreshing}
+          onClick={() => onRefreshMetrics(server.id)}
+        >
+          {metricsRefreshing ? "Опрос…" : "Обновить метрики"}
+        </button>
         {canEdit ? (
           <button className="ghost" type="button" onClick={() => onEdit(server)}>
             {isEditing ? "Редактируется…" : "Редактировать"}

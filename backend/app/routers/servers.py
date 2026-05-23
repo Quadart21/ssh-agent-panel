@@ -44,31 +44,36 @@ from app.schemas import (
 from app.services.accounting import build_accounting_summary, normalize_monthly_cost
 from app.services.alerts import collect_server_alerts
 from app.services.auth_state import validate_user_session
+from app.services.metrics_cache import persist_metrics_snapshot, read_cached_metric_snapshot
 from app.services.ssh import execute_commands, fetch_server_metrics, run_command_on_server, stream_command_on_server, test_ssh_connection
 from app.services.audit import write_audit_log
 
 router = APIRouter(prefix="/servers", tags=["servers"])
 
 
-def _metric_snapshot_from_server(server: Server) -> ServerMetricSnapshot:
+def _refresh_server_metrics(db: Session, server: Server) -> ServerMetricSnapshot:
     snapshot = fetch_server_metrics(server)
-    return ServerMetricSnapshot(
-        server_id=server.id,
-        cpu_percent=int(snapshot["cpu_percent"]),
-        ram_percent=int(snapshot["ram_percent"]),
-        disk_percent=int(snapshot["disk_percent"]),
-        uptime=str(snapshot["uptime"]),
-        online=bool(snapshot["online"]),
-        metrics_available=bool(snapshot.get("metrics_available", True)),
-    )
+    return persist_metrics_snapshot(db, server, snapshot)
 
 
-def _collect_metric_snapshots(servers: list[Server]) -> list[ServerMetricSnapshot]:
+def _refresh_server_metrics_by_id(server_id: int) -> ServerMetricSnapshot:
+    with SessionLocal() as db:
+        server = db.get(Server, server_id)
+        if server is None:
+            raise ValueError("Сервер не найден.")
+        return _refresh_server_metrics(db, server)
+
+
+def _refresh_metric_snapshots(servers: list[Server]) -> list[ServerMetricSnapshot]:
     if not servers:
         return []
     workers = min(8, len(servers))
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        return list(pool.map(_metric_snapshot_from_server, servers))
+        return list(pool.map(_refresh_server_metrics_by_id, [server.id for server in servers]))
+
+
+def _read_cached_metric_snapshots(servers: list[Server]) -> list[ServerMetricSnapshot]:
+    return [read_cached_metric_snapshot(server) for server in servers]
 
 
 def serialize_server(server: Server) -> ServerRead:
@@ -512,7 +517,7 @@ def dashboard_stats(
             return DashboardStats(total_servers=0, online_servers=0, expiring_soon=0, groups_total=0, patterns_total=0)
         query = query.filter(Server.id.in_(allowed_ids))
     servers = query.all()
-    snapshots = _collect_metric_snapshots(servers)
+    snapshots = _read_cached_metric_snapshots(servers)
     online_servers = sum(1 for snapshot in snapshots if snapshot.online)
     expiring_soon = 0
     now = datetime.utcnow()
@@ -543,7 +548,33 @@ def list_metrics(
         if not allowed_ids:
             return []
         query = query.filter(Server.id.in_(allowed_ids))
-    return _collect_metric_snapshots(query.all())
+    return _read_cached_metric_snapshots(query.all())
+
+
+@router.post("/metrics/refresh-all", response_model=list[ServerMetricSnapshot])
+def refresh_all_metrics(
+    db: Session = Depends(get_db),
+    current_user: object = Depends(get_current_user),
+):
+    if not (has_section_access(current_user, "dashboard") or has_section_access(current_user, "servers")):
+        ensure_section_access(current_user, "dashboard")
+    servers = _servers_query_for_user(db, current_user).all()
+    return _refresh_metric_snapshots(servers)
+
+
+@router.post("/{server_id}/metrics/refresh", response_model=ServerMetricSnapshot)
+def refresh_server_metrics(
+    server_id: int,
+    db: Session = Depends(get_db),
+    current_user: object = Depends(get_current_user),
+):
+    if not (has_section_access(current_user, "dashboard") or has_section_access(current_user, "servers")):
+        ensure_section_access(current_user, "dashboard")
+    server = db.get(Server, server_id)
+    if not server:
+        raise HTTPException(status_code=404, detail="Сервер не найден.")
+    ensure_server_access(current_user, server)
+    return _refresh_server_metrics(db, server)
 
 
 @router.get("/alerts", response_model=list[AlertRead])

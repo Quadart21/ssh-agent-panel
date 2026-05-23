@@ -30,6 +30,10 @@ type Props = {
   canDelete: boolean;
   canEnrollAgent: boolean;
   onEnrollAgent: (id: number) => void;
+  onRefreshAllMetrics: () => void;
+  onRefreshServerMetrics: (id: number) => void;
+  metricsRefreshingAll: boolean;
+  refreshingMetricServerId: number | null;
   bulkInput: string;
   setBulkInput: (value: string) => void;
   bulkGroupId: string;
@@ -73,6 +77,10 @@ function ServersPage({
   canDelete,
   canEnrollAgent,
   onEnrollAgent,
+  onRefreshAllMetrics,
+  onRefreshServerMetrics,
+  metricsRefreshingAll,
+  refreshingMetricServerId,
   bulkInput,
   setBulkInput,
   bulkGroupId,
@@ -138,22 +146,27 @@ function ServersPage({
             <div>
               <h2>Парк серверов</h2>
               <p className="muted">
-                Показано {filteredServers.length} из {servers.length}. SSH-статус обновляется при загрузке страницы и
-                фоновых проверках.
+                Показано {filteredServers.length} из {servers.length}. Метрики сохраняются вручную — нажми «Запросить все»
+                или обнови отдельный сервер.
               </p>
             </div>
-            {(canCreate || canEdit) && (
-              <div className="panel-actions">
-                <button type="button" className="ghost" onClick={() => setActiveTab("form")}>
-                  + Добавить узел
-                </button>
-                {canCreate ? (
-                  <button type="button" className="ghost" onClick={() => setActiveTab("bulk")}>
-                    Импорт
+            <div className="panel-actions">
+              <button type="button" className="ghost" disabled={metricsRefreshingAll} onClick={onRefreshAllMetrics}>
+                {metricsRefreshingAll ? "Опрос…" : "Запросить все"}
+              </button>
+              {(canCreate || canEdit) && (
+                <>
+                  <button type="button" className="ghost" onClick={() => setActiveTab("form")}>
+                    + Добавить узел
                   </button>
-                ) : null}
-              </div>
-            )}
+                  {canCreate ? (
+                    <button type="button" className="ghost" onClick={() => setActiveTab("bulk")}>
+                      Импорт
+                    </button>
+                  ) : null}
+                </>
+              )}
+            </div>
           </div>
 
           <div className="servers-toolbar">
@@ -243,6 +256,8 @@ function ServersPage({
                   onEdit={handleEdit}
                   onDelete={onDelete}
                   onEnrollAgent={onEnrollAgent}
+                  onRefreshMetrics={onRefreshServerMetrics}
+                  metricsRefreshing={refreshingMetricServerId === server.id}
                 />
               ))}
             </div>

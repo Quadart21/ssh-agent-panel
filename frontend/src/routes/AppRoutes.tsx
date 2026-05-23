@@ -50,6 +50,8 @@ export type AppRoutesProps = {
   loading: boolean;
   setError: (message: string) => void;
   onReload: () => Promise<void>;
+  onRefreshAllMetrics: () => Promise<ServerMetricSnapshot[]>;
+  onRefreshServerMetrics: (serverId: number) => Promise<ServerMetricSnapshot>;
 };
 
 function AppRoutes({
@@ -65,7 +67,9 @@ function AppRoutes({
   metrics,
   loading,
   setError,
-  onReload
+  onReload,
+  onRefreshAllMetrics,
+  onRefreshServerMetrics
 }: AppRoutesProps) {
   return (
     <Suspense fallback={<PageFallback />}>
@@ -85,6 +89,8 @@ function AppRoutes({
               currentUser={currentUser}
               onError={setError}
               onReload={onReload}
+              onRefreshAllMetrics={onRefreshAllMetrics}
+              onRefreshServerMetrics={onRefreshServerMetrics}
             />
           }
         />

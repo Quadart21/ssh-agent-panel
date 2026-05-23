@@ -1431,6 +1431,11 @@ main#main-content {
   margin-top: var(--space-2);
 }
 
+.metrics-collected-at {
+  margin: 0 0 var(--space-2);
+  font-size: 0.78rem;
+}
+
 .automation-details pre {
   white-space: pre-wrap;
   word-break: break-word;

@@ -96,6 +96,24 @@ function App() {
     setMetrics(metricList);
   }
 
+  async function refreshAllMetrics() {
+    const snapshots = await api.refreshAllMetrics();
+    setMetrics(snapshots);
+    if (currentUser && userHasSectionAccess(currentUser, "dashboard")) {
+      setStats(await api.dashboard());
+    }
+    return snapshots;
+  }
+
+  async function refreshServerMetrics(serverId: number) {
+    const snapshot = await api.refreshServerMetrics(serverId);
+    setMetrics((current) => [...current.filter((item) => item.server_id !== serverId), snapshot]);
+    if (currentUser && userHasSectionAccess(currentUser, "dashboard")) {
+      setStats(await api.dashboard());
+    }
+    return snapshot;
+  }
+
   async function loadData() {
     if (!authToken) {
       setLoading(false);
@@ -138,19 +156,6 @@ function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-
-  useEffect(() => {
-    if (!authToken) {
-      return;
-    }
-    const intervalId = window.setInterval(() => {
-      void loadLiveData().catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Не удалось обновить живые метрики.");
-      });
-    }, 15000);
-
-    return () => window.clearInterval(intervalId);
-  }, [authToken, currentUser]);
 
   async function handleLogin(email: string, password: string, otpCode?: string, recoveryCode?: string) {
     setError("");
@@ -288,6 +293,8 @@ function App() {
             loading={loading}
             setError={setError}
             onReload={loadData}
+            onRefreshAllMetrics={refreshAllMetrics}
+            onRefreshServerMetrics={refreshServerMetrics}
           />
         </main>
       </div>

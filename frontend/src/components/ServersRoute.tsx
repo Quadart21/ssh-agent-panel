@@ -12,6 +12,8 @@ type Props = {
   currentUser: User | null;
   onError: (message: string) => void;
   onReload: () => Promise<void>;
+  onRefreshAllMetrics: () => Promise<ServerMetricSnapshot[]>;
+  onRefreshServerMetrics: (serverId: number) => Promise<ServerMetricSnapshot>;
 };
 
 const emptyServerForm: ServerForm = {
@@ -39,12 +41,23 @@ function hasAction(user: User | null, action: string) {
   return user.role === "admin" || user.action_permissions.includes(action);
 }
 
-function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload }: Props) {
+function ServersRoute({
+  groups,
+  servers,
+  metrics,
+  currentUser,
+  onError,
+  onReload,
+  onRefreshAllMetrics,
+  onRefreshServerMetrics
+}: Props) {
   const [form, setForm] = useState(emptyServerForm);
   const [editingServerId, setEditingServerId] = useState<number | null>(null);
   const [connectionResult, setConnectionResult] = useState<ConnectionTestResult | null>(null);
   const [accounting, setAccounting] = useState<ServerAccountingSummary | null>(null);
   const [accountingLoading, setAccountingLoading] = useState(true);
+  const [metricsRefreshingAll, setMetricsRefreshingAll] = useState(false);
+  const [refreshingMetricServerId, setRefreshingMetricServerId] = useState<number | null>(null);
   const [bulkInput, setBulkInput] = useState("");
   const [bulkGroupId, setBulkGroupId] = useState("");
   const [bulkStatus, setBulkStatus] = useState("");
@@ -126,6 +139,30 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
       await loadAccounting();
     } catch (err) {
       onError(err instanceof Error ? err.message : "Не удалось удалить сервер.");
+    }
+  }
+
+  async function handleRefreshAllMetrics() {
+    onError("");
+    setMetricsRefreshingAll(true);
+    try {
+      await onRefreshAllMetrics();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось обновить метрики всех серверов.");
+    } finally {
+      setMetricsRefreshingAll(false);
+    }
+  }
+
+  async function handleRefreshServerMetrics(serverId: number) {
+    onError("");
+    setRefreshingMetricServerId(serverId);
+    try {
+      await onRefreshServerMetrics(serverId);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось обновить метрики сервера.");
+    } finally {
+      setRefreshingMetricServerId(null);
     }
   }
 
@@ -277,6 +314,10 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
       canDelete={hasAction(currentUser, "server_delete")}
       canEnrollAgent={currentUser?.role === "admin"}
       onEnrollAgent={(id) => void handleEnrollAgent(id)}
+      onRefreshAllMetrics={() => void handleRefreshAllMetrics()}
+      onRefreshServerMetrics={(id) => void handleRefreshServerMetrics(id)}
+      metricsRefreshingAll={metricsRefreshingAll}
+      refreshingMetricServerId={refreshingMetricServerId}
       bulkInput={bulkInput}
       setBulkInput={setBulkInput}
       bulkGroupId={bulkGroupId}
