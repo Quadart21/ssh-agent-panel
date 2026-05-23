@@ -205,6 +205,7 @@ def public_embed_metrics(token: str, response: Response, db: Session = Depends(g
                 disk_percent=int(snapshot["disk_percent"]),
                 uptime=str(snapshot["uptime"]),
                 online=bool(snapshot["online"]),
+                metrics_available=bool(snapshot.get("metrics_available", True)),
             )
         )
     return PublicEmbedMetricsRead(

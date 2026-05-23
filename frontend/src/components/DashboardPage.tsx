@@ -58,13 +58,19 @@ function DashboardPage({ stats, metrics, servers, alerts, loading }: Props) {
                   <p className="muted">{server.group_name ?? "Группа не назначена"}</p>
                   {metric ? (
                     <div className="server-metric-visuals">
-                      <MetricRing label="CPU" value={metric.cpu_percent} tone="sky" compact />
-                      <MetricRing label="RAM" value={metric.ram_percent} tone="mint" compact />
-                      <MetricRing label="Disk" value={metric.disk_percent} tone="amber" compact />
-                      <div className="metric-uptime">
-                        <span className="muted">Uptime</span>
-                        <strong>{metric.uptime}</strong>
-                      </div>
+                      {metric.metrics_available !== false ? (
+                        <>
+                          <MetricRing label="CPU" value={metric.cpu_percent} tone="sky" compact />
+                          <MetricRing label="RAM" value={metric.ram_percent} tone="mint" compact />
+                          <MetricRing label="Disk" value={metric.disk_percent} tone="amber" compact />
+                          <div className="metric-uptime">
+                            <span className="muted">Uptime</span>
+                            <strong>{metric.uptime}</strong>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="muted">{metric.uptime}</p>
+                      )}
                     </div>
                   ) : null}
                 </article>

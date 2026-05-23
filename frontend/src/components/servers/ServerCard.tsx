@@ -84,7 +84,7 @@ function ServerCard({
         <p className="muted">Дата оплаты не указана</p>
       )}
 
-      {metric ? (
+      {metric && metric.metrics_available !== false ? (
         <div className="server-metric-visuals">
           <MetricRing label="CPU" value={metric.cpu_percent} tone="sky" compact />
           <MetricRing label="RAM" value={metric.ram_percent} tone="mint" compact />
@@ -95,7 +95,12 @@ function ServerCard({
           </div>
         </div>
       ) : (
-        <p className="muted">Метрики недоступны — узел офлайн или ещё не опрошен.</p>
+        <div className="metric-unavailable">
+          <p className="muted">{metric?.uptime ?? "Метрики недоступны — узел офлайн или ещё не опрошен."}</p>
+          {server.agent_enabled && !server.agent_online ? (
+            <p className="muted">Агент выпущен, но не подключился. Нажми «Выпустить агент» для переустановки или добавь SSH-пароль.</p>
+          ) : null}
+        </div>
       )}
 
       <div className="card-actions">

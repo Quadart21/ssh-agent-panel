@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import hashlib
 import secrets
 import shlex
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, status
 from sqlalchemy.orm import Session
@@ -17,6 +18,7 @@ from app.deps import (
     ensure_server_access,
     get_allowed_server_ids,
     get_current_user,
+    has_section_access,
     require_admin,
 )
 from app.models import CommandPattern, Server, ServerGroup
@@ -46,6 +48,27 @@ from app.services.ssh import execute_commands, fetch_server_metrics, run_command
 from app.services.audit import write_audit_log
 
 router = APIRouter(prefix="/servers", tags=["servers"])
+
+
+def _metric_snapshot_from_server(server: Server) -> ServerMetricSnapshot:
+    snapshot = fetch_server_metrics(server)
+    return ServerMetricSnapshot(
+        server_id=server.id,
+        cpu_percent=int(snapshot["cpu_percent"]),
+        ram_percent=int(snapshot["ram_percent"]),
+        disk_percent=int(snapshot["disk_percent"]),
+        uptime=str(snapshot["uptime"]),
+        online=bool(snapshot["online"]),
+        metrics_available=bool(snapshot.get("metrics_available", True)),
+    )
+
+
+def _collect_metric_snapshots(servers: list[Server]) -> list[ServerMetricSnapshot]:
+    if not servers:
+        return []
+    workers = min(8, len(servers))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        return list(pool.map(_metric_snapshot_from_server, servers))
 
 
 def serialize_server(server: Server) -> ServerRead:
@@ -267,14 +290,22 @@ last_result = None
 
 def read_cpu_percent():
     try:
-        with open("/proc/stat", "r", encoding="utf-8") as f:
-            parts = f.readline().split()
-        user, nice, system, idle, iowait = map(int, parts[1:6])
-        total = user + nice + system + idle + iowait
-        busy = user + nice + system
-        if total <= 0:
+        def sample():
+            with open("/proc/stat", "r", encoding="utf-8") as f:
+                parts = f.readline().split()
+            values = list(map(int, parts[1:8]))
+            idle = values[3] + values[4]
+            total = sum(values)
+            return idle, total
+
+        idle1, total1 = sample()
+        time.sleep(0.5)
+        idle2, total2 = sample()
+        diff_total = total2 - total1
+        diff_idle = idle2 - idle1
+        if diff_total <= 0:
             return 0
-        return int((busy * 100) / total)
+        return int(100 * (diff_total - diff_idle) / diff_total)
     except Exception:
         return 0
 
@@ -447,7 +478,25 @@ def enroll_server_agent(
 
     base_url = _build_external_base_url(request)
     install_script = _build_agent_install_script(base_url, token)
-    return AgentEnrollRead(ok=True, message="Токен агента сгенерирован.", token=token, install_script=install_script)
+    message = "Токен агента сгенерирован."
+    installed = False
+    install_error: str | None = None
+    if server.password_enc or server.key_path:
+        try:
+            _install_agent_over_ssh(server, base_url, token)
+            installed = True
+            message = "Агент установлен и запущен на сервере."
+        except Exception as exc:
+            install_error = str(exc)
+            message = "Токен создан, но автоустановка не удалась. Выполни install_script вручную на сервере."
+    return AgentEnrollRead(
+        ok=True,
+        message=message,
+        token=token,
+        install_script=install_script,
+        installed=installed,
+        install_error=install_error,
+    )
 
 
 @router.get("/dashboard", response_model=DashboardStats)
@@ -463,20 +512,17 @@ def dashboard_stats(
             return DashboardStats(total_servers=0, online_servers=0, expiring_soon=0, groups_total=0, patterns_total=0)
         query = query.filter(Server.id.in_(allowed_ids))
     servers = query.all()
-    total_servers = len(servers)
-    online_servers = 0
+    snapshots = _collect_metric_snapshots(servers)
+    online_servers = sum(1 for snapshot in snapshots if snapshot.online)
     expiring_soon = 0
     now = datetime.utcnow()
 
     for server in servers:
-        snapshot = fetch_server_metrics(server)
-        if bool(snapshot["online"]):
-            online_servers += 1
         if server.pay_until and server.pay_until <= now + timedelta(days=3):
             expiring_soon += 1
 
     return DashboardStats(
-        total_servers=total_servers,
+        total_servers=len(servers),
         online_servers=online_servers,
         expiring_soon=expiring_soon,
         groups_total=db.query(ServerGroup).count(),
@@ -489,27 +535,15 @@ def list_metrics(
     db: Session = Depends(get_db),
     current_user: object = Depends(get_current_user),
 ):
-    ensure_section_access(current_user, "dashboard")
-    snapshots: list[ServerMetricSnapshot] = []
+    if not (has_section_access(current_user, "dashboard") or has_section_access(current_user, "servers")):
+        ensure_section_access(current_user, "dashboard")
     query = db.query(Server)
     allowed_ids = get_allowed_server_ids(current_user)
     if current_user.role != "admin":
         if not allowed_ids:
             return []
         query = query.filter(Server.id.in_(allowed_ids))
-    for server in query.all():
-        snapshot = fetch_server_metrics(server)
-        snapshots.append(
-            ServerMetricSnapshot(
-                server_id=server.id,
-                cpu_percent=int(snapshot["cpu_percent"]),
-                ram_percent=int(snapshot["ram_percent"]),
-                disk_percent=int(snapshot["disk_percent"]),
-                uptime=str(snapshot["uptime"]),
-                online=bool(snapshot["online"]),
-            )
-        )
-    return snapshots
+    return _collect_metric_snapshots(query.all())
 
 
 @router.get("/alerts", response_model=list[AlertRead])

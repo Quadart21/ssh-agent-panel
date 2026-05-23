@@ -74,12 +74,24 @@ function App() {
   }
 
   async function loadLiveData() {
-    if (!currentUser || !userHasSectionAccess(currentUser, "dashboard")) {
+    if (!currentUser) {
       setStats(null);
       setMetrics([]);
       return;
     }
-    const [dashboard, metricList] = await Promise.all([api.dashboard(), api.metrics()]);
+
+    const canDashboard = userHasSectionAccess(currentUser, "dashboard");
+    const canServers = userHasSectionAccess(currentUser, "servers");
+    if (!canDashboard && !canServers) {
+      setStats(null);
+      setMetrics([]);
+      return;
+    }
+
+    const [dashboard, metricList] = await Promise.all([
+      canDashboard ? api.dashboard() : Promise.resolve(null),
+      canDashboard || canServers ? api.metrics() : Promise.resolve([])
+    ]);
     setStats(dashboard);
     setMetrics(metricList);
   }

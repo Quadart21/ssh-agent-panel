@@ -69,15 +69,19 @@ function MetricsEmbedWidget() {
                   {server.online ? "online" : "offline"}
                 </span>
               </div>
-              <div className="server-metric-visuals">
-                <MetricRing label="CPU" value={server.cpu_percent} tone="sky" compact />
-                <MetricRing label="RAM" value={server.ram_percent} tone="mint" compact />
-                <MetricRing label="Disk" value={server.disk_percent} tone="amber" compact />
-                <div className="metric-uptime">
-                  <span className="muted">Uptime</span>
-                  <strong>{server.uptime}</strong>
+              {server.metrics_available !== false ? (
+                <div className="server-metric-visuals">
+                  <MetricRing label="CPU" value={server.cpu_percent} tone="sky" compact />
+                  <MetricRing label="RAM" value={server.ram_percent} tone="mint" compact />
+                  <MetricRing label="Disk" value={server.disk_percent} tone="amber" compact />
+                  <div className="metric-uptime">
+                    <span className="muted">Uptime</span>
+                    <strong>{server.uptime}</strong>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <p className="muted">{server.uptime}</p>
+              )}
             </article>
           ))}
         </div>

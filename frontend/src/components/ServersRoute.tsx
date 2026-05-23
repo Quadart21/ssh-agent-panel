@@ -133,11 +133,17 @@ function ServersRoute({ groups, servers, metrics, currentUser, onError, onReload
     onError("");
     try {
       const response = await api.enrollServerAgent(id);
-      if (navigator.clipboard?.writeText) {
+      if (response.installed) {
+        window.alert(response.message);
+      } else if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(response.install_script);
-        window.alert("Скрипт установки агента скопирован в буфер обмена. Выполни его на сервере под root.");
+        window.alert(
+          response.install_error
+            ? `${response.message}\n\nОшибка автоустановки: ${response.install_error}`
+            : `${response.message}\n\nСкрипт установки скопирован в буфер обмена.`
+        );
       } else {
-        window.alert(`Токен агента: ${response.token}\n\nСкопируй install_script из API-ответа вручную.`);
+        window.alert(response.install_error ? `${response.message}\n\n${response.install_error}` : response.message);
       }
       await onReload();
     } catch (err) {

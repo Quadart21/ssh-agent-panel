@@ -1416,6 +1416,21 @@ main#main-content {
   font-size: 1.05rem;
 }
 
+.metric-unavailable {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed var(--border);
+}
+
+.metric-unavailable p {
+  margin: 0;
+}
+
+.metric-unavailable p + p {
+  margin-top: var(--space-2);
+}
+
 .automation-details pre {
   white-space: pre-wrap;
   word-break: break-word;

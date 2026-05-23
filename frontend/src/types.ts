@@ -89,6 +89,7 @@ export type ServerMetricSnapshot = {
   disk_percent: number;
   uptime: string;
   online: boolean;
+  metrics_available?: boolean;
 };
 
 export type ConnectionTestResult = {
@@ -120,6 +121,8 @@ export type AgentEnrollResponse = {
   message: string;
   token: string;
   install_script: string;
+  installed?: boolean;
+  install_error?: string | null;
 };
 
 export type BulkServerCreateItemResult = {
@@ -304,6 +307,7 @@ export type PublicEmbedServerMetrics = {
   disk_percent: number;
   uptime: string;
   online: boolean;
+  metrics_available?: boolean;
 };
 
 export type PublicEmbedMetrics = {

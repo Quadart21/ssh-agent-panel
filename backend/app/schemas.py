@@ -102,6 +102,8 @@ class AgentEnrollRead(BaseModel):
     message: str
     token: str
     install_script: str
+    installed: bool = False
+    install_error: str | None = None
 
 
 class AgentHeartbeatRequest(BaseModel):
@@ -209,6 +211,7 @@ class ServerMetricSnapshot(BaseModel):
     disk_percent: int
     uptime: str
     online: bool
+    metrics_available: bool = True
 
 
 class BulkCommandRequest(BaseModel):
@@ -501,6 +504,7 @@ class PublicEmbedServerMetricsRead(BaseModel):
     disk_percent: int
     uptime: str
     online: bool
+    metrics_available: bool = True
 
 
 class PublicEmbedMetricsRead(BaseModel):

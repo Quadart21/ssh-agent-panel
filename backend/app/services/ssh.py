@@ -609,21 +609,35 @@ def _format_uptime(total_seconds: int) -> str:
     return f"{minutes}m"
 
 
-def fetch_server_metrics(server: Server) -> dict[str, object]:
-    if (
-        server.agent_enabled
-        and server.agent_last_seen_at
-        and server.agent_last_seen_at >= datetime.utcnow() - timedelta(seconds=90)
-    ):
-        return {
-            "online": True,
-            "cpu_percent": int(server.agent_cpu_percent or 0),
-            "ram_percent": int(server.agent_ram_percent or 0),
-            "disk_percent": int(server.agent_disk_percent or 0),
-            "uptime": server.agent_uptime or "agent online",
-        }
+AGENT_FRESH_SECONDS = 90
+AGENT_STALE_SECONDS = 600
 
-    tcp_check = test_ssh_connection(
+_REMOTE_METRICS_COMMAND = r"""if command -v bash >/dev/null 2>&1; then shell=bash; else shell=sh; fi
+$shell -c '
+read _ u n s i io ir si st g < /proc/stat || exit 1
+total1=$((u+n+s+i+io+ir+si+st)); idle1=$((i+io))
+sleep 1
+read _ u n s i io ir si st g < /proc/stat || exit 2
+total2=$((u+n+s+i+io+ir+si+st)); idle2=$((i+io))
+dt=$((total2-total1)); di=$((idle2-idle1))
+if [ "$dt" -gt 0 ]; then cpu=$((100*(dt-di)/dt)); else cpu=0; fi
+mem_total=$(awk "/MemTotal/ {print \$2}" /proc/meminfo)
+mem_avail=$(awk "/MemAvailable/ {print \$2}" /proc/meminfo)
+if [ "$mem_total" -gt 0 ]; then ram=$((100*(mem_total-mem_avail)/mem_total)); else ram=0; fi
+disk=$(df -P / 2>/dev/null | awk "NR==2 {gsub(/%/,\"\",\$5); print \$5}")
+if [ -z "$disk" ]; then disk=0; fi
+uptime=$(awk "{print int(\$1)}" /proc/uptime 2>/dev/null)
+if [ -z "$uptime" ]; then uptime=0; fi
+printf "CPU=%s\nRAM=%s\nDISK=%s\nUPTIME=%s\n" "$cpu" "$ram" "$disk" "$uptime"
+'"""
+
+
+def _server_has_credentials(server: Server) -> bool:
+    return bool(server.password_enc or server.key_path)
+
+
+def _test_server_reachability(server: Server) -> ConnectionTestResult:
+    return test_ssh_connection(
         ServerConnectionCheck(
             ip=server.ip,
             port=server.port,
@@ -632,53 +646,37 @@ def fetch_server_metrics(server: Server) -> dict[str, object]:
             key_path=server.key_path,
         )
     )
-    if not tcp_check.ok:
-        return {
-            "online": False,
-            "cpu_percent": 0,
-            "ram_percent": 0,
-            "disk_percent": 0,
-            "uptime": "offline",
-        }
 
-    if not server.password_enc and not server.key_path:
-        return {
-            "online": True,
-            "cpu_percent": 0,
-            "ram_percent": 0,
-            "disk_percent": 0,
-            "uptime": "нет SSH-метрик",
-        }
 
-    metrics_command = r"""sh -lc '
-read _ user nice system idle iowait irq softirq steal _ < /proc/stat
-total1=$((user+nice+system+idle+iowait+irq+softirq+steal))
-idle1=$((idle+iowait))
-sleep 1
-read _ user2 nice2 system2 idle2 iowait2 irq2 softirq2 steal2 _ < /proc/stat
-total2=$((user2+nice2+system2+idle2+iowait2+irq2+softirq2+steal2))
-idle_total2=$((idle2+iowait2))
-diff_total=$((total2-total1))
-diff_idle=$((idle_total2-idle1))
-if [ "$diff_total" -gt 0 ]; then cpu=$((100*(diff_total-diff_idle)/diff_total)); else cpu=0; fi
-mem_total=$(awk "/MemTotal/ {print \$2}" /proc/meminfo)
-mem_avail=$(awk "/MemAvailable/ {print \$2}" /proc/meminfo)
-if [ "$mem_total" -gt 0 ]; then ram=$((100*(mem_total-mem_avail)/mem_total)); else ram=0; fi
-disk=$(df -P / | awk "NR==2 {gsub(/%/, \"\", \$5); print \$5}")
-uptime=$(awk "{print int(\$1)}" /proc/uptime)
-printf "CPU=%s\nRAM=%s\nDISK=%s\nUPTIME=%s\n" "$cpu" "$ram" "${disk:-0}" "${uptime:-0}"
-'"""
+def _unavailable_metrics(*, online: bool, uptime: str) -> dict[str, object]:
+    return {
+        "online": online,
+        "cpu_percent": 0,
+        "ram_percent": 0,
+        "disk_percent": 0,
+        "uptime": uptime,
+        "metrics_available": False,
+        "metrics_source": "none",
+    }
 
-    exit_code, output, error = run_command_on_server(server, metrics_command, timeout=15)
-    if exit_code != 0:
-        return {
-            "online": True,
-            "cpu_percent": 0,
-            "ram_percent": 0,
-            "disk_percent": 0,
-            "uptime": error or "ошибка чтения",
-        }
 
+def _agent_metrics_snapshot(server: Server, *, stale: bool) -> dict[str, object]:
+    uptime = server.agent_uptime or "agent online"
+    if stale and server.agent_last_seen_at:
+        age_minutes = int((datetime.utcnow() - server.agent_last_seen_at).total_seconds() // 60)
+        uptime = f"{uptime} · {age_minutes}m назад"
+    return {
+        "online": True,
+        "cpu_percent": int(server.agent_cpu_percent or 0),
+        "ram_percent": int(server.agent_ram_percent or 0),
+        "disk_percent": int(server.agent_disk_percent or 0),
+        "uptime": uptime,
+        "metrics_available": True,
+        "metrics_source": "agent_stale" if stale else "agent",
+    }
+
+
+def _parse_remote_metrics_output(output: str) -> dict[str, object] | None:
     values: dict[str, str] = {}
     for line in output.splitlines():
         if "=" not in line:
@@ -686,11 +684,69 @@ printf "CPU=%s\nRAM=%s\nDISK=%s\nUPTIME=%s\n" "$cpu" "$ram" "${disk:-0}" "${upti
         key, value = line.split("=", 1)
         values[key.strip()] = value.strip()
 
+    if not {"CPU", "RAM", "DISK", "UPTIME"}.issubset(values):
+        return None
+
     uptime_seconds = int(values.get("UPTIME", "0") or 0)
     return {
         "online": True,
-        "cpu_percent": int(values.get("CPU", "0") or 0),
-        "ram_percent": int(values.get("RAM", "0") or 0),
-        "disk_percent": int(values.get("DISK", "0") or 0),
+        "cpu_percent": max(0, min(100, int(values.get("CPU", "0") or 0))),
+        "ram_percent": max(0, min(100, int(values.get("RAM", "0") or 0))),
+        "disk_percent": max(0, min(100, int(values.get("DISK", "0") or 0))),
         "uptime": _format_uptime(uptime_seconds),
+        "metrics_available": True,
+        "metrics_source": "ssh",
     }
+
+
+def _fetch_ssh_metrics(server: Server) -> dict[str, object] | None:
+    if not _server_has_credentials(server):
+        return None
+
+    exit_code, output, error = run_command_on_server(server, _REMOTE_METRICS_COMMAND, timeout=20)
+    if exit_code != 0:
+        return None
+
+    parsed = _parse_remote_metrics_output(output)
+    if parsed:
+        return parsed
+
+    if error:
+        return None
+    return None
+
+
+def fetch_server_metrics(server: Server) -> dict[str, object]:
+    now = datetime.utcnow()
+
+    if (
+        server.agent_enabled
+        and server.agent_last_seen_at
+        and server.agent_last_seen_at >= now - timedelta(seconds=AGENT_FRESH_SECONDS)
+    ):
+        return _agent_metrics_snapshot(server, stale=False)
+
+    if _server_has_credentials(server):
+        ssh_metrics = _fetch_ssh_metrics(server)
+        if ssh_metrics:
+            return ssh_metrics
+
+    if (
+        server.agent_enabled
+        and server.agent_last_seen_at
+        and server.agent_last_seen_at >= now - timedelta(seconds=AGENT_STALE_SECONDS)
+        and any(
+            value is not None
+            for value in (server.agent_cpu_percent, server.agent_ram_percent, server.agent_disk_percent)
+        )
+    ):
+        return _agent_metrics_snapshot(server, stale=True)
+
+    reachability = _test_server_reachability(server)
+    if not reachability.ok:
+        return _unavailable_metrics(online=False, uptime="offline")
+
+    if not _server_has_credentials(server):
+        return _unavailable_metrics(online=True, uptime="нет SSH-метрик")
+
+    return _unavailable_metrics(online=True, uptime="метрики недоступны")
