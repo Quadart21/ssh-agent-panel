@@ -137,6 +137,7 @@ export type BulkServerCreateItemResult = {
 export type BulkServerCreateResponse = {
   total: number;
   created: number;
+  skipped?: number;
   failed: number;
   results: BulkServerCreateItemResult[];
 };

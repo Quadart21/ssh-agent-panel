@@ -79,6 +79,7 @@ class BulkServerCreateItemResult(BaseModel):
 class BulkServerCreateResponse(BaseModel):
     total: int
     created: int
+    skipped: int = 0
     failed: int
     results: list[BulkServerCreateItemResult]
 

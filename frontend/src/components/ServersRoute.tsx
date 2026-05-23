@@ -255,7 +255,8 @@ function ServersRoute({
     setBulkStatus("");
     try {
       const response = await api.createServersBulk({ items });
-      setBulkStatus(`Создано: ${response.created}, ошибок: ${response.failed}.`);
+      const skipped = response.skipped ?? 0;
+      setBulkStatus(`Создано: ${response.created}, пропущено: ${skipped}, ошибок: ${response.failed}.`);
       await onReload();
       await loadAccounting();
     } catch (err) {

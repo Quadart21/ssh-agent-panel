@@ -156,6 +156,10 @@ def servers_accounting_summary(
     return build_accounting_summary(servers)
 
 
+def _find_existing_server(db: Session, ip: str, port: int) -> Server | None:
+    return db.query(Server).filter(Server.ip == ip, Server.port == port).first()
+
+
 def _create_server_internal(db: Session, payload: ServerCreate, request: Request) -> Server:
     if payload.group_id and not db.get(ServerGroup, payload.group_id):
         raise HTTPException(status_code=404, detail="Группа не найдена.")
@@ -216,8 +220,23 @@ def create_servers_bulk(
     ensure_action_access(current_user, "server_create")
     results: list[BulkServerCreateItemResult] = []
     created = 0
+    skipped = 0
 
     for item in payload.items:
+        existing = _find_existing_server(db, item.ip, item.port)
+        if existing:
+            skipped += 1
+            results.append(
+                BulkServerCreateItemResult(
+                    name=item.name,
+                    ip=item.ip,
+                    ok=True,
+                    server_id=existing.id,
+                    message=f"Сервер уже существует ({existing.name}), пропущен.",
+                )
+            )
+            continue
+
         try:
             server = _create_server_internal(db, item, request)
             created += 1
@@ -253,16 +272,16 @@ def create_servers_bulk(
                 )
             )
 
-    failed = len(results) - created
+    failed = len(results) - created - skipped
     write_audit_log(
         db,
         user=current_user,
         action="server.create.bulk",
         target_type="servers",
         target_id=str(created),
-        details=f"created={created};failed={failed}",
+        details=f"created={created};skipped={skipped};failed={failed}",
     )
-    return BulkServerCreateResponse(total=len(results), created=created, failed=failed, results=results)
+    return BulkServerCreateResponse(total=len(results), created=created, skipped=skipped, failed=failed, results=results)
 
 
 @router.post("/test-connection", response_model=ConnectionTestResult)
