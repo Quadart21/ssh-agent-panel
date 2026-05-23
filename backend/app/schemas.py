@@ -467,116 +467,47 @@ class Fail2BanUnbanRequest(BaseModel):
     ip: str = Field(min_length=3, max_length=120)
 
 
-class ServerCheckItemRead(BaseModel):
-    id: str
+class MetricsEmbedCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    server_ids: list[int] = Field(min_length=1)
+    theme: str = Field(default="dark", pattern="^(dark|light)$")
+
+
+class MetricsEmbedUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    server_ids: list[int] | None = Field(default=None, min_length=1)
+    theme: str | None = Field(default=None, pattern="^(dark|light)$")
+    enabled: bool | None = None
+
+
+class MetricsEmbedRead(BaseModel):
+    id: int
     title: str
-    description: str
-    estimated_seconds: int
-    timeout: int
-
-
-class ServerCheckGroupRead(BaseModel):
-    id: str
-    label: str
-    icon: str
-    hint: str
-    checks: list[ServerCheckItemRead] = Field(default_factory=list)
-
-
-class ServerCheckSectionItemRead(BaseModel):
-    label: str
-    value: str
-
-
-class ServerCheckSectionRead(BaseModel):
-    title: str
-    status: str
-    lines: list[str] = Field(default_factory=list)
-    items: list[ServerCheckSectionItemRead] = Field(default_factory=list)
-
-
-class ServerCheckScorecardRead(BaseModel):
-    label: str
-    value: str
-    hint: str | None = None
-    tone: str = "neutral"
-    icon: str = "📊"
-
-
-class ServerCheckTileRead(BaseModel):
-    title: str
-    status: str
-    detail: str | None = None
-
-
-class ServerCheckBarRead(BaseModel):
-    label: str
-    value: float
-    max_value: float
-    unit: str
-    tone: str = "info"
-
-
-class ServerCheckHighlightRead(BaseModel):
-    icon: str
-    text: str
-    tone: str = "neutral"
-
-
-class ServerCheckVisualRead(BaseModel):
-    health: str
-    health_label: str
-    passed: int = 0
-    failed: int = 0
-    warnings: int = 0
-    scorecards: list[ServerCheckScorecardRead] = Field(default_factory=list)
-    tiles: list[ServerCheckTileRead] = Field(default_factory=list)
-    bars: list[ServerCheckBarRead] = Field(default_factory=list)
-    highlights: list[ServerCheckHighlightRead] = Field(default_factory=list)
-
-
-class ServerCheckReportRead(BaseModel):
-    server_id: int
-    server_name: str
-    check_id: str
-    check_title: str
-    group: str
-    ok: bool
-    exit_code: int
-    duration_ms: int
-    summary: str
-    visual: ServerCheckVisualRead
-    sections: list[ServerCheckSectionRead] = Field(default_factory=list)
-    raw_excerpt: str = ""
-
-
-class ServerCheckRunQueuedRead(BaseModel):
-    run_id: str
-    status: str
-    message: str
-    panel_url: str
-
-
-class ServerCheckRunSummaryRead(BaseModel):
-    id: str
-    server_id: int
-    server_name: str | None = None
-    check_id: str
-    check_title: str
-    check_group: str
-    status: str
-    requested_by_email: str
-    ok: bool | None = None
-    summary: str | None = None
-    duration_ms: int | None = None
-    error_message: str | None = None
+    token: str
+    server_ids: list[int]
+    theme: str
+    enabled: bool
+    created_by_email: str
     created_at: datetime
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
+    updated_at: datetime
+    embed_url: str
+    iframe_code: str
 
 
-class ServerCheckRunDetailRead(ServerCheckRunSummaryRead):
-    report: ServerCheckReportRead | None = None
+class PublicEmbedServerMetricsRead(BaseModel):
+    name: str
+    cpu_percent: int
+    ram_percent: int
+    disk_percent: int
+    uptime: str
+    online: bool
+
+
+class PublicEmbedMetricsRead(BaseModel):
+    title: str
+    theme: str
+    updated_at: datetime
+    servers: list[PublicEmbedServerMetricsRead] = Field(default_factory=list)
 
 
 class AutomationPresetRead(BaseModel):

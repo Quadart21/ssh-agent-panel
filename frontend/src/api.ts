@@ -15,16 +15,13 @@ import type {
   Group,
   LinuxUser,
   LinuxUserOperationResponse,
+  MetricsEmbed,
   NotificationSettings,
   Pattern,
+  PublicEmbedMetrics,
   SecurityReport,
   Server,
   ServerAccountingSummary,
-  ServerCheckGroup,
-  ServerCheckReport,
-  ServerCheckRunDetail,
-  ServerCheckRunQueued,
-  ServerCheckRunSummary,
   ServerMetricSnapshot,
   TelegramStatus,
   TelegramWebhookInfo,
@@ -39,7 +36,7 @@ import type {
   User
 } from "./types";
 
-function getApiBaseUrl() {
+export function getApiBaseUrl() {
   const configured = import.meta.env.VITE_API_BASE_URL?.trim();
   if (configured) {
     return configured.replace(/\/$/, "");
@@ -294,20 +291,21 @@ export const api = {
     request<AgentEnrollResponse>(`/servers/${id}/agent/enroll`, {
       method: "POST"
     }),
-  serverChecksCatalog: () => request<ServerCheckGroup[]>("/server-checks/catalog"),
-  listServerCheckRuns: (serverId?: number) =>
-    request<ServerCheckRunSummary[]>(
-      serverId ? `/server-checks/runs?server_id=${serverId}` : "/server-checks/runs"
-    ),
-  getServerCheckRun: (runId: string) => request<ServerCheckRunDetail>(`/server-checks/runs/${encodeURIComponent(runId)}`),
-  queueServerCheck: (serverId: number, checkId: string) =>
-    request<ServerCheckRunQueued>(`/server-checks/${serverId}/queue/${encodeURIComponent(checkId)}`, {
-      method: "POST"
-    }),
-  cancelServerCheckRun: (runId: string) =>
-    request<{ ok: boolean; message: string }>(`/server-checks/runs/${encodeURIComponent(runId)}/cancel`, {
-      method: "POST"
-    }),
+  listMetricEmbeds: () => request<MetricsEmbed[]>("/metric-embeds"),
+  createMetricEmbed: (payload: { title: string; server_ids: number[]; theme: "dark" | "light" }) =>
+    request<MetricsEmbed>("/metric-embeds", { method: "POST", body: JSON.stringify(payload) }),
+  updateMetricEmbed: (id: number, payload: Partial<{ title: string; server_ids: number[]; theme: "dark" | "light"; enabled: boolean }>) =>
+    request<MetricsEmbed>(`/metric-embeds/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteMetricEmbed: (id: number) => request<void>(`/metric-embeds/${id}`, { method: "DELETE" }),
+  rotateMetricEmbedToken: (id: number) => request<MetricsEmbed>(`/metric-embeds/${id}/rotate-token`, { method: "POST" }),
+  getPublicEmbedMetrics: async (token: string) => {
+    const response = await fetch(`${getApiBaseUrl()}/embed/${encodeURIComponent(token)}/metrics`);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new ApiError(payload.detail ?? "Не удалось загрузить метрики виджета.", response.status);
+    }
+    return response.json() as Promise<PublicEmbedMetrics>;
+  },
   listGroups: () => request<Group[]>("/groups"),
   createGroup: (payload: Record<string, unknown>) =>
     request<Group>("/groups", { method: "POST", body: JSON.stringify(payload) }),

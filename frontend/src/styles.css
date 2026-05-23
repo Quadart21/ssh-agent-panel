@@ -2347,3 +2347,112 @@ main#main-content {
   background: var(--bg-2);
   border: 1px solid var(--border);
 }
+
+.embed-shell {
+  min-height: 100vh;
+  background: var(--bg-0);
+}
+
+.metrics-embed-widget {
+  min-height: 100vh;
+  padding: var(--space-5);
+}
+
+.metrics-embed-widget.theme-light {
+  --bg-0: #f4f7fb;
+  --bg-1: #ffffff;
+  --bg-2: #eef3f9;
+  --text-primary: #152033;
+  --text-secondary: #5b677a;
+  --border-soft: rgba(21, 32, 51, 0.12);
+  background: var(--bg-0);
+  color: var(--text-primary);
+}
+
+.metrics-embed-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.metrics-embed-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.metrics-embed-card {
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background: var(--bg-1);
+}
+
+.metrics-embed-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.metrics-embed-banner.error {
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+}
+
+.metric-embeds-layout {
+  align-items: start;
+}
+
+.metric-embeds-server-picker {
+  margin-top: var(--space-4);
+}
+
+.metric-embeds-server-list {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  max-height: 240px;
+  overflow: auto;
+}
+
+.metric-embeds-server-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.metric-embeds-actions {
+  margin-top: var(--space-4);
+}
+
+.metric-embeds-list {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.metric-embeds-item {
+  padding: var(--space-4);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface-base);
+}
+
+.metric-embeds-item-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.metric-embeds-copy-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2);
+}

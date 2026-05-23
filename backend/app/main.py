@@ -9,16 +9,13 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.bootstrap import ensure_admin_user
 from app.core.config import settings
 from app.db import SessionLocal, run_startup_migrations
-from app.routers import agent, automation, audit, auth, domains, firewall, groups, linux_users, notifications, panel_users, patterns, pm2, security, server_checks, servers, system, terminal
+from app.routers import agent, automation, audit, auth, domains, firewall, groups, linux_users, metric_embeds, notifications, panel_users, patterns, pm2, security, servers, system, terminal
 from app.services.scheduler import scheduler_loop
-from app.services.server_check_jobs import recover_server_check_runs
 
 run_startup_migrations()
 
 with SessionLocal() as db:
     ensure_admin_user(db)
-
-recover_server_check_runs()
 
 
 @asynccontextmanager
@@ -62,7 +59,7 @@ app.include_router(panel_users.router, prefix=settings.api_v1_prefix)
 app.include_router(patterns.router, prefix=settings.api_v1_prefix)
 app.include_router(security.router, prefix=settings.api_v1_prefix)
 app.include_router(servers.router, prefix=settings.api_v1_prefix)
-app.include_router(server_checks.router, prefix=settings.api_v1_prefix)
+app.include_router(metric_embeds.router, prefix=settings.api_v1_prefix)
 app.include_router(domains.router, prefix=settings.api_v1_prefix)
 app.include_router(system.router, prefix=settings.api_v1_prefix)
 app.include_router(terminal.router, prefix=settings.api_v1_prefix)

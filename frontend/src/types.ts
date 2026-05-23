@@ -276,116 +276,34 @@ export type SecurityReport = {
   fail2ban_jails: Fail2BanJail[];
 };
 
-export type ServerCheckItem = {
-  id: string;
+export type MetricsEmbed = {
+  id: number;
   title: string;
-  description: string;
-  estimated_seconds: number;
-  timeout: number;
-};
-
-export type ServerCheckGroup = {
-  id: string;
-  label: string;
-  icon: string;
-  hint: string;
-  checks: ServerCheckItem[];
-};
-
-export type ServerCheckSectionItem = {
-  label: string;
-  value: string;
-};
-
-export type ServerCheckSection = {
-  title: string;
-  status: string;
-  lines: string[];
-  items: ServerCheckSectionItem[];
-};
-
-export type ServerCheckScorecard = {
-  label: string;
-  value: string;
-  hint: string | null;
-  tone: string;
-  icon: string;
-};
-
-export type ServerCheckTile = {
-  title: string;
-  status: string;
-  detail: string | null;
-};
-
-export type ServerCheckBar = {
-  label: string;
-  value: number;
-  max_value: number;
-  unit: string;
-  tone: string;
-};
-
-export type ServerCheckHighlight = {
-  icon: string;
-  text: string;
-  tone: string;
-};
-
-export type ServerCheckVisual = {
-  health: string;
-  health_label: string;
-  passed: number;
-  failed: number;
-  warnings: number;
-  scorecards: ServerCheckScorecard[];
-  tiles: ServerCheckTile[];
-  bars: ServerCheckBar[];
-  highlights: ServerCheckHighlight[];
-};
-
-export type ServerCheckReport = {
-  server_id: number;
-  server_name: string;
-  check_id: string;
-  check_title: string;
-  group: string;
-  ok: boolean;
-  exit_code: number;
-  duration_ms: number;
-  summary: string;
-  visual: ServerCheckVisual;
-  sections: ServerCheckSection[];
-  raw_excerpt: string;
-};
-
-export type ServerCheckRunQueued = {
-  run_id: string;
-  status: string;
-  message: string;
-  panel_url: string;
-};
-
-export type ServerCheckRunSummary = {
-  id: string;
-  server_id: number;
-  server_name: string | null;
-  check_id: string;
-  check_title: string;
-  check_group: string;
-  status: string;
-  requested_by_email: string;
-  ok: boolean | null;
-  summary: string | null;
-  duration_ms: number | null;
-  error_message: string | null;
+  token: string;
+  server_ids: number[];
+  theme: "dark" | "light";
+  enabled: boolean;
+  created_by_email: string;
   created_at: string;
-  started_at: string | null;
-  finished_at: string | null;
+  updated_at: string;
+  embed_url: string;
+  iframe_code: string;
 };
 
-export type ServerCheckRunDetail = ServerCheckRunSummary & {
-  report: ServerCheckReport | null;
+export type PublicEmbedServerMetrics = {
+  name: string;
+  cpu_percent: number;
+  ram_percent: number;
+  disk_percent: number;
+  uptime: string;
+  online: boolean;
+};
+
+export type PublicEmbedMetrics = {
+  title: string;
+  theme: "dark" | "light";
+  updated_at: string;
+  servers: PublicEmbedServerMetrics[];
 };
 
 export type AutomationPreset = {

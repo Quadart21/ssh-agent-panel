@@ -14,7 +14,7 @@ export function userHasSectionAccess(user: User | null, section: string) {
   if (section === "pm2" && perms.includes("tmux")) {
     return true;
   }
-  if (section === "server-checks" && perms.includes("servers")) {
+  if (section === "metric-embeds" && perms.includes("servers")) {
     return true;
   }
   return false;

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -212,22 +212,15 @@ class AgentTask(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
-class ServerCheckRun(Base):
-    __tablename__ = "server_check_runs"
+class MetricsEmbed(Base):
+    __tablename__ = "metrics_embeds"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    server_id: Mapped[int] = mapped_column(ForeignKey("servers.id", ondelete="CASCADE"), nullable=False, index=True)
-    check_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    check_title: Mapped[str] = mapped_column(String(120), nullable=False)
-    check_group: Mapped[str] = mapped_column(String(32), nullable=False)
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued", index=True)
-    requested_by_email: Mapped[str] = mapped_column(String(255), nullable=False)
-    ok: Mapped[bool | None] = mapped_column(nullable=True)
-    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    report: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    server_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    theme: Mapped[str] = mapped_column(String(16), nullable=False, default="dark")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_by_email: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

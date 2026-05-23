@@ -1,8 +1,9 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 
 import { ApiError, api, getStoredToken, setStoredToken } from "./api";
 import PageFallback from "./components/PageFallback";
+import MetricsEmbedWidget from "./components/MetricsEmbedWidget";
 import AppChrome from "./layout/AppChrome";
 import AppSidebar from "./layout/AppSidebar";
 import SubnavStrip from "./layout/SubnavStrip";
@@ -191,6 +192,16 @@ function App() {
   );
   const activeGroup = activeSection?.group ?? "overview";
   const activeGroupSections = permissionAwareSections.filter((section) => section.group === activeGroup);
+
+  if (location.pathname.startsWith("/embed/")) {
+    return (
+      <div className="embed-shell">
+        <Routes>
+          <Route path="/embed/:token" element={<MetricsEmbedWidget />} />
+        </Routes>
+      </div>
+    );
+  }
 
   if (!authToken) {
     return (
