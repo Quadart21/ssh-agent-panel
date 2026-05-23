@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     login_max_attempts: int = 5
     login_lock_minutes: int = 15
     session_inactivity_minutes: int = 720
+    public_api_base_url: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -44,6 +45,14 @@ class Settings(BaseSettings):
     def cors_origins(self) -> list[str]:
         origins = [self.frontend_origin, *self.frontend_origins]
         return list(dict.fromkeys(origin for origin in origins if origin))
+
+    @property
+    def agent_api_base_url(self) -> str:
+        configured = self.public_api_base_url.strip()
+        if configured:
+            return configured.rstrip("/")
+        origin = self.frontend_origin.strip().rstrip("/")
+        return f"{origin}{self.api_v1_prefix}"
 
 
 settings = Settings()

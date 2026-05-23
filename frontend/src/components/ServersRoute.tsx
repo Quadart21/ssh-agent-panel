@@ -98,7 +98,11 @@ function ServersRoute({
       if (editingServerId) {
         await api.updateServer(editingServerId, payload);
       } else {
-        await api.createServer(payload);
+        await api.createServer({
+          ...payload,
+          test_connection: true,
+          auto_install_agent: true
+        });
       }
       setForm(emptyServerForm);
       setEditingServerId(null);

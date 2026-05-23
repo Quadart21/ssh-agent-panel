@@ -160,7 +160,13 @@ def _find_existing_server(db: Session, ip: str, port: int) -> Server | None:
     return db.query(Server).filter(Server.ip == ip, Server.port == port).first()
 
 
-def _create_server_internal(db: Session, payload: ServerCreate, request: Request) -> Server:
+def _create_server_internal(
+    db: Session,
+    payload: ServerCreate,
+    request: Request,
+    *,
+    actor: User | None = None,
+) -> Server:
     if payload.group_id and not db.get(ServerGroup, payload.group_id):
         raise HTTPException(status_code=404, detail="Группа не найдена.")
 
@@ -182,16 +188,29 @@ def _create_server_internal(db: Session, payload: ServerCreate, request: Request
     server.password_enc = encrypted_password
     db.add(server)
 
-    if payload.auto_install_agent and (payload.password_enc or payload.key_path):
-        token = secrets.token_urlsafe(32)
+    should_install_agent = bool(payload.password_enc or payload.key_path)
+    agent_token: str | None = None
+    if should_install_agent:
+        agent_token = secrets.token_urlsafe(32)
         server.agent_enabled = True
-        server.agent_token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
-        try:
-            _install_agent_over_ssh(server, _build_external_base_url(request), token)
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"Агент не установлен: {exc}") from exc
+        server.agent_token_hash = hashlib.sha256(agent_token.encode("utf-8")).hexdigest()
+
     db.commit()
     db.refresh(server)
+
+    if should_install_agent and agent_token:
+        try:
+            _install_agent_over_ssh(server, _build_agent_api_base_url(request), agent_token)
+        except Exception as exc:
+            write_audit_log(
+                db,
+                user=actor,
+                action="server.agent.install_failed",
+                target_type="server",
+                target_id=str(server.id),
+                details=f"{server.name}: {exc}",
+            )
+
     return server
 
 
@@ -204,7 +223,7 @@ def create_server(
 ):
     ensure_section_access(current_user, "servers")
     ensure_action_access(current_user, "server_create")
-    server = _create_server_internal(db, payload, request)
+    server = _create_server_internal(db, payload, request, actor=current_user)
     write_audit_log(db, user=current_user, action="server.create", target_type="server", target_id=str(server.id), details=server.name)
     return serialize_server(server)
 
@@ -238,7 +257,7 @@ def create_servers_bulk(
             continue
 
         try:
-            server = _create_server_internal(db, item, request)
+            server = _create_server_internal(db, item, request, actor=current_user)
             created += 1
             results.append(
                 BulkServerCreateItemResult(
@@ -474,6 +493,12 @@ def _build_external_base_url(request: Request) -> str:
     return f"{proto}://{host}{settings.api_v1_prefix}"
 
 
+def _build_agent_api_base_url(request: Request) -> str:
+    if settings.public_api_base_url.strip() or settings.frontend_origin.strip():
+        return settings.agent_api_base_url
+    return _build_external_base_url(request)
+
+
 def _install_agent_over_ssh(server: Server, base_url: str, token: str) -> None:
     script = _build_agent_install_script(base_url, token)
     command = "bash -lc " + shlex.quote(script)
@@ -500,7 +525,7 @@ def enroll_server_agent(
     db.refresh(server)
     write_audit_log(db, user=current_user, action="server.agent.enroll", target_type="server", target_id=str(server.id), details=server.name)
 
-    base_url = _build_external_base_url(request)
+    base_url = _build_agent_api_base_url(request)
     install_script = _build_agent_install_script(base_url, token)
     message = "Токен агента сгенерирован."
     installed = False
