@@ -60,13 +60,13 @@ function App() {
     setAuditLogs(logs as AuditLog[]);
     setPanelUsers(users as User[]);
 
-    // Alerts endpoint can be slow (SSH checks), so load it in background.
+    // Alerts endpoint loads cached data; failures should not block the whole panel.
     if (userHasSectionAccess(me, "alerts")) {
       void api
         .listAlerts()
         .then((alertsData) => setAlerts(alertsData))
         .catch((err: unknown) => {
-          setError(err instanceof Error ? err.message : "Не удалось загрузить алерты.");
+          console.warn("Failed to load alerts:", err);
         });
     } else {
       setAlerts([]);

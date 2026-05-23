@@ -10,14 +10,25 @@ from app.services.ssh import fetch_server_metrics
 from app.services.telegram import format_telegram_message, resolve_telegram_topic_id, send_telegram_message, telegram_is_configured
 
 
-def collect_server_alerts(db: Session) -> list[AlertRead]:
+def _server_is_offline(server: Server, *, use_live_metrics: bool) -> bool | None:
+    if use_live_metrics:
+        snapshot = fetch_server_metrics(server)
+        return not bool(snapshot["online"])
+
+    if not server.metrics_collected_at:
+        return None
+
+    return not bool(server.metrics_online)
+
+
+def collect_server_alerts(db: Session, *, use_live_metrics: bool = False) -> list[AlertRead]:
     alerts: list[AlertRead] = []
     now = datetime.utcnow()
     soon_limit = now + timedelta(days=3)
 
     for server in db.query(Server).all():
-        snapshot = fetch_server_metrics(server)
-        if not bool(snapshot["online"]):
+        offline = _server_is_offline(server, use_live_metrics=use_live_metrics)
+        if offline is True:
             alerts.append(
                 AlertRead(
                     level="critical",
@@ -88,7 +99,7 @@ def _topic_event_for_alert_category(category: str) -> str:
 def sync_alert_notifications(db: Session) -> tuple[int, int]:
     now = datetime.utcnow()
     profile = get_or_create_notification_settings(db)
-    alerts = filter_alerts_by_preferences(collect_server_alerts(db), profile)
+    alerts = filter_alerts_by_preferences(collect_server_alerts(db, use_live_metrics=True), profile)
     active_fingerprints = {alert_fingerprint(alert) for alert in alerts}
     existing_states = {
         state.fingerprint: state

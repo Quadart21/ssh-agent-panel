@@ -32,11 +32,18 @@ class Settings(BaseSettings):
     session_inactivity_minutes: int = 720
     public_api_base_url: str = ""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        enable_decoding=False,
+    )
 
     @field_validator("frontend_origins", "allowed_hosts", mode="before")
     @classmethod
     def parse_csv_list(cls, value: Any) -> Any:
+        if value is None or value == "":
+            return []
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
