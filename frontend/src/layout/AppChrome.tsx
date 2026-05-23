@@ -1,11 +1,12 @@
+import type { User } from "../types";
+
 type Props = {
-  mobileNavOpen: boolean;
-  onToggleMobileNav: () => void;
-  onCloseMobileNav: () => void;
   topBarTitle: string;
+  currentUser: User | null;
+  onLogout: () => void;
 };
 
-function AppChrome({ mobileNavOpen, onToggleMobileNav, onCloseMobileNav, topBarTitle }: Props) {
+function AppChrome({ topBarTitle, currentUser, onLogout }: Props) {
   return (
     <>
       <a className="skip-link" href="#main-content">
@@ -13,26 +14,24 @@ function AppChrome({ mobileNavOpen, onToggleMobileNav, onCloseMobileNav, topBarT
       </a>
 
       <header className="top-bar">
-        <button
-          type="button"
-          className="icon-btn menu-toggle"
-          aria-expanded={mobileNavOpen}
-          aria-controls="app-sidebar"
-          onClick={onToggleMobileNav}
-        >
-          <span className="sr-only">{mobileNavOpen ? "Закрыть меню" : "Открыть меню"}</span>
-          <span className="menu-icon" aria-hidden>
-            <span />
-            <span />
-            <span />
+        <div className="top-bar-brand">
+          <span className="top-bar-brand-mark" aria-hidden>
+            SSH
           </span>
-        </button>
-        <span className="top-bar-title">{topBarTitle}</span>
+          <span className="top-bar-title">{topBarTitle}</span>
+        </div>
+        {currentUser ? (
+          <div className="top-bar-actions">
+            <div className="top-bar-user">
+              <strong>{currentUser.full_name}</strong>
+              <span>{currentUser.role}</span>
+            </div>
+            <button type="button" className="ghost btn-sm top-bar-logout" onClick={() => void onLogout()}>
+              Выйти
+            </button>
+          </div>
+        ) : null}
       </header>
-
-      {mobileNavOpen ? (
-        <button type="button" className="nav-backdrop" aria-label="Закрыть меню навигации" onClick={onCloseMobileNav} />
-      ) : null}
     </>
   );
 }

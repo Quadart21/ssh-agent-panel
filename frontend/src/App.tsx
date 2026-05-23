@@ -1,13 +1,14 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
-import { Route, Routes, useLocation } from "react-router-dom";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 import { ApiError, api, getStoredToken, setStoredToken } from "./api";
 import PageFallback from "./components/PageFallback";
 import MetricsEmbedWidget from "./components/MetricsEmbedWidget";
 import AppChrome from "./layout/AppChrome";
-import AppSidebar from "./layout/AppSidebar";
+import AppDock from "./layout/AppDock";
 import SubnavStrip from "./layout/SubnavStrip";
 import { sections, userHasSectionAccess } from "./navigation";
+import type { NavGroup } from "./navigation";
 import AppRoutes from "./routes/AppRoutes";
 import type {
   Alert,
@@ -25,7 +26,8 @@ const PasswordChangePage = lazy(() => import("./components/PasswordChangePage"))
 
 function App() {
   const location = useLocation();
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const navigate = useNavigate();
+  const [dockMenuGroup, setDockMenuGroup] = useState<NavGroup | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(getStoredToken());
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -111,13 +113,13 @@ function App() {
   }, [authToken]);
 
   useEffect(() => {
-    setMobileNavOpen(false);
+    setDockMenuGroup(null);
   }, [location.pathname]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setMobileNavOpen(false);
+        setDockMenuGroup(null);
       }
     }
     window.addEventListener("keydown", onKey);
@@ -193,6 +195,25 @@ function App() {
   const activeGroup = activeSection?.group ?? "overview";
   const activeGroupSections = permissionAwareSections.filter((section) => section.group === activeGroup);
 
+  function handleDockGroupSelect(group: NavGroup) {
+    const groupSections = permissionAwareSections.filter((section) => section.group === group);
+    if (!groupSections.length) {
+      return;
+    }
+
+    if (activeGroup === group && groupSections.length > 1) {
+      setDockMenuGroup((current) => (current === group ? null : group));
+      return;
+    }
+
+    const target =
+      groupSections.find((section) => location.pathname.startsWith(section.path)) ?? groupSections[0];
+    setDockMenuGroup(null);
+    if (!location.pathname.startsWith(target.path)) {
+      navigate(target.path);
+    }
+  }
+
   if (location.pathname.startsWith("/embed/")) {
     return (
       <div className="embed-shell">
@@ -224,20 +245,8 @@ function App() {
   }
 
   return (
-    <div className="workspace-shell">
-      <AppChrome
-        mobileNavOpen={mobileNavOpen}
-        onToggleMobileNav={() => setMobileNavOpen((open) => !open)}
-        onCloseMobileNav={() => setMobileNavOpen(false)}
-        topBarTitle={activeSection?.label ?? "Панель"}
-      />
-
-      <AppSidebar
-        mobileNavOpen={mobileNavOpen}
-        permissionAwareSections={permissionAwareSections}
-        currentUser={currentUser}
-        onLogout={handleLogout}
-      />
+    <div className="workspace-shell workspace-shell--dock">
+      <AppChrome topBarTitle={activeSection?.label ?? "Панель"} currentUser={currentUser} onLogout={handleLogout} />
 
       <div className="content-shell">
         {error ? <div className="banner error">{error}</div> : null}
@@ -262,6 +271,14 @@ function App() {
           />
         </main>
       </div>
+
+      <AppDock
+        permissionAwareSections={permissionAwareSections}
+        activeGroup={activeGroup}
+        openMenuGroup={dockMenuGroup}
+        onSelectGroup={handleDockGroupSelect}
+        onCloseMenu={() => setDockMenuGroup(null)}
+      />
     </div>
   );
 }
