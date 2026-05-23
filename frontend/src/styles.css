@@ -2651,3 +2651,118 @@ main#main-content {
     align-items: center;
   }
 }
+
+.panel-users-page .access-preset-card,
+.panel-users-page .access-level-option {
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: none;
+  font-weight: 500;
+}
+
+.panel-users-page .access-preset-card:hover:not(:disabled),
+.panel-users-page .access-level-option:hover:not(:disabled) {
+  filter: none;
+  background: rgba(94, 200, 255, 0.08);
+  color: var(--text);
+}
+
+.panel-users-page .access-preset-card.active {
+  background: rgba(94, 200, 255, 0.12);
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.panel-users-page .access-preset-card strong,
+.panel-users-page .panel-user-card strong,
+.panel-users-page .panel-user-section h3,
+.panel-users-page .panel-user-section h4,
+.panel-users-page .permission-module-group h4,
+.panel-users-page .permission-module-card strong,
+.panel-users-page .server-scope-option strong,
+.panel-users-page .server-picker-item strong,
+.panel-users-page .panel-user-admin-note strong,
+.panel-users-page label {
+  color: var(--text);
+}
+
+.panel-users-page .access-preset-card span,
+.panel-users-page .permission-module-card .muted,
+.panel-users-page .panel-user-section-note,
+.panel-users-page .server-scope-option small,
+.panel-users-page .server-picker-item small,
+.panel-users-page .panel-user-card .muted,
+.panel-users-page .panel-head .muted {
+  color: var(--text-secondary);
+}
+
+.panel-users-page .access-level-option {
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 0;
+  padding: 0.4rem 0.75rem;
+}
+
+.panel-users-page .access-level-option.active {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+
+.panel-users-page .panel-user-card,
+.panel-users-page .permission-module-card,
+.panel-users-page .server-scope-option,
+.panel-users-page .server-picker-item {
+  color: var(--text);
+}
+
+.panel-users-page input,
+.panel-users-page textarea,
+.panel-users-page select {
+  color: var(--text);
+  background: var(--bg-2);
+  border-color: var(--border-soft);
+}
+
+.panel-users-page input[readonly] {
+  color: var(--text-secondary);
+}
+
+.metric-embeds-page .metric-embeds-item strong,
+.metric-embeds-page .metric-embeds-server-picker strong,
+.metric-embeds-page label {
+  color: var(--text);
+}
+
+.metric-embeds-page .metric-embeds-item .muted,
+.metric-embeds-page .metric-embeds-server-option span,
+.metric-embeds-page .panel-head .muted {
+  color: var(--text-secondary);
+}
+
+.metric-embeds-page input,
+.metric-embeds-page textarea,
+.metric-embeds-page select {
+  color: var(--text);
+  background: var(--bg-2);
+  border-color: var(--border-soft);
+}
+
+.metrics-embed-widget:not(.theme-light) {
+  color: var(--text);
+  background: var(--bg-0);
+}
+
+.metrics-embed-widget:not(.theme-light) strong,
+.metrics-embed-widget:not(.theme-light) h1 {
+  color: var(--text);
+}
+
+.metrics-embed-widget:not(.theme-light) .muted,
+.metrics-embed-widget:not(.theme-light) .eyebrow {
+  color: var(--text-secondary);
+}
+
+.metrics-embed-widget:not(.theme-light) .metrics-embed-card {
+  background: var(--surface-raised);
+  color: var(--text);
+}
