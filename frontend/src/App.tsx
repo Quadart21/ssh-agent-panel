@@ -6,6 +6,7 @@ import PageFallback from "./components/PageFallback";
 import MetricsEmbedWidget from "./components/MetricsEmbedWidget";
 import AppChrome from "./layout/AppChrome";
 import AppDock from "./layout/AppDock";
+import AppSidebar from "./layout/AppSidebar";
 import SubnavStrip from "./layout/SubnavStrip";
 import { sections, userHasSectionAccess } from "./navigation";
 import type { NavGroup } from "./navigation";
@@ -245,13 +246,20 @@ function App() {
   }
 
   return (
-    <div className="workspace-shell workspace-shell--dock">
-      <AppChrome topBarTitle={activeSection?.label ?? "Панель"} currentUser={currentUser} onLogout={handleLogout} />
+    <div className="workspace-shell workspace-shell--adaptive">
+      <AppChrome
+        topBarTitle={activeSection?.label ?? "Панель"}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        showMobileBar
+      />
+
+      <AppSidebar permissionAwareSections={permissionAwareSections} currentUser={currentUser} onLogout={handleLogout} />
 
       <div className="content-shell">
         {error ? <div className="banner error">{error}</div> : null}
 
-        <SubnavStrip sections={activeGroupSections} />
+        <SubnavStrip sections={activeGroupSections} variant="compact" />
 
         <main id="main-content">
           <AppRoutes

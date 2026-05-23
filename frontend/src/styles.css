@@ -42,7 +42,7 @@
   --space-6: 32px;
 
   --top-bar-h: 52px;
-  --dock-h: 68px;
+  --dock-h: 58px;
   --sidebar-w: 280px;
 
   --transition: 0.18s ease;
@@ -289,19 +289,19 @@ label {
   align-items: start;
 }
 
-.workspace-shell--dock {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+.workspace-shell--adaptive {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  gap: var(--space-5);
   max-width: 1680px;
   margin: 0 auto;
   min-height: 100vh;
-  padding: var(--space-3) var(--space-4)
-    calc(var(--dock-h) + var(--space-5) + env(safe-area-inset-bottom, 0px));
+  padding: var(--space-5) var(--space-4) var(--space-6);
+  align-items: start;
 }
 
 .top-bar {
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -313,8 +313,12 @@ label {
   box-shadow: var(--shadow-sm);
   backdrop-filter: blur(16px);
   position: sticky;
-  top: var(--space-3);
+  top: var(--space-2);
   z-index: 90;
+}
+
+.top-bar--mobile {
+  display: none;
 }
 
 .top-bar-brand {
@@ -584,13 +588,35 @@ main#main-content {
 }
 
 .subnav-strip {
-  display: flex;
+  display: none;
   gap: var(--space-2);
   overflow-x: auto;
   padding: var(--space-1) 0 var(--space-2);
   margin: 0 calc(-1 * var(--space-1));
   scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
+}
+
+.subnav-strip--compact {
+  display: none;
+  gap: var(--space-1);
+  padding: 0;
+  margin: 0;
+}
+
+.subnav-strip--compact .subnav-item {
+  min-width: auto;
+  max-width: none;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+.subnav-strip--compact .subnav-item.active {
+  background: var(--accent-muted);
+  border-color: rgba(94, 200, 255, 0.3);
+  box-shadow: none;
 }
 
 .subnav-strip::-webkit-scrollbar {
@@ -639,14 +665,15 @@ main#main-content {
   box-shadow: var(--shadow-sm);
 }
 
-/* ——— Bottom dock (macOS-style) ——— */
+/* ——— Bottom dock (mobile) ——— */
 .app-dock {
+  display: none;
   position: fixed;
   left: 50%;
-  bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   z-index: 120;
-  width: min(calc(100% - var(--space-4)), 720px);
+  width: min(calc(100% - var(--space-3)), 560px);
   pointer-events: none;
 }
 
@@ -654,35 +681,34 @@ main#main-content {
   display: flex;
   align-items: stretch;
   justify-content: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  border-radius: 999px;
-  background: rgba(14, 20, 32, 0.82);
-  border: 1px solid rgba(130, 200, 255, 0.18);
-  box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(24px) saturate(1.4);
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 18px;
+  background: rgba(12, 16, 24, 0.88);
+  border: 1px solid rgba(130, 200, 255, 0.16);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px) saturate(1.3);
   pointer-events: auto;
 }
 
 .app-dock-item {
   flex: 1 1 0;
   min-width: 0;
-  max-width: 120px;
+  max-width: 88px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  padding: var(--space-2) var(--space-1);
+  gap: 3px;
+  padding: 6px 4px;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: 12px;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
+  box-shadow: none;
   transition:
-    transform 0.16s ease,
+    transform 0.14s ease,
     background var(--transition),
     color var(--transition);
 }
@@ -690,12 +716,17 @@ main#main-content {
 .app-dock-item:hover {
   background: rgba(94, 200, 255, 0.08);
   color: var(--text);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
+  filter: none;
+}
+
+.app-dock-item:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .app-dock-item.active {
-  color: var(--text);
-  background: rgba(94, 200, 255, 0.12);
+  color: var(--accent);
+  background: rgba(94, 200, 255, 0.1);
 }
 
 .app-dock-item.open {
@@ -704,14 +735,23 @@ main#main-content {
 }
 
 .app-dock-icon {
-  font-size: 1.35rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+}
+
+.app-dock-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
 }
 
 .app-dock-label {
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   font-weight: 650;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1809,17 +1849,30 @@ main#main-content {
   }
 }
 
-@media (max-width: 1023px) {
-  .workspace-shell {
-    grid-template-columns: 1fr;
-    padding: 0 0 var(--space-5);
-    gap: 0;
-  }
-
-  .workspace-shell--dock {
+@media (max-width: 1099px) {
+  .workspace-shell--adaptive {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
     padding: var(--space-2) var(--space-3)
       calc(var(--dock-h) + var(--space-4) + env(safe-area-inset-bottom, 0px));
-    gap: var(--space-3);
+    align-items: stretch;
+  }
+
+  .workspace-shell--adaptive .sidebar--desktop {
+    display: none;
+  }
+
+  .workspace-shell--adaptive .top-bar--mobile {
+    display: flex;
+  }
+
+  .workspace-shell--adaptive .subnav-strip--compact {
+    display: flex;
+  }
+
+  .workspace-shell--adaptive .app-dock {
+    display: block;
   }
 
   .top-bar {
@@ -1832,23 +1885,16 @@ main#main-content {
     display: none;
   }
 
-  .subnav-item {
-    min-width: 120px;
-    max-width: 180px;
-    padding: var(--space-2) var(--space-3);
+  .content-shell {
+    padding: 0;
   }
+}
 
-  .subnav-item span {
-    display: none;
-  }
-
-  .app-dock-inner {
+@media (max-width: 1023px) {
+  .workspace-shell {
+    grid-template-columns: 1fr;
+    padding: 0 0 var(--space-5);
     gap: 0;
-    padding-inline: var(--space-2);
-  }
-
-  .app-dock-label {
-    font-size: 0.58rem;
   }
 
   .sidebar {
@@ -1937,7 +1983,7 @@ main#main-content {
     padding-inline: 0;
   }
 
-  .workspace-shell--dock {
+  .workspace-shell--adaptive {
     padding-inline: var(--space-2);
   }
 
@@ -1952,19 +1998,11 @@ main#main-content {
   }
 
   .app-dock {
-    width: calc(100% - var(--space-3));
-  }
-
-  .app-dock-item {
-    padding-block: var(--space-1);
-  }
-
-  .app-dock-icon {
-    font-size: 1.2rem;
+    width: calc(100% - var(--space-2));
   }
 
   .dock-flyout {
-    width: calc(100% - var(--space-3));
+    width: calc(100% - var(--space-2));
   }
 
   .login-shell {

@@ -4,6 +4,7 @@ import { dockGroups } from "../navigation/dockConfig";
 import { sectionGroups } from "../navigation/config";
 import type { NavGroup, SectionItem } from "../navigation";
 import DockFlyout from "./DockFlyout";
+import DockIcon from "./DockIcon";
 
 type Props = {
   permissionAwareSections: SectionItem[];
@@ -45,8 +46,8 @@ function AppDock({ permissionAwareSections, activeGroup, openMenuGroup, onSelect
                 aria-expanded={isOpen}
                 onClick={() => onSelectGroup(group.key)}
               >
-                <span className="app-dock-icon" aria-hidden>
-                  {group.icon}
+                <span className="app-dock-icon">
+                  <DockIcon name={group.key} />
                 </span>
                 <span className="app-dock-label">{group.shortLabel}</span>
               </button>

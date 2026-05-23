@@ -2,14 +2,13 @@ import type { NavGroup } from "./types";
 
 export type DockGroupMeta = {
   key: NavGroup;
-  icon: string;
   shortLabel: string;
 };
 
 export const dockGroups: DockGroupMeta[] = [
-  { key: "overview", icon: "📊", shortLabel: "Обзор" },
-  { key: "infrastructure", icon: "🖥", shortLabel: "Инфра" },
-  { key: "operations", icon: "⚡", shortLabel: "Ops" },
-  { key: "security", icon: "🔒", shortLabel: "Sec" },
-  { key: "administration", icon: "⚙", shortLabel: "Admin" }
+  { key: "overview", shortLabel: "Обзор" },
+  { key: "infrastructure", shortLabel: "Инфра" },
+  { key: "operations", shortLabel: "Ops" },
+  { key: "security", shortLabel: "Sec" },
+  { key: "administration", shortLabel: "Admin" }
 ];

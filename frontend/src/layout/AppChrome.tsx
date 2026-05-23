@@ -4,16 +4,17 @@ type Props = {
   topBarTitle: string;
   currentUser: User | null;
   onLogout: () => void;
+  showMobileBar?: boolean;
 };
 
-function AppChrome({ topBarTitle, currentUser, onLogout }: Props) {
+function AppChrome({ topBarTitle, currentUser, onLogout, showMobileBar = false }: Props) {
   return (
     <>
       <a className="skip-link" href="#main-content">
         К основному содержимому
       </a>
 
-      <header className="top-bar">
+      <header className={`top-bar ${showMobileBar ? "top-bar--mobile" : ""}`}>
         <div className="top-bar-brand">
           <span className="top-bar-brand-mark" aria-hidden>
             SSH

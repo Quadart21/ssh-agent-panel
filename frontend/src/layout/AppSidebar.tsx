@@ -1,19 +1,18 @@
 import { NavLink } from "react-router-dom";
 
-import { permissionSections, sectionGroups } from "../navigation";
+import { sectionGroups } from "../navigation";
 import type { SectionItem } from "../navigation";
 import type { User } from "../types";
 
 type Props = {
-  mobileNavOpen: boolean;
   permissionAwareSections: SectionItem[];
   currentUser: User | null;
   onLogout: () => void;
 };
 
-function AppSidebar({ mobileNavOpen, permissionAwareSections, currentUser, onLogout }: Props) {
+function AppSidebar({ permissionAwareSections, currentUser, onLogout }: Props) {
   return (
-    <aside className={`sidebar ${mobileNavOpen ? "is-open" : ""}`} id="app-sidebar">
+    <aside className="sidebar sidebar--desktop" id="app-sidebar">
       <div className="sidebar-inner">
         <div className="brand-card">
           <p className="eyebrow">SSH Control</p>
