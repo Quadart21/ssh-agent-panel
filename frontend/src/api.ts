@@ -235,6 +235,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(payload)
     }),
+  deletePanelUser: (id: number) => request<void>(`/panel-users/${id}`, { method: "DELETE" }),
   logoutAllPanelUserSessions: (id: number) =>
     request<TmuxActionResponse>(`/panel-users/${id}/logout-all`, {
       method: "POST"

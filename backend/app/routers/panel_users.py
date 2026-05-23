@@ -125,6 +125,37 @@ def update_panel_user(
     return UserRead.model_validate(user, from_attributes=True)
 
 
+@router.delete("/{user_id}", response_model=TmuxActionResponse)
+def delete_panel_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден.")
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Нельзя удалить свой аккаунт.")
+    if user.role == "admin":
+        admin_count = db.query(User).filter(User.role == "admin").count()
+        if admin_count <= 1:
+            raise HTTPException(status_code=400, detail="Нельзя удалить последнего администратора.")
+
+    email = user.email
+    revoke_all_sessions_for_user_id(db, user.id)
+    db.delete(user)
+    db.commit()
+    write_audit_log(
+        db,
+        user=current_user,
+        action="panel_user.delete",
+        target_type="user",
+        target_id=str(user_id),
+        details=email,
+    )
+    return TmuxActionResponse(ok=True, message=f"Пользователь {email} удалён.")
+
+
 @router.post("/{user_id}/logout-all", response_model=TmuxActionResponse)
 def logout_all_panel_user_sessions(
     user_id: int,

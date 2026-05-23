@@ -104,6 +104,22 @@ function PanelUsersRoute({ users, servers, currentUser, onError, onReload }: Pro
     }
   }
 
+  async function handleDeleteUser(user: User) {
+    if (!window.confirm(`Удалить пользователя ${user.email}? Это действие необратимо.`)) {
+      return;
+    }
+    onError("");
+    if (editingUserId === user.id) {
+      closeEditor();
+    }
+    try {
+      await api.deletePanelUser(user.id);
+      await onReload();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось удалить пользователя.");
+    }
+  }
+
   async function handleLogoutAllPanelUserSessions(userId: number) {
     onError("");
     try {
@@ -150,6 +166,7 @@ function PanelUsersRoute({ users, servers, currentUser, onError, onReload }: Pro
       onGeneratePassword={() => void generatePasswordIntoForm()}
       onSubmit={(event) => void handleSubmit(event)}
       onLogoutAllSessions={(userId) => void handleLogoutAllPanelUserSessions(userId)}
+      onDeleteUser={(user) => void handleDeleteUser(user)}
     />
   );
 }

@@ -23,6 +23,7 @@ type Props = {
   onGeneratePassword: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onLogoutAllSessions: (userId: number) => void;
+  onDeleteUser: (user: User) => void;
 };
 
 function PanelUsersPage({
@@ -43,7 +44,8 @@ function PanelUsersPage({
   onCancelEditor,
   onGeneratePassword,
   onSubmit,
-  onLogoutAllSessions
+  onLogoutAllSessions,
+  onDeleteUser
 }: Props) {
   return (
     <div className="page-stack panel-users-page">
@@ -155,9 +157,14 @@ function PanelUsersPage({
                   Настроить доступ
                 </button>
                 {currentUser?.id !== user.id ? (
-                  <button type="button" className="ghost" onClick={() => onLogoutAllSessions(user.id)}>
-                    Завершить сессии
-                  </button>
+                  <>
+                    <button type="button" className="ghost" onClick={() => onLogoutAllSessions(user.id)}>
+                      Завершить сессии
+                    </button>
+                    <button type="button" className="danger" onClick={() => onDeleteUser(user)}>
+                      Удалить
+                    </button>
+                  </>
                 ) : null}
               </div>
             </article>
