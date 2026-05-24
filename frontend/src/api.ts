@@ -289,6 +289,8 @@ export const api = {
     request<BulkServerCreateResponse>("/servers/bulk", { method: "POST", body: JSON.stringify(payload) }),
   updateServer: (id: number, payload: Record<string, unknown>) =>
     request<Server>(`/servers/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  patchServerQuick: (id: number, payload: Record<string, unknown>) =>
+    request<Server>(`/servers/${id}/quick`, { method: "PATCH", body: JSON.stringify(payload) }),
   deleteServer: (id: number) => request<void>(`/servers/${id}`, { method: "DELETE" }),
   enrollServerAgent: (id: number) =>
     request<AgentEnrollResponse>(`/servers/${id}/agent/enroll`, {

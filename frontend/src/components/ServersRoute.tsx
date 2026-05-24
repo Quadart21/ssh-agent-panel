@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { api } from "../api";
 import type { ConnectionTestResult, Group, Server, ServerAccountingSummary, ServerMetricSnapshot, User } from "../types";
 import ServersPage from "./ServersPage";
+import type { ServerQuickPatch } from "./servers/ServerQuickFields";
 import type { ServerForm } from "./servers/types";
 
 type Props = {
@@ -58,6 +59,7 @@ function ServersRoute({
   const [accountingLoading, setAccountingLoading] = useState(true);
   const [metricsRefreshingAll, setMetricsRefreshingAll] = useState(false);
   const [agentsReinstallingAll, setAgentsReinstallingAll] = useState(false);
+  const [quickSavingServerId, setQuickSavingServerId] = useState<number | null>(null);
   const [refreshingMetricServerId, setRefreshingMetricServerId] = useState<number | null>(null);
   const [bulkInput, setBulkInput] = useState("");
   const [bulkGroupId, setBulkGroupId] = useState("");
@@ -190,6 +192,20 @@ function ServersRoute({
       await onReload();
     } catch (err) {
       onError(err instanceof Error ? err.message : "Не удалось выпустить токен агента.");
+    }
+  }
+
+  async function handleQuickUpdateServer(serverId: number, patch: ServerQuickPatch) {
+    onError("");
+    setQuickSavingServerId(serverId);
+    try {
+      await api.patchServerQuick(serverId, patch);
+      await onReload();
+      await loadAccounting();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось сохранить изменения.");
+    } finally {
+      setQuickSavingServerId(null);
     }
   }
 
@@ -348,6 +364,8 @@ function ServersRoute({
       onEnrollAgent={(id) => void handleEnrollAgent(id)}
       onReinstallAllAgents={() => void handleReinstallAllAgents()}
       agentsReinstallingAll={agentsReinstallingAll}
+      onQuickUpdateServer={(serverId, patch) => handleQuickUpdateServer(serverId, patch)}
+      quickSavingServerId={quickSavingServerId}
       onRefreshAllMetrics={() => void handleRefreshAllMetrics()}
       onRefreshServerMetrics={(id) => void handleRefreshServerMetrics(id)}
       metricsRefreshingAll={metricsRefreshingAll}

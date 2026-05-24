@@ -58,6 +58,12 @@ const emptyProgress: ProgressState = {
   activeStep: 0
 };
 
+function envMapToRaw(env: Record<string, string>) {
+  return Object.entries(env)
+    .map(([key, value]) => `${key}=${value}`)
+    .join("\n");
+}
+
 function AutomationPage({ servers, groups, token, onError }: Props) {
   const [presets, setPresets] = useState<AutomationPreset[]>([]);
   const [loading, setLoading] = useState(false);
@@ -77,7 +83,12 @@ function AutomationPage({ servers, groups, token, onError }: Props) {
       .then((data) => {
         setPresets(data);
         if (!form.preset_key && data.length > 0) {
-          setForm((current) => ({ ...current, preset_key: data[0].key }));
+          const first = data[0];
+          setForm((current) => ({
+            ...current,
+            preset_key: first.key,
+            custom_env_raw: first.default_env ? envMapToRaw(first.default_env) : ""
+          }));
         }
       })
       .catch((err: unknown) => {
@@ -91,6 +102,34 @@ function AutomationPage({ servers, groups, token, onError }: Props) {
     [presets, form.preset_key]
   );
 
+  const presetCategories = useMemo(() => {
+    const order = [
+      "Базовая подготовка",
+      "Обслуживание",
+      "SSH Panel",
+      "VPN",
+      "Прокси",
+      "Панели",
+      "Безопасность",
+      "Мониторинг",
+      "Опасно"
+    ];
+    const grouped = new Map<string, AutomationPreset[]>();
+    for (const preset of presets) {
+      const items = grouped.get(preset.category) ?? [];
+      items.push(preset);
+      grouped.set(preset.category, items);
+    }
+    const known = order.filter((category) => grouped.has(category));
+    const unknown = [...grouped.keys()].filter((category) => !order.includes(category)).sort();
+    return [...known, ...unknown].map((category) => ({
+      category,
+      presets: grouped.get(category) ?? []
+    }));
+  }, [presets]);
+
+  const isDangerPreset = selectedPreset?.category === "Опасно";
+
   const totalPlannedCommands = progress.totalServers * progress.totalCommandsPerServer;
   const progressPercent =
     totalPlannedCommands > 0 ? Math.min(100, Math.round((progress.finishedCommands / totalPlannedCommands) * 100)) : 0;
@@ -101,6 +140,15 @@ function AutomationPage({ servers, groups, token, onError }: Props) {
     }
     streamRef.current.scrollTop = streamRef.current.scrollHeight;
   }, [streamLogs]);
+
+  function handlePresetChange(presetKey: string) {
+    const preset = presets.find((item) => item.key === presetKey);
+    setForm((current) => ({
+      ...current,
+      preset_key: presetKey,
+      custom_env_raw: preset?.default_env ? envMapToRaw(preset.default_env) : ""
+    }));
+  }
 
   function toggleServer(serverId: number) {
     setForm((current) => ({
@@ -147,6 +195,14 @@ function AutomationPage({ servers, groups, token, onError }: Props) {
 
   async function handleRun(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isDangerPreset) {
+      const confirmed = window.confirm(
+        `Сценарий «${selectedPreset?.name}» помечен как опасный и может изменить доступ к серверу или удалить данные. Продолжить?`
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
     setResults(null);
     setStreamLogs([]);
     setProgress(emptyProgress);
@@ -381,12 +437,16 @@ function AutomationPage({ servers, groups, token, onError }: Props) {
           <form className="command-grid" onSubmit={handleRun}>
             <label>
               Сценарий
-              <select value={form.preset_key} onChange={(event) => setForm({ ...form, preset_key: event.target.value })}>
+              <select value={form.preset_key} onChange={(event) => handlePresetChange(event.target.value)}>
                 <option value="">Выберите сценарий</option>
-                {presets.map((preset) => (
-                  <option key={preset.key} value={preset.key}>
-                    {preset.name}
-                  </option>
+                {presetCategories.map((group) => (
+                  <optgroup key={group.category} label={group.category}>
+                    {group.presets.map((preset) => (
+                      <option key={preset.key} value={preset.key}>
+                        {preset.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </label>
@@ -425,8 +485,8 @@ function AutomationPage({ servers, groups, token, onError }: Props) {
                 ))}
               </div>
             </div>
-            <button type="submit" disabled={running}>
-              {running ? "Сценарий выполняется..." : "Запустить сценарий"}
+            <button type="submit" disabled={running} className={isDangerPreset ? "danger" : undefined}>
+              {running ? "Сценарий выполняется..." : isDangerPreset ? "Запустить опасный сценарий" : "Запустить сценарий"}
             </button>
           </form>
         </article>
@@ -437,8 +497,11 @@ function AutomationPage({ servers, groups, token, onError }: Props) {
             <div className="automation-details">
               <div className="server-card-row">
                 <strong>{selectedPreset.name}</strong>
-                <span className="status-pill online">{selectedPreset.category}</span>
+                <span className={`status-pill ${isDangerPreset ? "offline" : "online"}`}>{selectedPreset.category}</span>
               </div>
+              {isDangerPreset ? (
+                <p className="danger-note">Этот сценарий может заблокировать SSH, удалить Docker-данные или перезагрузить сервер.</p>
+              ) : null}
               <p>{selectedPreset.description}</p>
               <pre>{selectedPreset.commands.join("\n")}</pre>
             </div>

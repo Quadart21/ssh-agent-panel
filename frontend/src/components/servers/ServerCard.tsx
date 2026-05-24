@@ -1,19 +1,22 @@
-import type { Server, ServerMetricSnapshot } from "../../types";
-import { billingPeriodLabel, formatMoney } from "../../utils/formatMoney";
+import type { Group, Server, ServerMetricSnapshot } from "../../types";
 import { isPaymentExpired, isPaymentExpiringSoon } from "./helpers";
 import MetricRing from "./MetricRing";
+import ServerQuickFields, { type ServerQuickPatch } from "./ServerQuickFields";
 
 type Props = {
   server: Server;
   metric: ServerMetricSnapshot | undefined;
+  groups: Group[];
   isEditing: boolean;
   canEdit: boolean;
   canDelete: boolean;
   canEnrollAgent: boolean;
+  quickSaving: boolean;
   onEdit: (server: Server) => void;
   onDelete: (id: number) => void;
   onEnrollAgent: (id: number) => void;
   onRefreshMetrics: (id: number) => void;
+  onQuickUpdate: (serverId: number, patch: ServerQuickPatch) => Promise<void>;
   metricsRefreshing: boolean;
 };
 
@@ -30,14 +33,17 @@ function agentLabel(server: Server): { text: string; tone: "online" | "pending" 
 function ServerCard({
   server,
   metric,
+  groups,
   isEditing,
   canEdit,
   canDelete,
   canEnrollAgent,
+  quickSaving,
   onEdit,
   onDelete,
   onEnrollAgent,
   onRefreshMetrics,
+  onQuickUpdate,
   metricsRefreshing
 }: Props) {
   const agent = agentLabel(server);
@@ -61,23 +67,18 @@ function ServerCard({
         </div>
       </div>
 
+      <ServerQuickFields
+        server={server}
+        groups={groups}
+        canEdit={canEdit}
+        saving={quickSaving}
+        onSave={onQuickUpdate}
+      />
+
       <div className="fleet-card-meta">
-        <span className="server-chip">{server.group_name ?? "Без группы"}</span>
         {server.provider ? <span className="server-chip muted-chip">{server.provider}</span> : null}
         {server.agent_version ? <span className="server-chip muted-chip">v{server.agent_version}</span> : null}
       </div>
-
-      {server.monthly_cost != null ? (
-        <p className="accounting-line">
-          {formatMoney(server.monthly_cost, server.currency)}{" "}
-          <span className="muted">{billingPeriodLabel(server.billing_period)}</span>
-          {server.monthly_equivalent != null && server.billing_period !== "monthly" ? (
-            <> · ≈ {formatMoney(server.monthly_equivalent, server.currency)} / мес.</>
-          ) : null}
-        </p>
-      ) : (
-        <p className="muted">Стоимость не указана</p>
-      )}
 
       {server.pay_until ? (
         <p className={`payment-line ${paymentExpired ? "expired" : paymentExpiring ? "expiring" : ""}`}>

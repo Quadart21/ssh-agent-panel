@@ -41,6 +41,7 @@ from app.schemas import (
     ServerCreate,
     ServerMetricSnapshot,
     ServerRead,
+    ServerQuickUpdate,
     ServerUpdate,
 )
 from app.services.accounting import build_accounting_summary, normalize_monthly_cost
@@ -979,6 +980,46 @@ async def run_commands_websocket(websocket: WebSocket):
         await websocket.close(code=1011)
     finally:
         db.close()
+
+
+@router.patch("/{server_id}/quick", response_model=ServerRead)
+def quick_update_server(
+    server_id: int,
+    payload: ServerQuickUpdate,
+    db: Session = Depends(get_db),
+    current_user: object = Depends(get_current_user),
+):
+    ensure_section_access(current_user, "servers")
+    ensure_action_access(current_user, "server_update")
+    server = db.get(Server, server_id)
+    if not server:
+        raise HTTPException(status_code=404, detail="Сервер не найден.")
+    ensure_server_access(current_user, server)
+
+    changes = payload.model_dump(exclude_unset=True)
+    if "group_id" in changes:
+        group_id = changes["group_id"]
+        if group_id is not None and not db.get(ServerGroup, group_id):
+            raise HTTPException(status_code=404, detail="Группа не найдена.")
+        server.group_id = group_id
+    if "monthly_cost" in changes:
+        server.monthly_cost = changes["monthly_cost"]
+    if "billing_period" in changes:
+        server.billing_period = changes["billing_period"]
+    if "currency" in changes:
+        server.currency = changes["currency"]
+
+    db.commit()
+    db.refresh(server)
+    write_audit_log(
+        db,
+        user=current_user,
+        action="server.update",
+        target_type="server",
+        target_id=str(server.id),
+        details=f"{server.name}: quick",
+    )
+    return serialize_server(server)
 
 
 @router.put("/{server_id}", response_model=ServerRead)

@@ -64,6 +64,30 @@ class ServerUpdate(ServerBase):
     pass
 
 
+class ServerQuickUpdate(BaseModel):
+    group_id: int | None = None
+    monthly_cost: float | None = Field(default=None, ge=0)
+    billing_period: str | None = Field(default=None, max_length=16)
+    currency: str | None = Field(default=None, max_length=8)
+
+    @field_validator("billing_period")
+    @classmethod
+    def validate_billing_period(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        if normalized not in {"monthly", "yearly", "quarterly"}:
+            raise ValueError("Период оплаты: monthly, yearly или quarterly.")
+        return normalized
+
+    @field_validator("currency")
+    @classmethod
+    def validate_currency(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip().upper()[:8]
+
+
 class BulkServerCreateRequest(BaseModel):
     items: list[ServerCreate] = Field(default_factory=list, min_length=1)
 
@@ -538,6 +562,7 @@ class AutomationPresetRead(BaseModel):
     description: str
     category: str
     commands: list[str]
+    default_env: dict[str, str] = Field(default_factory=dict)
 
 
 class AutomationRunRequest(BaseModel):

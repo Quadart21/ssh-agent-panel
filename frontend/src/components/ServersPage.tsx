@@ -6,6 +6,7 @@ import ServersAccountingPanel from "./ServersAccountingPanel";
 import ServerCard from "./servers/ServerCard";
 import ServerFormPanel from "./servers/ServerFormPanel";
 import ServersBulkPanel from "./servers/ServersBulkPanel";
+import type { ServerQuickPatch } from "./servers/ServerQuickFields";
 import { computeFleetStats, filterServers } from "./servers/helpers";
 import ServersOverviewStats from "./servers/ServersOverviewStats";
 import type { FleetFilters, ServerForm, ServerViewTab } from "./servers/types";
@@ -32,6 +33,8 @@ type Props = {
   onEnrollAgent: (id: number) => void;
   onReinstallAllAgents: () => void;
   agentsReinstallingAll: boolean;
+  onQuickUpdateServer: (serverId: number, patch: ServerQuickPatch) => Promise<void>;
+  quickSavingServerId: number | null;
   onRefreshAllMetrics: () => void;
   onRefreshServerMetrics: (id: number) => void;
   metricsRefreshingAll: boolean;
@@ -81,6 +84,8 @@ function ServersPage({
   onEnrollAgent,
   onReinstallAllAgents,
   agentsReinstallingAll,
+  onQuickUpdateServer,
+  quickSavingServerId,
   onRefreshAllMetrics,
   onRefreshServerMetrics,
   metricsRefreshingAll,
@@ -150,8 +155,8 @@ function ServersPage({
             <div>
               <h2>Парк серверов</h2>
               <p className="muted">
-                Показано {filteredServers.length} из {servers.length}. Метрики сохраняются вручную — нажми «Запросить все»
-                или обнови отдельный сервер.
+                Показано {filteredServers.length} из {servers.length}. Группу и стоимость можно менять прямо на
+                карточке. Метрики — кнопкой «Запросить все» или по серверу.
               </p>
             </div>
             <div className="panel-actions">
@@ -262,14 +267,17 @@ function ServersPage({
                 <ServerCard
                   key={server.id}
                   server={server}
+                  groups={groups}
                   metric={metrics.find((item) => item.server_id === server.id)}
                   isEditing={editingServerId === server.id}
                   canEdit={canEdit}
                   canDelete={canDelete}
                   canEnrollAgent={canEnrollAgent}
+                  quickSaving={quickSavingServerId === server.id}
                   onEdit={handleEdit}
                   onDelete={onDelete}
                   onEnrollAgent={onEnrollAgent}
+                  onQuickUpdate={onQuickUpdateServer}
                   onRefreshMetrics={onRefreshServerMetrics}
                   metricsRefreshing={refreshingMetricServerId === server.id}
                 />

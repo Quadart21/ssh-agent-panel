@@ -341,6 +341,7 @@ export type AutomationPreset = {
   description: string;
   category: string;
   commands: string[];
+  default_env?: Record<string, string>;
 };
 
 export type TelegramStatus = {

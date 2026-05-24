@@ -69,7 +69,7 @@ def run_preset(
     servers = collect_target_servers(db, payload.group_id, payload.server_ids)
     for server in servers:
         ensure_server_access(current_user, server)
-    commands = render_automation_commands(preset.commands, payload.custom_env)
+    commands = render_automation_commands(preset.key, preset.commands, payload.custom_env)
 
     results: list[CommandExecutionResult] = []
     for server in servers:
@@ -163,7 +163,7 @@ async def run_preset_websocket(websocket: WebSocket):
         servers = collect_target_servers(db, request_payload.group_id, request_payload.server_ids)
         for server in servers:
             ensure_server_access(user, server)
-        commands = render_automation_commands(preset.commands, request_payload.custom_env)
+        commands = render_automation_commands(preset.key, preset.commands, request_payload.custom_env)
 
         await websocket.send_json(
             {
