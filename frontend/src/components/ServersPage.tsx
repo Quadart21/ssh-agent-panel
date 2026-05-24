@@ -30,6 +30,8 @@ type Props = {
   canDelete: boolean;
   canEnrollAgent: boolean;
   onEnrollAgent: (id: number) => void;
+  onReinstallAllAgents: () => void;
+  agentsReinstallingAll: boolean;
   onRefreshAllMetrics: () => void;
   onRefreshServerMetrics: (id: number) => void;
   metricsRefreshingAll: boolean;
@@ -77,6 +79,8 @@ function ServersPage({
   canDelete,
   canEnrollAgent,
   onEnrollAgent,
+  onReinstallAllAgents,
+  agentsReinstallingAll,
   onRefreshAllMetrics,
   onRefreshServerMetrics,
   metricsRefreshingAll,
@@ -154,6 +158,16 @@ function ServersPage({
               <button type="button" className="ghost" disabled={metricsRefreshingAll} onClick={onRefreshAllMetrics}>
                 {metricsRefreshingAll ? "Опрос…" : "Запросить все"}
               </button>
+              {canEnrollAgent ? (
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={agentsReinstallingAll}
+                  onClick={onReinstallAllAgents}
+                >
+                  {agentsReinstallingAll ? "Обновление агентов…" : "Обновить всех агентов"}
+                </button>
+              ) : null}
               {(canCreate || canEdit) && (
                 <>
                   <button type="button" className="ghost" onClick={() => setActiveTab("form")}>

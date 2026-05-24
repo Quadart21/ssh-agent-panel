@@ -107,6 +107,22 @@ class AgentEnrollRead(BaseModel):
     install_error: str | None = None
 
 
+class BulkAgentReinstallItemResult(BaseModel):
+    server_id: int
+    server_name: str
+    ok: bool
+    installed: bool
+    message: str
+
+
+class BulkAgentReinstallResponse(BaseModel):
+    total: int
+    installed: int
+    failed: int
+    skipped: int
+    results: list[BulkAgentReinstallItemResult]
+
+
 class AgentHeartbeatRequest(BaseModel):
     token: str = Field(min_length=16, max_length=256)
     version: str | None = Field(default=None, max_length=32)

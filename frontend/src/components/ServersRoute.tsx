@@ -57,6 +57,7 @@ function ServersRoute({
   const [accounting, setAccounting] = useState<ServerAccountingSummary | null>(null);
   const [accountingLoading, setAccountingLoading] = useState(true);
   const [metricsRefreshingAll, setMetricsRefreshingAll] = useState(false);
+  const [agentsReinstallingAll, setAgentsReinstallingAll] = useState(false);
   const [refreshingMetricServerId, setRefreshingMetricServerId] = useState<number | null>(null);
   const [bulkInput, setBulkInput] = useState("");
   const [bulkGroupId, setBulkGroupId] = useState("");
@@ -192,6 +193,32 @@ function ServersRoute({
     }
   }
 
+  async function handleReinstallAllAgents() {
+    if (!window.confirm("Переустановить агентов на всех серверах с SSH-доступом? Будут выпущены новые токены.")) {
+      return;
+    }
+    onError("");
+    setAgentsReinstallingAll(true);
+    try {
+      const response = await api.reinstallAllAgents();
+      const failedLines = response.results
+        .filter((item) => !item.installed)
+        .slice(0, 8)
+        .map((item) => `${item.server_name}: ${item.message}`)
+        .join("\n");
+      window.alert(
+        `Агенты обновлены: ${response.installed} из ${response.total}.\n` +
+          `Ошибок: ${response.failed}. Пропущено (нет SSH): ${response.skipped}.` +
+          (failedLines ? `\n\n${failedLines}` : "")
+      );
+      await onReload();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось обновить агентов.");
+    } finally {
+      setAgentsReinstallingAll(false);
+    }
+  }
+
   function resolveGroupId(rawValue: string): number | null {
     const cleaned = rawValue.trim();
     if (!cleaned) {
@@ -319,6 +346,8 @@ function ServersRoute({
       canDelete={hasAction(currentUser, "server_delete")}
       canEnrollAgent={currentUser?.role === "admin"}
       onEnrollAgent={(id) => void handleEnrollAgent(id)}
+      onReinstallAllAgents={() => void handleReinstallAllAgents()}
+      agentsReinstallingAll={agentsReinstallingAll}
       onRefreshAllMetrics={() => void handleRefreshAllMetrics()}
       onRefreshServerMetrics={(id) => void handleRefreshServerMetrics(id)}
       metricsRefreshingAll={metricsRefreshingAll}

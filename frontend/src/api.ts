@@ -4,6 +4,7 @@ import type {
   AutomationPreset,
   AuditLog,
   BulkCommandResponse,
+  BulkAgentReinstallResponse,
   BulkServerCreateResponse,
   CloudflareDnsRecord,
   CloudflareSettings,
@@ -291,6 +292,10 @@ export const api = {
   deleteServer: (id: number) => request<void>(`/servers/${id}`, { method: "DELETE" }),
   enrollServerAgent: (id: number) =>
     request<AgentEnrollResponse>(`/servers/${id}/agent/enroll`, {
+      method: "POST"
+    }),
+  reinstallAllAgents: () =>
+    request<BulkAgentReinstallResponse>("/servers/agent/reinstall-all", {
       method: "POST"
     }),
   listMetricEmbeds: () => request<MetricsEmbed[]>("/metric-embeds"),

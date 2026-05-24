@@ -126,6 +126,22 @@ export type AgentEnrollResponse = {
   install_error?: string | null;
 };
 
+export type BulkAgentReinstallItemResult = {
+  server_id: number;
+  server_name: string;
+  ok: boolean;
+  installed: boolean;
+  message: string;
+};
+
+export type BulkAgentReinstallResponse = {
+  total: number;
+  installed: number;
+  failed: number;
+  skipped: number;
+  results: BulkAgentReinstallItemResult[];
+};
+
 export type BulkServerCreateItemResult = {
   name: string;
   ip: string;

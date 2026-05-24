@@ -30,6 +30,8 @@ from app.schemas import (
     BulkServerCreateResponse,
     BulkCommandRequest,
     BulkCommandResponse,
+    BulkAgentReinstallItemResult,
+    BulkAgentReinstallResponse,
     CommandExecutionResult,
     ConnectionTestResult,
     DashboardStats,
@@ -549,25 +551,28 @@ def _install_agent_over_ssh(server: Server, base_url: str, token: str) -> None:
         raise RuntimeError(error or output or "Не удалось установить агент на сервер.")
 
 
-@router.post("/{server_id}/agent/enroll", response_model=AgentEnrollRead)
-def enroll_server_agent(
-    server_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: object = Depends(require_admin),
-):
-    server = db.get(Server, server_id)
-    if not server:
-        raise HTTPException(status_code=404, detail="Сервер не найден.")
-
+def _reinstall_server_agent(
+    db: Session,
+    server: Server,
+    base_url: str,
+    *,
+    actor: User | None = None,
+) -> AgentEnrollRead:
     token = secrets.token_urlsafe(32)
     server.agent_enabled = True
     server.agent_token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
     db.commit()
     db.refresh(server)
-    write_audit_log(db, user=current_user, action="server.agent.enroll", target_type="server", target_id=str(server.id), details=server.name)
+    if actor is not None:
+        write_audit_log(
+            db,
+            user=actor,
+            action="server.agent.enroll",
+            target_type="server",
+            target_id=str(server.id),
+            details=server.name,
+        )
 
-    base_url = _build_agent_api_base_url(request)
     install_script = _build_agent_install_script(base_url, token)
     message = "Токен агента сгенерирован."
     installed = False
@@ -580,6 +585,9 @@ def enroll_server_agent(
         except Exception as exc:
             install_error = str(exc)
             message = "Токен создан, но автоустановка не удалась. Выполни install_script вручную на сервере."
+    else:
+        message = "Токен создан. Для автоустановки добавьте SSH-пароль или ключ сервера."
+
     return AgentEnrollRead(
         ok=True,
         message=message,
@@ -588,6 +596,109 @@ def enroll_server_agent(
         installed=installed,
         install_error=install_error,
     )
+
+
+def _reinstall_agent_by_server_id(server_id: int, base_url: str, actor_id: int) -> BulkAgentReinstallItemResult:
+    with SessionLocal() as db:
+        server = db.get(Server, server_id)
+        actor = db.get(User, actor_id)
+        if server is None:
+            return BulkAgentReinstallItemResult(
+                server_id=server_id,
+                server_name="—",
+                ok=False,
+                installed=False,
+                message="Сервер не найден.",
+            )
+        if not (server.password_enc or server.key_path):
+            return BulkAgentReinstallItemResult(
+                server_id=server.id,
+                server_name=server.name,
+                ok=False,
+                installed=False,
+                message="Нет SSH-пароля или ключа для автоустановки.",
+            )
+
+        try:
+            result = _reinstall_server_agent(db, server, base_url, actor=actor)
+            if result.installed:
+                return BulkAgentReinstallItemResult(
+                    server_id=server.id,
+                    server_name=server.name,
+                    ok=True,
+                    installed=True,
+                    message=result.message,
+                )
+            return BulkAgentReinstallItemResult(
+                server_id=server.id,
+                server_name=server.name,
+                ok=False,
+                installed=False,
+                message=result.install_error or result.message,
+            )
+        except Exception as exc:
+            return BulkAgentReinstallItemResult(
+                server_id=server.id,
+                server_name=server.name,
+                ok=False,
+                installed=False,
+                message=str(exc),
+            )
+
+
+@router.post("/agent/reinstall-all", response_model=BulkAgentReinstallResponse)
+def reinstall_all_agents(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    base_url = _build_agent_api_base_url(request)
+    servers = _servers_query_for_user(db, current_user).order_by(Server.name.asc()).all()
+    eligible = [server for server in servers if server.password_enc or server.key_path]
+    skipped = len(servers) - len(eligible)
+
+    results: list[BulkAgentReinstallItemResult] = []
+    if eligible:
+        workers = min(4, len(eligible))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            results = list(
+                pool.map(
+                    lambda server_id: _reinstall_agent_by_server_id(server_id, base_url, current_user.id),
+                    [server.id for server in eligible],
+                )
+            )
+
+    installed = sum(1 for item in results if item.installed)
+    failed = sum(1 for item in results if not item.installed)
+    write_audit_log(
+        db,
+        user=current_user,
+        action="server.agent.reinstall_all",
+        target_type="system",
+        target_id="agents",
+        details=f"installed={installed}, failed={failed}, skipped={skipped}",
+    )
+    return BulkAgentReinstallResponse(
+        total=len(servers),
+        installed=installed,
+        failed=failed,
+        skipped=skipped,
+        results=results,
+    )
+
+
+@router.post("/{server_id}/agent/enroll", response_model=AgentEnrollRead)
+def enroll_server_agent(
+    server_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: object = Depends(require_admin),
+):
+    server = db.get(Server, server_id)
+    if not server:
+        raise HTTPException(status_code=404, detail="Сервер не найден.")
+
+    return _reinstall_server_agent(db, server, _build_agent_api_base_url(request), actor=current_user)
 
 
 @router.get("/dashboard", response_model=DashboardStats)
