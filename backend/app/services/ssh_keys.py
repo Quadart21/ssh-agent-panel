@@ -2,6 +2,8 @@ import io
 from dataclasses import dataclass
 
 import paramiko
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519
 from paramiko import Ed25519Key, PKey, RSAKey
 
 from app.core.security import decrypt_secret, encrypt_secret
@@ -15,6 +17,13 @@ class GeneratedSshKeypair:
     fingerprint: str
 
 
+def _fingerprint_for_pkey(key: PKey) -> str:
+    digest = key.get_fingerprint()
+    if isinstance(digest, bytes):
+        return ":".join(f"{byte:02x}" for byte in digest)
+    return str(digest)
+
+
 def load_private_key(private_pem: str) -> PKey:
     buffer = io.StringIO(private_pem)
     try:
@@ -25,19 +34,35 @@ def load_private_key(private_pem: str) -> PKey:
 
 
 def generate_ssh_keypair(comment: str) -> GeneratedSshKeypair:
-    key = Ed25519Key.generate()
-    private_io = io.StringIO()
-    key.write_private_key(private_io)
-    public_line = f"{key.get_name()} {key.get_base64()} {comment}"
-    digest = key.get_fingerprint()
-    if isinstance(digest, bytes):
-        fingerprint = ":".join(f"{byte:02x}" for byte in digest)
-    else:
-        fingerprint = str(digest)
+    generate_ed25519 = getattr(Ed25519Key, "generate", None)
+    if callable(generate_ed25519):
+        key = generate_ed25519()
+        private_io = io.StringIO()
+        key.write_private_key(private_io)
+        private_pem = private_io.getvalue()
+        public_line = f"{key.get_name()} {key.get_base64()} {comment}".strip()
+        return GeneratedSshKeypair(
+            private_pem=private_pem,
+            public_line=public_line,
+            fingerprint=_fingerprint_for_pkey(key),
+        )
+
+    private_key = ed25519.Ed25519PrivateKey.generate()
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.OpenSSH,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode("utf-8")
+    public_openssh = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.OpenSSH,
+        format=serialization.PublicFormat.OpenSSH,
+    ).decode("utf-8")
+    public_line = f"{public_openssh} {comment}".strip()
+    pkey = Ed25519Key.from_private_key(io.StringIO(private_pem))
     return GeneratedSshKeypair(
-        private_pem=private_io.getvalue(),
-        public_line=public_line.strip(),
-        fingerprint=fingerprint,
+        private_pem=private_pem,
+        public_line=public_line,
+        fingerprint=_fingerprint_for_pkey(pkey),
     )
 
 
@@ -129,10 +154,7 @@ def key_fingerprint_for_server(server: Server) -> str | None:
     private_pem = resolve_server_private_key(server)
     if not private_pem:
         return None
-    digest = load_private_key(private_pem).get_fingerprint()
-    if isinstance(digest, bytes):
-        return ":".join(f"{byte:02x}" for byte in digest)
-    return str(digest)
+    return _fingerprint_for_pkey(load_private_key(private_pem))
 
 
 def persist_server_keypair(server: Server, keypair: GeneratedSshKeypair) -> None:
