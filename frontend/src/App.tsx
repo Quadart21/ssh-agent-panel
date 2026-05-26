@@ -73,17 +73,17 @@ function App() {
     } else {
       setAlerts([]);
     }
+
+    return me;
   }
 
-  async function loadLiveData() {
-    if (!currentUser) {
-      setStats(null);
-      setMetrics([]);
+  async function loadLiveData(user: User | null = currentUser) {
+    if (!user) {
       return;
     }
 
-    const canDashboard = userHasSectionAccess(currentUser, "dashboard");
-    const canServers = userHasSectionAccess(currentUser, "servers");
+    const canDashboard = userHasSectionAccess(user, "dashboard");
+    const canServers = userHasSectionAccess(user, "servers");
     if (!canDashboard && !canServers) {
       setStats(null);
       setMetrics([]);
@@ -125,7 +125,8 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      await Promise.all([loadReferenceData(), loadLiveData()]);
+      const me = await loadReferenceData();
+      await loadLiveData(me);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Не удалось загрузить панель.";
       setError(message);

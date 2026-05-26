@@ -92,6 +92,7 @@ function AppRoutes({
               }
               canConvertKey={userHasActionAccess(currentUser, "server_update")}
               onReload={onReload}
+              onRefreshAllMetrics={onRefreshAllMetrics}
               onError={setError}
             />
           }

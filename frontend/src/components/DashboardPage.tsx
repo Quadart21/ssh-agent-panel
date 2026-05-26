@@ -17,6 +17,7 @@ type Props = {
   canViewAccess: boolean;
   canConvertKey: boolean;
   onReload: () => Promise<void>;
+  onRefreshAllMetrics: () => Promise<ServerMetricSnapshot[]>;
   onError: (message: string) => void;
 };
 
@@ -32,6 +33,26 @@ function authLabel(method: Server["auth_method"] | undefined, hasPassword?: bool
   return "Нет доступа";
 }
 
+function resolveServerOnline(server: Server, metric: ServerMetricSnapshot | undefined): boolean | null {
+  if (metric?.collected_at) {
+    return metric.online;
+  }
+  if (server.agent_online) {
+    return true;
+  }
+  return null;
+}
+
+function onlineLabel(state: boolean | null) {
+  if (state === true) {
+    return "online";
+  }
+  if (state === false) {
+    return "offline";
+  }
+  return "не опрошен";
+}
+
 function DashboardPage({
   stats,
   metrics,
@@ -42,12 +63,14 @@ function DashboardPage({
   canViewAccess,
   canConvertKey,
   onReload,
+  onRefreshAllMetrics,
   onError
 }: Props) {
   const [groupFilter, setGroupFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline" | "issues">("all");
   const [sortKey, setSortKey] = useState<SortKey>("status");
   const [search, setSearch] = useState("");
+  const [metricsRefreshing, setMetricsRefreshing] = useState(false);
   const [hoveredServerId, setHoveredServerId] = useState<number | null>(null);
   const [pinnedServerId, setPinnedServerId] = useState<number | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
@@ -63,15 +86,15 @@ function DashboardPage({
         return false;
       }
       const metric = metricMap.get(server.id);
-      const online = metric?.online ?? false;
+      const online = resolveServerOnline(server, metric);
       const paymentIssue = isPaymentExpired(server.pay_until) || isPaymentExpiringSoon(server.pay_until);
-      if (statusFilter === "online" && !online) {
+      if (statusFilter === "online" && online !== true) {
         return false;
       }
-      if (statusFilter === "offline" && online) {
+      if (statusFilter === "offline" && online !== false) {
         return false;
       }
-      if (statusFilter === "issues" && online && !paymentIssue && server.agent_online) {
+      if (statusFilter === "issues" && online === true && !paymentIssue && server.agent_online) {
         return false;
       }
       if (!query) {
@@ -97,9 +120,10 @@ function DashboardPage({
         const payB = b.pay_until ? new Date(b.pay_until).getTime() : Number.MAX_SAFE_INTEGER;
         return payA - payB;
       }
-      const onlineA = metricA?.online ? 1 : 0;
-      const onlineB = metricB?.online ? 1 : 0;
-      return onlineB - onlineA || a.name.localeCompare(b.name, "ru");
+      const onlineA = resolveServerOnline(a, metricA);
+      const onlineB = resolveServerOnline(b, metricB);
+      const rank = (state: boolean | null) => (state === true ? 2 : state === false ? 0 : 1);
+      return rank(onlineB) - rank(onlineA) || a.name.localeCompare(b.name, "ru");
     });
     return items;
   }, [servers, groupFilter, statusFilter, search, sortKey, metricMap]);
@@ -140,6 +164,18 @@ function DashboardPage({
     setAnchorRect(null);
   }
 
+  async function handleRefreshMetrics() {
+    onError("");
+    setMetricsRefreshing(true);
+    try {
+      await onRefreshAllMetrics();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось обновить состояние серверов.");
+    } finally {
+      setMetricsRefreshing(false);
+    }
+  }
+
   return (
     <div className="page-stack dashboard-v2">
       <section className="page-hero dashboard-hero">
@@ -152,7 +188,10 @@ function DashboardPage({
           </p>
         </div>
         <div className="dashboard-hero-actions">
-          <Link to="/servers" className="button-link">
+          <button type="button" className="button-link" disabled={metricsRefreshing} onClick={() => void handleRefreshMetrics()}>
+            {metricsRefreshing ? "Опрос серверов…" : "Обновить состояние"}
+          </button>
+          <Link to="/servers" className="button-link ghost-link">
             Управление серверами
           </Link>
           <Link to="/terminal" className="button-link ghost-link">
@@ -236,11 +275,13 @@ function DashboardPage({
               const metric = metricMap.get(server.id);
               const paymentExpired = isPaymentExpired(server.pay_until);
               const paymentExpiring = isPaymentExpiringSoon(server.pay_until);
-              const online = metric?.online ?? false;
+              const online = resolveServerOnline(server, metric);
+              const cardTone = online === true ? "online" : online === false ? "offline" : "unknown";
+              const pillTone = online === true ? "online" : online === false ? "offline" : "pending";
               return (
                 <article
                   key={server.id}
-                  className={`dashboard-server-card ${online ? "online" : "offline"} ${activePopoverId === server.id ? "active" : ""}`}
+                  className={`dashboard-server-card ${cardTone} ${activePopoverId === server.id ? "active" : ""}`}
                   onMouseEnter={(event) => {
                     if (pinnedServerId || !canViewAccess) {
                       return;
@@ -278,7 +319,7 @@ function DashboardPage({
                         {server.ip}:{server.port} · {server.login}
                       </p>
                     </div>
-                    <span className={`status-pill ${online ? "online" : "offline"}`}>{online ? "online" : "offline"}</span>
+                    <span className={`status-pill ${pillTone}`}>{onlineLabel(online)}</span>
                   </div>
 
                   <div className="dashboard-server-tags">
