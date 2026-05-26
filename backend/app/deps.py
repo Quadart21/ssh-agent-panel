@@ -94,6 +94,14 @@ def ensure_action_access(user: User, action: str) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к этой функции.")
 
 
+def ensure_ssh_keys_manage(user: User) -> None:
+    if user.role == "admin":
+        return
+    if has_action_access(user, "ssh_keys_manage") or has_action_access(user, "server_update"):
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет прав на управление SSH-ключами.")
+
+
 def ensure_server_access(user: User, server: Server) -> None:
     if user.role == "admin":
         return

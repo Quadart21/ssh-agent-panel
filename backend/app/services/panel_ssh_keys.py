@@ -30,14 +30,22 @@ def panel_key_private_pem(db: Session) -> str | None:
 
 def generate_panel_ssh_key(db: Session) -> PanelSshKey:
     keypair = generate_ssh_keypair("panel-master")
+    now = datetime.utcnow()
     record = get_panel_ssh_key(db)
     if record is None:
-        record = PanelSshKey(id=PANEL_KEY_ID)
+        record = PanelSshKey(
+            id=PANEL_KEY_ID,
+            private_key_enc="",
+            public_key="",
+            fingerprint="",
+            created_at=now,
+            updated_at=now,
+        )
         db.add(record)
     record.private_key_enc = encrypt_secret(keypair.private_pem)
     record.public_key = keypair.public_line
     record.fingerprint = keypair.fingerprint
-    record.updated_at = datetime.utcnow()
+    record.updated_at = now
     db.commit()
     db.refresh(record)
     return record

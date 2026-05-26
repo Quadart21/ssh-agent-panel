@@ -4,7 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal, get_db
-from app.deps import ensure_action_access, ensure_section_access, ensure_server_access, get_allowed_server_ids, get_current_user
+from app.deps import (
+    ensure_section_access,
+    ensure_server_access,
+    ensure_ssh_keys_manage,
+    get_allowed_server_ids,
+    get_current_user,
+)
 from app.models import Server, User
 from app.schemas import (
     PanelSshKeyRead,
@@ -84,8 +90,17 @@ def generate_ssh_key(
     current_user: User = Depends(get_current_user),
 ):
     ensure_section_access(current_user, "ssh-keys")
-    ensure_action_access(current_user, "ssh_keys_manage")
-    panel_key = generate_panel_ssh_key(db)
+    ensure_ssh_keys_manage(current_user)
+    try:
+        panel_key = generate_panel_ssh_key(db)
+    except Exception as exc:
+        message = str(exc).lower()
+        if "panel_ssh_keys" in message or "no such table" in message or "does not exist" in message:
+            raise HTTPException(
+                status_code=503,
+                detail="База не обновлена: выполните alembic upgrade head (миграции 0013 и 0014).",
+            ) from exc
+        raise HTTPException(status_code=500, detail=f"Не удалось сгенерировать ключ: {exc}") from exc
     write_audit_log(db, user=current_user, action="ssh_keys.generate", target_type="panel", target_id="1")
     return PanelSshKeyRead(
         configured=True,
@@ -102,7 +117,7 @@ def export_panel_private_key(
     current_user: User = Depends(get_current_user),
 ):
     ensure_section_access(current_user, "ssh-keys")
-    ensure_action_access(current_user, "ssh_keys_manage")
+    ensure_ssh_keys_manage(current_user)
     private_pem = panel_key_private_pem(db)
     if not private_pem:
         raise HTTPException(status_code=404, detail="Ключ панели ещё не сгенерирован.")
@@ -165,7 +180,7 @@ def deploy_panel_key(
     current_user: User = Depends(get_current_user),
 ):
     ensure_section_access(current_user, "ssh-keys")
-    ensure_action_access(current_user, "ssh_keys_manage")
+    ensure_ssh_keys_manage(current_user)
     panel_key = get_panel_ssh_key(db)
     if not panel_key:
         raise HTTPException(status_code=400, detail="Сначала сгенерируйте ключ панели.")

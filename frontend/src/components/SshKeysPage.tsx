@@ -94,7 +94,9 @@ function SshKeysPage({ canManage, onError }: Props) {
       await api.generatePanelSshKey();
       await loadOverview();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Не удалось сгенерировать ключ.");
+      const message = err instanceof Error ? err.message : "Не удалось сгенерировать ключ.";
+      onError(message);
+      window.alert(message);
     } finally {
       setBusy(false);
     }

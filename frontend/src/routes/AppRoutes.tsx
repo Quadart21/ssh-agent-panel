@@ -128,7 +128,13 @@ function AppRoutes({
         <Route
           path="/ssh-keys"
           element={
-            <SshKeysPage canManage={userHasActionAccess(currentUser, "ssh_keys_manage")} onError={setError} />
+            <SshKeysPage
+              canManage={
+                userHasActionAccess(currentUser, "ssh_keys_manage") ||
+                userHasActionAccess(currentUser, "server_update")
+              }
+              onError={setError}
+            />
           }
         />
         <Route path="/sessions" element={<SessionsPage onError={setError} />} />

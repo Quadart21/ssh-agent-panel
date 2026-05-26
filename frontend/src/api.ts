@@ -112,6 +112,29 @@ export class ApiError extends Error {
   }
 }
 
+function formatApiDetail(detail: unknown): string {
+  if (typeof detail === "string") {
+    return detail;
+  }
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") {
+          return item;
+        }
+        if (item && typeof item === "object" && "msg" in item) {
+          return String((item as { msg?: string }).msg ?? item);
+        }
+        return JSON.stringify(item);
+      })
+      .join("; ");
+  }
+  if (detail && typeof detail === "object") {
+    return JSON.stringify(detail);
+  }
+  return "Запрос завершился ошибкой.";
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getStoredToken();
   const headers = new Headers(options?.headers ?? {});
@@ -133,7 +156,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       setStoredToken(null);
     }
     const payload = await response.json().catch(() => ({ detail: "Непредвиденная ошибка API." }));
-    throw new ApiError(payload.detail ?? "Запрос завершился ошибкой.", response.status);
+    throw new ApiError(formatApiDetail(payload.detail), response.status);
   }
 
   if (response.status === 204) {
@@ -300,7 +323,8 @@ export const api = {
   convertServerToKey: (id: number) =>
     request<ServerConvertToKeyResult>(`/servers/${id}/convert-to-key`, { method: "POST" }),
   sshKeysOverview: () => request<SshKeysOverview>("/ssh-keys"),
-  generatePanelSshKey: () => request<PanelSshKeyInfo>("/ssh-keys/generate", { method: "POST" }),
+  generatePanelSshKey: () =>
+    request<PanelSshKeyInfo>("/ssh-keys/generate", { method: "POST", body: JSON.stringify({}) }),
   exportPanelSshPrivateKey: () =>
     request<{ private_key: string; public_key: string | null; fingerprint: string | null }>("/ssh-keys/private"),
   deployPanelSshKey: (payload: { server_ids: number[]; remove_password?: boolean }) =>
