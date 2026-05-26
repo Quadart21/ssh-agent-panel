@@ -154,7 +154,10 @@ def key_fingerprint_for_server(server: Server) -> str | None:
     private_pem = resolve_server_private_key(server)
     if not private_pem:
         return None
-    return _fingerprint_for_pkey(load_private_key(private_pem))
+    try:
+        return _fingerprint_for_pkey(load_private_key(private_pem))
+    except Exception:
+        return None
 
 
 def persist_server_keypair(server: Server, keypair: GeneratedSshKeypair) -> None:

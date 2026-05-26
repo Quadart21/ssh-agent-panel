@@ -86,7 +86,10 @@ function AppRoutes({
               groups={groups}
               alerts={alerts}
               loading={loading}
-              canViewAccess={userHasSectionAccess(currentUser, "servers")}
+              canViewAccess={
+                userHasSectionAccess(currentUser, "servers") ||
+                userHasSectionAccess(currentUser, "dashboard")
+              }
               canConvertKey={userHasActionAccess(currentUser, "server_update")}
               onReload={onReload}
               onError={setError}

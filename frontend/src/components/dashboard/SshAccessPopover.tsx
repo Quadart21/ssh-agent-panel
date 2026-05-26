@@ -37,6 +37,7 @@ function SshAccessPopover({
 }: Props) {
   const [access, setAccess] = useState<ServerAccess | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
@@ -44,6 +45,8 @@ function SshAccessPopover({
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadError(null);
+    setAccess(null);
     void api
       .getServerAccess(serverId)
       .then((data) => {
@@ -53,7 +56,8 @@ function SshAccessPopover({
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          onError(err instanceof Error ? err.message : "Не удалось загрузить SSH-доступ.");
+          const message = err instanceof Error ? err.message : "Не удалось загрузить SSH-доступ.";
+          setLoadError(message);
         }
       })
       .finally(() => {
@@ -64,7 +68,7 @@ function SshAccessPopover({
     return () => {
       cancelled = true;
     };
-  }, [serverId, onError]);
+  }, [serverId]);
 
   useEffect(() => {
     if (!pinned) {
@@ -141,8 +145,9 @@ function SshAccessPopover({
       </div>
 
       {loading ? <p className="muted">Загрузка данных доступа...</p> : null}
+      {!loading && loadError ? <p className="danger-note">{loadError}</p> : null}
 
-      {!loading && access ? (
+      {!loading && !loadError && access ? (
         <div className="ssh-access-popover-body">
           <div className="ssh-access-row">
             <span>Хост</span>

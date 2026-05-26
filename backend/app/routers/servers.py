@@ -1101,11 +1101,16 @@ def get_server_access(
     db: Session = Depends(get_db),
     current_user: object = Depends(get_current_user),
 ):
-    ensure_section_access(current_user, "servers")
+    if not (has_section_access(current_user, "servers") or has_section_access(current_user, "dashboard")):
+        ensure_section_access(current_user, "servers")
     server = db.get(Server, server_id)
     if not server:
         raise HTTPException(status_code=404, detail="Сервер не найден.")
     ensure_server_access(current_user, server)
+    try:
+        access = build_server_access_read(server)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Не удалось подготовить данные SSH-доступа: {exc}") from exc
     write_audit_log(
         db,
         user=current_user,
@@ -1114,7 +1119,7 @@ def get_server_access(
         target_id=str(server.id),
         details=server.name,
     )
-    return build_server_access_read(server)
+    return access
 
 
 @router.post("/{server_id}/convert-to-key", response_model=ServerConvertToKeyRead)
