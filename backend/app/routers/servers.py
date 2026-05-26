@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import hashlib
+import logging
 import secrets
 import shlex
 from concurrent.futures import ThreadPoolExecutor
@@ -13,6 +14,7 @@ from app.core.config import settings
 from app.db import get_db
 from app.db import SessionLocal
 from app.deps import (
+    apply_server_scope,
     ensure_action_access,
     ensure_section_access,
     ensure_server_access,
@@ -20,6 +22,7 @@ from app.deps import (
     get_current_user,
     has_section_access,
     require_admin,
+    user_has_all_servers_scope,
 )
 from app.models import CommandPattern, Server, ServerGroup
 from app.models import User
@@ -62,6 +65,7 @@ from app.services.ssh_keys import (
 )
 
 router = APIRouter(prefix="/servers", tags=["servers"])
+logger = logging.getLogger(__name__)
 
 
 def _failed_metrics_snapshot(message: str = "ошибка опроса") -> dict[str, object]:
@@ -135,13 +139,7 @@ def serialize_server(server: Server) -> ServerRead:
 
 
 def _servers_query_for_user(db: Session, current_user: User):
-    query = db.query(Server)
-    allowed_ids = get_allowed_server_ids(current_user)
-    if current_user.role != "admin":
-        if not allowed_ids:
-            return query.filter(Server.id == -1)
-        query = query.filter(Server.id.in_(allowed_ids))
-    return query
+    return apply_server_scope(db.query(Server), current_user)
 
 
 def collect_target_servers(payload: BulkCommandRequest, db: Session, current_user: User) -> tuple[list[Server], list[str]]:
@@ -187,7 +185,8 @@ def list_servers(
     db: Session = Depends(get_db),
     current_user: object = Depends(get_current_user),
 ):
-    ensure_section_access(current_user, "servers")
+    if not (has_section_access(current_user, "servers") or has_section_access(current_user, "dashboard")):
+        ensure_section_access(current_user, "servers")
     servers = _servers_query_for_user(db, current_user).order_by(Server.created_at.desc()).all()
     return [serialize_server(server) for server in servers]
 
@@ -723,28 +722,7 @@ def dashboard_stats(
     current_user: object = Depends(get_current_user),
 ):
     ensure_section_access(current_user, "dashboard")
-    query = db.query(Server)
-    allowed_ids = get_allowed_server_ids(current_user)
-    if current_user.role != "admin":
-        if not allowed_ids:
-            return DashboardStats(
-                total_servers=0,
-                online_servers=0,
-                offline_servers=0,
-                agent_online=0,
-                expiring_soon=0,
-                payment_expired=0,
-                groups_total=0,
-                patterns_total=0,
-                avg_cpu=0,
-                avg_ram=0,
-                avg_disk=0,
-                password_auth_count=0,
-                key_auth_count=0,
-                monthly_spend=0,
-                monthly_currency="RUB",
-            )
-        query = query.filter(Server.id.in_(allowed_ids))
+    query = apply_server_scope(db.query(Server), current_user)
     servers = query.all()
     snapshots = _read_cached_metric_snapshots(servers)
     snapshot_by_id = {item.server_id: item for item in snapshots}
@@ -813,13 +791,8 @@ def list_metrics(
 ):
     if not (has_section_access(current_user, "dashboard") or has_section_access(current_user, "servers")):
         ensure_section_access(current_user, "dashboard")
-    query = db.query(Server)
-    allowed_ids = get_allowed_server_ids(current_user)
-    if current_user.role != "admin":
-        if not allowed_ids:
-            return []
-        query = query.filter(Server.id.in_(allowed_ids))
-    return _read_cached_metric_snapshots(query.all())
+    servers = apply_server_scope(db.query(Server), current_user).all()
+    return _read_cached_metric_snapshots(servers)
 
 
 @router.post("/metrics/refresh-all", response_model=list[ServerMetricSnapshot])
@@ -855,7 +828,7 @@ def list_alerts(
 ):
     ensure_section_access(current_user, "alerts")
     alerts = collect_server_alerts(db)
-    if current_user.role == "admin":
+    if user_has_all_servers_scope(current_user):
         return alerts
     allowed_ids = set(get_allowed_server_ids(current_user))
     return [alert for alert in alerts if alert.server_id is None or alert.server_id in allowed_ids]
@@ -1108,17 +1081,21 @@ def get_server_access(
         raise HTTPException(status_code=404, detail="Сервер не найден.")
     ensure_server_access(current_user, server)
     try:
-        access = build_server_access_read(server)
+        access = build_server_access_read(server, db)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Не удалось подготовить данные SSH-доступа: {exc}") from exc
-    write_audit_log(
-        db,
-        user=current_user,
-        action="server.view_access",
-        target_type="server",
-        target_id=str(server.id),
-        details=server.name,
-    )
+    try:
+        write_audit_log(
+            db,
+            user=current_user,
+            action="server.view_access",
+            target_type="server",
+            target_id=str(server.id),
+            details=server.name,
+        )
+    except Exception:
+        db.rollback()
+        logger.warning("Failed to write audit log for server %s access view", server.id, exc_info=True)
     return access
 
 
@@ -1144,7 +1121,7 @@ def convert_server_to_key(
     persist_server_keypair(server, keypair)
     db.commit()
     db.refresh(server)
-    access = build_server_access_read(server)
+    access = build_server_access_read(server, db)
     write_audit_log(
         db,
         user=current_user,

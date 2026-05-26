@@ -84,6 +84,27 @@ def get_allowed_server_ids(user: User) -> list[int]:
     return list(user.allowed_server_ids or [])
 
 
+def user_has_all_servers_scope(user: User) -> bool:
+    if user.role == "admin":
+        return True
+    return len(user.allowed_server_ids or []) == 0
+
+
+def scoped_server_ids(user: User) -> list[int] | None:
+    if user_has_all_servers_scope(user):
+        return None
+    return list(user.allowed_server_ids or [])
+
+
+def apply_server_scope(query, user: User):
+    server_ids = scoped_server_ids(user)
+    if server_ids is None:
+        return query
+    if not server_ids:
+        return query.filter(Server.id == -1)
+    return query.filter(Server.id.in_(server_ids))
+
+
 def ensure_section_access(user: User, section: str) -> None:
     if not has_section_access(user, section):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к этому разделу.")
@@ -103,7 +124,7 @@ def ensure_ssh_keys_manage(user: User) -> None:
 
 
 def ensure_server_access(user: User, server: Server) -> None:
-    if user.role == "admin":
+    if user_has_all_servers_scope(user):
         return
     allowed_ids = set(user.allowed_server_ids or [])
     if server.id not in allowed_ids:

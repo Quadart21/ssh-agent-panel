@@ -50,6 +50,8 @@ def decrypt_secret(value: str | None) -> str | None:
         return get_fernet().decrypt(value.encode("utf-8")).decode("utf-8")
     except InvalidToken:
         return value
+    except (ValueError, TypeError):
+        return value
 
 
 def create_access_token(subject: str, expires_delta: timedelta | None = None, session_id: str | None = None) -> str:

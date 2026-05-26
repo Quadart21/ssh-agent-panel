@@ -66,9 +66,15 @@ def generate_ssh_keypair(comment: str) -> GeneratedSshKeypair:
     )
 
 
-def resolve_server_private_key(server: Server) -> str | None:
+def resolve_server_private_key(server: Server, db: object | None = None) -> str | None:
     if server.private_key_enc:
         return decrypt_secret(server.private_key_enc)
+    if db is not None:
+        from app.services.panel_ssh_keys import get_panel_ssh_key, panel_key_private_pem
+
+        panel_key = get_panel_ssh_key(db)
+        if panel_key and server.panel_key_fingerprint == panel_key.fingerprint:
+            return panel_key_private_pem(db)
     return None
 
 
@@ -177,11 +183,11 @@ def build_ssh_command(server: Server, *, with_key_file = False) -> str:
     return base
 
 
-def build_server_access_read(server: Server) -> "ServerAccessRead":
+def build_server_access_read(server: Server, db: object | None = None) -> "ServerAccessRead":
     from app.schemas import ServerAccessRead
 
     auth_method = resolve_auth_method(server)
-    private_pem = resolve_server_private_key(server)
+    private_pem = resolve_server_private_key(server, db)
     password = decrypt_secret(server.password_enc) if server.password_enc else None
     fingerprint = key_fingerprint_for_server(server)
     ssh_command = build_ssh_command(server)

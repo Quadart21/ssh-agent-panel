@@ -5,10 +5,10 @@ from sqlalchemy.orm import Session
 
 from app.db import SessionLocal, get_db
 from app.deps import (
+    apply_server_scope,
     ensure_section_access,
     ensure_server_access,
     ensure_ssh_keys_manage,
-    get_allowed_server_ids,
     get_current_user,
 )
 from app.models import Server, User
@@ -35,13 +35,7 @@ router = APIRouter(prefix="/ssh-keys", tags=["ssh-keys"])
 
 
 def _servers_query(db: Session, current_user: User):
-    query = db.query(Server)
-    allowed_ids = get_allowed_server_ids(current_user)
-    if current_user.role != "admin":
-        if not allowed_ids:
-            return query.filter(Server.id == -1)
-        query = query.filter(Server.id.in_(allowed_ids))
-    return query.order_by(Server.name.asc())
+    return apply_server_scope(db.query(Server), current_user).order_by(Server.name.asc())
 
 
 def _serialize_binding(server: Server, panel_key) -> ServerKeyBindingRead:
