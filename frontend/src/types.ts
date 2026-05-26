@@ -28,9 +28,79 @@ export type Server = {
   agent_version: string | null;
   agent_last_seen_at: string | null;
   agent_online: boolean;
+  auth_method: "password" | "key" | "none";
+  has_password: boolean;
+  key_fingerprint: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type ServerAccess = {
+  server_id: number;
+  server_name: string;
+  ip: string;
+  port: number;
+  login: string;
+  auth_method: "password" | "key" | "none";
+  password: string | null;
+  private_key: string | null;
+  public_key: string | null;
+  key_fingerprint: string | null;
+  ssh_command: string;
+  ssh_command_with_key: string | null;
+};
+
+export type ServerConvertToKeyResult = {
+  ok: boolean;
+  message: string;
+  auth_method: string;
+  key_fingerprint: string;
+  private_key: string;
+  public_key: string;
+  ssh_command: string;
+};
+
+export type PanelSshKeyInfo = {
+  configured: boolean;
+  fingerprint: string | null;
+  public_key: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type ServerKeyBindingStatus = "panel_bound" | "unbound" | "outdated" | "individual" | "no_access";
+
+export type ServerKeyBinding = {
+  server_id: number;
+  server_name: string;
+  ip: string;
+  port: number;
+  login: string;
+  group_name: string | null;
+  binding_status: ServerKeyBindingStatus;
+  can_deploy: boolean;
+  panel_key_deployed_at: string | null;
+  auth_method: string;
+};
+
+export type SshKeysOverview = {
+  panel_key: PanelSshKeyInfo | null;
+  stats: Record<string, number>;
+  servers: ServerKeyBinding[];
+};
+
+export type SshKeyDeployResult = {
+  total: number;
+  ok: number;
+  failed: number;
+  results: Array<{
+    server_id: number;
+    server_name: string;
+    ok: boolean;
+    message: string;
+    binding_status?: string | null;
+  }>;
 };
 
 export type ServerAccountingItem = {
@@ -77,9 +147,19 @@ export type Pattern = {
 export type DashboardStats = {
   total_servers: number;
   online_servers: number;
+  offline_servers: number;
+  agent_online: number;
   expiring_soon: number;
+  payment_expired: number;
   groups_total: number;
   patterns_total: number;
+  avg_cpu: number;
+  avg_ram: number;
+  avg_disk: number;
+  password_auth_count: number;
+  key_auth_count: number;
+  monthly_spend: number;
+  monthly_currency: string;
 };
 
 export type ServerMetricSnapshot = {

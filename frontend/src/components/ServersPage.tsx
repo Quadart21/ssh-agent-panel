@@ -35,6 +35,8 @@ type Props = {
   agentsReinstallingAll: boolean;
   onQuickUpdateServer: (serverId: number, patch: ServerQuickPatch) => Promise<void>;
   quickSavingServerId: number | null;
+  onConvertToKey?: (serverId: number) => Promise<void>;
+  convertingToKeyServerId: number | null;
   onRefreshAllMetrics: () => void;
   onRefreshServerMetrics: (id: number) => void;
   metricsRefreshingAll: boolean;
@@ -86,6 +88,8 @@ function ServersPage({
   agentsReinstallingAll,
   onQuickUpdateServer,
   quickSavingServerId,
+  onConvertToKey,
+  convertingToKeyServerId,
   onRefreshAllMetrics,
   onRefreshServerMetrics,
   metricsRefreshingAll,
@@ -278,6 +282,8 @@ function ServersPage({
                   onDelete={onDelete}
                   onEnrollAgent={onEnrollAgent}
                   onQuickUpdate={onQuickUpdateServer}
+                  onConvertToKey={onConvertToKey}
+                  convertingToKey={convertingToKeyServerId === server.id}
                   onRefreshMetrics={onRefreshServerMetrics}
                   metricsRefreshing={refreshingMetricServerId === server.id}
                 />

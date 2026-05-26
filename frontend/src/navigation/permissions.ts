@@ -19,3 +19,13 @@ export function userHasSectionAccess(user: User | null, section: string) {
   }
   return false;
 }
+
+export function userHasActionAccess(user: User | null, action: string) {
+  if (!user) {
+    return false;
+  }
+  if (user.role === "admin") {
+    return true;
+  }
+  return user.action_permissions.includes(action);
+}

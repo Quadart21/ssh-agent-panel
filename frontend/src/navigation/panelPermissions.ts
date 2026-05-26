@@ -99,8 +99,8 @@ export const panelPermissionModules: PermissionModule[] = [
     label: "Безопасность",
     description: "SSH, fail2ban, отчёты",
     group: "security",
-    sections: ["security"],
-    editActions: ["security_manage"]
+    sections: ["security", "ssh-keys"],
+    editActions: ["security_manage", "ssh_keys_manage"]
   },
   {
     id: "account",

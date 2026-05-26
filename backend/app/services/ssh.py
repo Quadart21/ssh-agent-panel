@@ -11,6 +11,7 @@ from app.db import SessionLocal
 from app.models import AgentTask, Server
 from app.schemas import CommandExecutionResult, ConnectionTestResult, Pm2ProcessRead, ServerConnectionCheck
 from app.core.security import decrypt_secret
+from app.services.ssh_keys import load_private_key, resolve_server_private_key
 
 
 def build_ssh_client(
@@ -19,6 +20,7 @@ def build_ssh_client(
     username: str,
     password: str | None = None,
     key_path: str | None = None,
+    private_key_pem: str | None = None,
 ) -> paramiko.SSHClient:
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -33,13 +35,15 @@ def build_ssh_client(
         "look_for_keys": False,
         "allow_agent": False,
     }
-    if password:
-        kwargs["password"] = password
-    if key_path:
+    if private_key_pem:
+        kwargs["pkey"] = load_private_key(private_key_pem)
+    elif key_path:
         path = Path(key_path)
         if not path.exists():
             raise FileNotFoundError(f"SSH-ключ не найден: {path}")
         kwargs["key_filename"] = str(path)
+    elif password:
+        kwargs["password"] = password
 
     client.connect(**kwargs)
     return client
@@ -54,7 +58,7 @@ def test_ssh_connection(payload: ServerConnectionCheck) -> ConnectionTestResult:
     except OSError as exc:
         return ConnectionTestResult(ok=False, message=f"Не удалось открыть TCP-соединение: {exc}", latency_ms=None)
 
-    if not payload.password_enc and not payload.key_path:
+    if not payload.password_enc and not payload.key_path and not payload.private_key_pem:
         return ConnectionTestResult(
             ok=True,
             message="TCP-порт доступен. Добавьте пароль или SSH-ключ для полной проверки авторизации.",
@@ -68,6 +72,7 @@ def test_ssh_connection(payload: ServerConnectionCheck) -> ConnectionTestResult:
             username=payload.login,
             password=payload.password_enc,
             key_path=payload.key_path,
+            private_key_pem=payload.private_key_pem,
         )
         return ConnectionTestResult(ok=True, message="SSH-авторизация прошла успешно.", latency_ms=latency_ms)
     except FileNotFoundError as exc:
@@ -88,7 +93,7 @@ def execute_commands(server: Server, commands: list[str]) -> list[CommandExecuti
         and server.agent_last_seen_at >= datetime.utcnow() - timedelta(seconds=90)
     ):
         return _execute_commands_via_agent(server, commands)
-    if not server.password_enc and not server.key_path:
+    if not server.password_enc and not server.key_path and not server.private_key_enc:
         return [
             CommandExecutionResult(
                 server_id=server.id,
@@ -106,6 +111,7 @@ def execute_commands(server: Server, commands: list[str]) -> list[CommandExecuti
         username=server.login,
         password=decrypt_secret(server.password_enc),
         key_path=server.key_path,
+        private_key_pem=resolve_server_private_key(server),
     )
     results: list[CommandExecutionResult] = []
     try:
@@ -190,7 +196,7 @@ def _execute_commands_via_agent(server: Server, commands: list[str]) -> list[Com
 
 
 def ensure_server_credentials(server: Server) -> None:
-    if not server.password_enc and not server.key_path:
+    if not server.password_enc and not server.key_path and not server.private_key_enc:
         raise ValueError("Для сервера не задан пароль или SSH-ключ.")
 
 
@@ -202,6 +208,7 @@ def run_command_on_server(server: Server, command: str, timeout: int = 30) -> tu
         username=server.login,
         password=decrypt_secret(server.password_enc),
         key_path=server.key_path,
+        private_key_pem=resolve_server_private_key(server),
     )
     try:
         stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
@@ -233,6 +240,7 @@ def stream_command_on_server(server: Server, command: str, timeout: int = 30):
         username=server.login,
         password=decrypt_secret(server.password_enc),
         key_path=server.key_path,
+        private_key_pem=resolve_server_private_key(server),
     )
     try:
         transport = client.get_transport()
@@ -633,7 +641,7 @@ printf "CPU=%s\nRAM=%s\nDISK=%s\nUPTIME=%s\n" "$cpu" "$ram" "$disk" "$uptime"
 
 
 def _server_has_credentials(server: Server) -> bool:
-    return bool(server.password_enc or server.key_path)
+    return bool(server.password_enc or server.key_path or server.private_key_enc)
 
 
 def _test_server_reachability(server: Server) -> ConnectionTestResult:
@@ -644,6 +652,7 @@ def _test_server_reachability(server: Server) -> ConnectionTestResult:
             login=server.login,
             password_enc=decrypt_secret(server.password_enc),
             key_path=server.key_path,
+            private_key_pem=resolve_server_private_key(server),
         )
     )
 

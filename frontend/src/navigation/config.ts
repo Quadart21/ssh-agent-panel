@@ -15,6 +15,7 @@ export const sections: SectionItem[] = [
   { path: "/patterns", label: "Шаблоны", description: "Готовые команды", group: "operations" },
   { path: "/firewall", label: "Firewall", description: "Порты и UFW", group: "security" },
   { path: "/security", label: "Безопасность", description: "SSH и fail2ban", group: "security" },
+  { path: "/ssh-keys", label: "SSH-ключи", description: "Ключ панели и привязка", group: "security" },
   { path: "/sessions", label: "Сессии", description: "Входы в панель", group: "security" },
   { path: "/two-factor", label: "2FA", description: "TOTP и recovery-коды", group: "security" },
   { path: "/telegram", label: "Telegram", description: "Уведомления и тест", group: "security" },
@@ -46,6 +47,7 @@ export const permissionSections = [
   "patterns",
   "firewall",
   "security",
+  "ssh-keys",
   "sessions",
   "two-factor",
   "telegram"

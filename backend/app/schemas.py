@@ -118,8 +118,83 @@ class ServerRead(ServerBase):
     agent_version: str | None = None
     agent_last_seen_at: datetime | None = None
     agent_online: bool = False
+    auth_method: str = "none"
+    has_password: bool = False
+    key_fingerprint: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class ServerAccessRead(BaseModel):
+    server_id: int
+    server_name: str
+    ip: str
+    port: int
+    login: str
+    auth_method: str
+    password: str | None = None
+    private_key: str | None = None
+    public_key: str | None = None
+    key_fingerprint: str | None = None
+    ssh_command: str
+    ssh_command_with_key: str | None = None
+
+
+class ServerConvertToKeyRead(BaseModel):
+    ok: bool
+    message: str
+    auth_method: str
+    key_fingerprint: str
+    private_key: str
+    public_key: str
+    ssh_command: str
+
+
+class PanelSshKeyRead(BaseModel):
+    configured: bool
+    fingerprint: str | None = None
+    public_key: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class ServerKeyBindingRead(BaseModel):
+    server_id: int
+    server_name: str
+    ip: str
+    port: int
+    login: str
+    group_name: str | None = None
+    binding_status: str
+    can_deploy: bool
+    panel_key_deployed_at: datetime | None = None
+    auth_method: str
+
+
+class SshKeysOverviewRead(BaseModel):
+    panel_key: PanelSshKeyRead | None
+    stats: dict[str, int]
+    servers: list[ServerKeyBindingRead]
+
+
+class SshKeyDeployRequest(BaseModel):
+    server_ids: list[int] = Field(default_factory=list, min_length=1)
+    remove_password: bool = False
+
+
+class SshKeyDeployItemResult(BaseModel):
+    server_id: int
+    server_name: str
+    ok: bool
+    message: str
+    binding_status: str | None = None
+
+
+class SshKeyDeployResponse(BaseModel):
+    total: int
+    ok: int
+    failed: int
+    results: list[SshKeyDeployItemResult]
 
 
 class AgentEnrollRead(BaseModel):
@@ -199,6 +274,7 @@ class ServerConnectionCheck(BaseModel):
     login: str
     password_enc: str | None = None
     key_path: str | None = None
+    private_key_pem: str | None = None
 
 
 class ConnectionTestResult(BaseModel):
@@ -240,9 +316,19 @@ class PatternRead(PatternBase):
 class DashboardStats(BaseModel):
     total_servers: int
     online_servers: int
+    offline_servers: int
+    agent_online: int
     expiring_soon: int
+    payment_expired: int
     groups_total: int
     patterns_total: int
+    avg_cpu: float
+    avg_ram: float
+    avg_disk: float
+    password_auth_count: int
+    key_auth_count: int
+    monthly_spend: float
+    monthly_currency: str
 
 
 class ServerMetricSnapshot(BaseModel):

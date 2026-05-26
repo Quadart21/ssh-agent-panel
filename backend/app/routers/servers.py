@@ -41,6 +41,8 @@ from app.schemas import (
     ServerCreate,
     ServerMetricSnapshot,
     ServerRead,
+    ServerAccessRead,
+    ServerConvertToKeyRead,
     ServerQuickUpdate,
     ServerUpdate,
 )
@@ -49,7 +51,15 @@ from app.services.alerts import collect_server_alerts
 from app.services.auth_state import validate_user_session
 from app.services.metrics_cache import persist_metrics_snapshot, read_cached_metric_snapshot
 from app.services.ssh import execute_commands, fetch_server_metrics, run_command_on_server, stream_command_on_server, test_ssh_connection
-from app.services.audit import write_audit_log
+from app.services.ssh_keys import (
+    build_server_access_read,
+    convert_server_to_key_auth,
+    persist_server_keypair,
+    resolve_auth_method,
+    key_fingerprint_for_server,
+    server_has_key_auth,
+    server_has_password_auth,
+)
 
 router = APIRouter(prefix="/servers", tags=["servers"])
 
@@ -115,6 +125,11 @@ def serialize_server(server: Server) -> ServerRead:
             "group_name": server.group.name if server.group else None,
             "monthly_equivalent": normalize_monthly_cost(server.monthly_cost, server.billing_period),
             "agent_online": agent_online,
+            "password_enc": None,
+            "key_path": None,
+            "auth_method": resolve_auth_method(server),
+            "has_password": server_has_password_auth(server),
+            "key_fingerprint": key_fingerprint_for_server(server),
         }
     )
 
@@ -578,7 +593,7 @@ def _reinstall_server_agent(
     message = "Токен агента сгенерирован."
     installed = False
     install_error: str | None = None
-    if server.password_enc or server.key_path:
+    if server.password_enc or server.key_path or server.private_key_enc:
         try:
             _install_agent_over_ssh(server, base_url, token)
             installed = True
@@ -611,7 +626,7 @@ def _reinstall_agent_by_server_id(server_id: int, base_url: str, actor_id: int) 
                 installed=False,
                 message="Сервер не найден.",
             )
-        if not (server.password_enc or server.key_path):
+        if not (server.password_enc or server.key_path or server.private_key_enc):
             return BulkAgentReinstallItemResult(
                 server_id=server.id,
                 server_name=server.name,
@@ -655,7 +670,7 @@ def reinstall_all_agents(
 ):
     base_url = _build_agent_api_base_url(request)
     servers = _servers_query_for_user(db, current_user).order_by(Server.name.asc()).all()
-    eligible = [server for server in servers if server.password_enc or server.key_path]
+    eligible = [server for server in servers if server.password_enc or server.key_path or server.private_key_enc]
     skipped = len(servers) - len(eligible)
 
     results: list[BulkAgentReinstallItemResult] = []
@@ -712,24 +727,82 @@ def dashboard_stats(
     allowed_ids = get_allowed_server_ids(current_user)
     if current_user.role != "admin":
         if not allowed_ids:
-            return DashboardStats(total_servers=0, online_servers=0, expiring_soon=0, groups_total=0, patterns_total=0)
+            return DashboardStats(
+                total_servers=0,
+                online_servers=0,
+                offline_servers=0,
+                agent_online=0,
+                expiring_soon=0,
+                payment_expired=0,
+                groups_total=0,
+                patterns_total=0,
+                avg_cpu=0,
+                avg_ram=0,
+                avg_disk=0,
+                password_auth_count=0,
+                key_auth_count=0,
+                monthly_spend=0,
+                monthly_currency="RUB",
+            )
         query = query.filter(Server.id.in_(allowed_ids))
     servers = query.all()
     snapshots = _read_cached_metric_snapshots(servers)
+    snapshot_by_id = {item.server_id: item for item in snapshots}
     online_servers = sum(1 for snapshot in snapshots if snapshot.online)
     expiring_soon = 0
+    payment_expired = 0
+    agent_online = 0
+    password_auth_count = 0
+    key_auth_count = 0
+    monthly_spend = 0.0
+    monthly_currency = "RUB"
+    cpu_values: list[int] = []
+    ram_values: list[int] = []
+    disk_values: list[int] = []
     now = datetime.utcnow()
 
     for server in servers:
-        if server.pay_until and server.pay_until <= now + timedelta(days=3):
-            expiring_soon += 1
+        if server.pay_until:
+            if server.pay_until <= now:
+                payment_expired += 1
+            elif server.pay_until <= now + timedelta(days=3):
+                expiring_soon += 1
+        if server.agent_last_seen_at and server.agent_last_seen_at >= now - timedelta(seconds=90):
+            agent_online += 1
+        if server_has_password_auth(server):
+            password_auth_count += 1
+        if server_has_key_auth(server):
+            key_auth_count += 1
+        equivalent = normalize_monthly_cost(server.monthly_cost, server.billing_period)
+        if equivalent is not None:
+            monthly_spend += equivalent
+            if server.currency:
+                monthly_currency = server.currency
+        snapshot = snapshot_by_id.get(server.id)
+        if snapshot and snapshot.metrics_available:
+            cpu_values.append(snapshot.cpu_percent)
+            ram_values.append(snapshot.ram_percent)
+            disk_values.append(snapshot.disk_percent)
+
+    def _avg(values: list[int]) -> float:
+        return round(sum(values) / len(values), 1) if values else 0.0
 
     return DashboardStats(
         total_servers=len(servers),
         online_servers=online_servers,
+        offline_servers=max(0, len(servers) - online_servers),
+        agent_online=agent_online,
         expiring_soon=expiring_soon,
+        payment_expired=payment_expired,
         groups_total=db.query(ServerGroup).count(),
         patterns_total=db.query(CommandPattern).count(),
+        avg_cpu=_avg(cpu_values),
+        avg_ram=_avg(ram_values),
+        avg_disk=_avg(disk_values),
+        password_auth_count=password_auth_count,
+        key_auth_count=key_auth_count,
+        monthly_spend=round(monthly_spend, 2),
+        monthly_currency=monthly_currency,
     )
 
 
@@ -1022,6 +1095,70 @@ def quick_update_server(
     return serialize_server(server)
 
 
+@router.get("/{server_id}/access", response_model=ServerAccessRead)
+def get_server_access(
+    server_id: int,
+    db: Session = Depends(get_db),
+    current_user: object = Depends(get_current_user),
+):
+    ensure_section_access(current_user, "servers")
+    server = db.get(Server, server_id)
+    if not server:
+        raise HTTPException(status_code=404, detail="Сервер не найден.")
+    ensure_server_access(current_user, server)
+    write_audit_log(
+        db,
+        user=current_user,
+        action="server.view_access",
+        target_type="server",
+        target_id=str(server.id),
+        details=server.name,
+    )
+    return build_server_access_read(server)
+
+
+@router.post("/{server_id}/convert-to-key", response_model=ServerConvertToKeyRead)
+def convert_server_to_key(
+    server_id: int,
+    db: Session = Depends(get_db),
+    current_user: object = Depends(get_current_user),
+):
+    ensure_section_access(current_user, "servers")
+    ensure_action_access(current_user, "server_update")
+    server = db.get(Server, server_id)
+    if not server:
+        raise HTTPException(status_code=404, detail="Сервер не найден.")
+    ensure_server_access(current_user, server)
+    try:
+        keypair = convert_server_to_key_auth(server)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    persist_server_keypair(server, keypair)
+    db.commit()
+    db.refresh(server)
+    access = build_server_access_read(server)
+    write_audit_log(
+        db,
+        user=current_user,
+        action="server.convert_to_key",
+        target_type="server",
+        target_id=str(server.id),
+        details=server.name,
+    )
+    return ServerConvertToKeyRead(
+        ok=True,
+        message="SSH-доступ переведён на ключ. Пароль удалён из панели.",
+        auth_method=access.auth_method,
+        key_fingerprint=keypair.fingerprint,
+        private_key=keypair.private_pem,
+        public_key=keypair.public_line,
+        ssh_command=access.ssh_command_with_key or access.ssh_command,
+    )
+
+
 @router.put("/{server_id}", response_model=ServerRead)
 def update_server(
     server_id: int,
@@ -1042,6 +1179,8 @@ def update_server(
     old_pay_until = server.pay_until
     for field, value in payload.model_dump().items():
         if field == "password_enc":
+            if not value:
+                continue
             value = encrypt_secret(value)
         setattr(server, field, value)
 

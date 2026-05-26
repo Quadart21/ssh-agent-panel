@@ -17,6 +17,8 @@ type Props = {
   onEnrollAgent: (id: number) => void;
   onRefreshMetrics: (id: number) => void;
   onQuickUpdate: (serverId: number, patch: ServerQuickPatch) => Promise<void>;
+  onConvertToKey?: (serverId: number) => Promise<void>;
+  convertingToKey?: boolean;
   metricsRefreshing: boolean;
 };
 
@@ -44,6 +46,8 @@ function ServerCard({
   onEnrollAgent,
   onRefreshMetrics,
   onQuickUpdate,
+  onConvertToKey,
+  convertingToKey,
   metricsRefreshing
 }: Props) {
   const agent = agentLabel(server);
@@ -76,6 +80,9 @@ function ServerCard({
       />
 
       <div className="fleet-card-meta">
+        <span className="server-chip muted-chip">
+          {server.auth_method === "key" ? "SSH: ключ" : server.auth_method === "password" || server.has_password ? "SSH: пароль" : "SSH: нет"}
+        </span>
         {server.provider ? <span className="server-chip muted-chip">{server.provider}</span> : null}
         {server.agent_version ? <span className="server-chip muted-chip">v{server.agent_version}</span> : null}
       </div>
@@ -128,6 +135,11 @@ function ServerCard({
         {canEdit ? (
           <button className="ghost" type="button" onClick={() => onEdit(server)}>
             {isEditing ? "Редактируется…" : "Редактировать"}
+          </button>
+        ) : null}
+        {canEdit && onConvertToKey && (server.auth_method === "password" || server.has_password) ? (
+          <button className="ghost btn-sm" type="button" disabled={convertingToKey} onClick={() => void onConvertToKey(server.id)}>
+            {convertingToKey ? "Ключ..." : "Перевести на ключ"}
           </button>
         ) : null}
         {canEnrollAgent ? (

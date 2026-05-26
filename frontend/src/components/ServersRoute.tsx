@@ -60,6 +60,7 @@ function ServersRoute({
   const [metricsRefreshingAll, setMetricsRefreshingAll] = useState(false);
   const [agentsReinstallingAll, setAgentsReinstallingAll] = useState(false);
   const [quickSavingServerId, setQuickSavingServerId] = useState<number | null>(null);
+  const [convertingToKeyServerId, setConvertingToKeyServerId] = useState<number | null>(null);
   const [refreshingMetricServerId, setRefreshingMetricServerId] = useState<number | null>(null);
   const [bulkInput, setBulkInput] = useState("");
   const [bulkGroupId, setBulkGroupId] = useState("");
@@ -206,6 +207,27 @@ function ServersRoute({
       onError(err instanceof Error ? err.message : "Не удалось сохранить изменения.");
     } finally {
       setQuickSavingServerId(null);
+    }
+  }
+
+  async function handleConvertToKey(serverId: number) {
+    const server = servers.find((item) => item.id === serverId);
+    if (!server) {
+      return;
+    }
+    if (!window.confirm(`Сгенерировать SSH-ключ для «${server.name}», установить на сервер и удалить пароль из панели?`)) {
+      return;
+    }
+    onError("");
+    setConvertingToKeyServerId(serverId);
+    try {
+      const result = await api.convertServerToKey(serverId);
+      await onReload();
+      window.alert(`${result.message}\n\nFingerprint: ${result.key_fingerprint}\n\nПриватный ключ сохранён в панели — скопируйте его из дашборда при наведении на сервер.`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось перевести сервер на ключ.");
+    } finally {
+      setConvertingToKeyServerId(null);
     }
   }
 
@@ -366,6 +388,8 @@ function ServersRoute({
       agentsReinstallingAll={agentsReinstallingAll}
       onQuickUpdateServer={(serverId, patch) => handleQuickUpdateServer(serverId, patch)}
       quickSavingServerId={quickSavingServerId}
+      onConvertToKey={(serverId) => handleConvertToKey(serverId)}
+      convertingToKeyServerId={convertingToKeyServerId}
       onRefreshAllMetrics={() => void handleRefreshAllMetrics()}
       onRefreshServerMetrics={(id) => void handleRefreshServerMetrics(id)}
       metricsRefreshingAll={metricsRefreshingAll}

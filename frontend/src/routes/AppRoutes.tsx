@@ -3,7 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { api } from "../api";
 import PageFallback from "../components/PageFallback";
-import { permissionSections } from "../navigation";
+import { permissionSections, userHasActionAccess, userHasSectionAccess } from "../navigation";
 import type {
   Alert,
   AuditLog,
@@ -26,6 +26,7 @@ const PanelUsersRoute = lazy(() => import("../components/PanelUsersRoute"));
 const Pm2Panel = lazy(() => import("../components/Pm2Panel"));
 const PatternsRoute = lazy(() => import("../components/PatternsRoute"));
 const SecurityPage = lazy(() => import("../components/SecurityPage"));
+const SshKeysPage = lazy(() => import("../components/SshKeysPage"));
 const ServersRoute = lazy(() => import("../components/ServersRoute"));
 const MetricEmbedsPage = lazy(() => import("../components/MetricEmbedsPage"));
 const DomainsRoute = lazy(() => import("../components/DomainsRoute"));
@@ -77,7 +78,20 @@ function AppRoutes({
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route
           path="/dashboard"
-          element={<DashboardPage stats={stats} metrics={metrics} servers={servers} alerts={alerts} loading={loading} />}
+          element={
+            <DashboardPage
+              stats={stats}
+              metrics={metrics}
+              servers={servers}
+              groups={groups}
+              alerts={alerts}
+              loading={loading}
+              canViewAccess={userHasSectionAccess(currentUser, "servers")}
+              canConvertKey={userHasActionAccess(currentUser, "server_update")}
+              onReload={onReload}
+              onError={setError}
+            />
+          }
         />
         <Route
           path="/servers"
@@ -111,6 +125,12 @@ function AppRoutes({
         <Route path="/users" element={<UsersPage servers={servers} groups={groups} onError={setError} />} />
         <Route path="/firewall" element={<FirewallPage servers={servers} onError={setError} />} />
         <Route path="/security" element={<SecurityPage servers={servers} onError={setError} />} />
+        <Route
+          path="/ssh-keys"
+          element={
+            <SshKeysPage canManage={userHasActionAccess(currentUser, "ssh_keys_manage")} onError={setError} />
+          }
+        />
         <Route path="/sessions" element={<SessionsPage onError={setError} />} />
         <Route path="/two-factor" element={<TwoFactorPage onError={setError} />} />
         <Route path="/telegram" element={<TelegramPage onError={setError} />} />

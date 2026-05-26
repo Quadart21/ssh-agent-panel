@@ -22,10 +22,15 @@ import type {
   PublicEmbedMetrics,
   SecurityReport,
   Server,
+  ServerAccess,
   ServerAccountingSummary,
+  ServerConvertToKeyResult,
+  SshKeyDeployResult,
+  SshKeysOverview,
   ServerMetricSnapshot,
   TelegramStatus,
   TelegramWebhookInfo,
+  PanelSshKeyInfo,
   Pm2LogsResponse,
   Pm2Process,
   TmuxActionResponse,
@@ -291,6 +296,15 @@ export const api = {
     request<Server>(`/servers/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
   patchServerQuick: (id: number, payload: Record<string, unknown>) =>
     request<Server>(`/servers/${id}/quick`, { method: "PATCH", body: JSON.stringify(payload) }),
+  getServerAccess: (id: number) => request<ServerAccess>(`/servers/${id}/access`),
+  convertServerToKey: (id: number) =>
+    request<ServerConvertToKeyResult>(`/servers/${id}/convert-to-key`, { method: "POST" }),
+  sshKeysOverview: () => request<SshKeysOverview>("/ssh-keys"),
+  generatePanelSshKey: () => request<PanelSshKeyInfo>("/ssh-keys/generate", { method: "POST" }),
+  exportPanelSshPrivateKey: () =>
+    request<{ private_key: string; public_key: string | null; fingerprint: string | null }>("/ssh-keys/private"),
+  deployPanelSshKey: (payload: { server_ids: number[]; remove_password?: boolean }) =>
+    request<SshKeyDeployResult>("/ssh-keys/deploy", { method: "POST", body: JSON.stringify(payload) }),
   deleteServer: (id: number) => request<void>(`/servers/${id}`, { method: "DELETE" }),
   enrollServerAgent: (id: number) =>
     request<AgentEnrollResponse>(`/servers/${id}/agent/enroll`, {

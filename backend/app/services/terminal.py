@@ -7,6 +7,7 @@ from fastapi import WebSocket
 
 from app.core.security import decrypt_secret
 from app.models import Server
+from app.services.ssh_keys import load_private_key, resolve_server_private_key
 
 
 class SSHWebTerminalSession:
@@ -18,7 +19,7 @@ class SSHWebTerminalSession:
         self.channel: paramiko.Channel | None = None
 
     def connect(self, cols: int = 120, rows: int = 32) -> None:
-        if not self.server.password_enc and not self.server.key_path:
+        if not self.server.password_enc and not self.server.key_path and not self.server.private_key_enc:
             raise RuntimeError("This server has no password or SSH key configured.")
 
         kwargs: dict[str, object] = {
@@ -32,10 +33,12 @@ class SSHWebTerminalSession:
             "allow_agent": False,
         }
 
-        if self.server.password_enc:
+        private_pem = resolve_server_private_key(self.server)
+        if private_pem:
+            kwargs["pkey"] = load_private_key(private_pem)
+        elif self.server.password_enc:
             kwargs["password"] = decrypt_secret(self.server.password_enc)
-
-        if self.server.key_path:
+        elif self.server.key_path:
             key_path = Path(self.server.key_path)
             if not key_path.exists():
                 raise RuntimeError(f"SSH key not found: {key_path}")

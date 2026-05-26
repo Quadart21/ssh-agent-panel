@@ -31,6 +31,8 @@ class Server(Base, TimestampMixin):
     login: Mapped[str] = mapped_column(String(120), nullable=False)
     password_enc: Mapped[str | None] = mapped_column(String(255), nullable=True)
     key_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    private_key_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ssh_public_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     pay_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     monthly_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
     billing_period: Mapped[str | None] = mapped_column(String(16), nullable=True, default="monthly")
@@ -54,9 +56,20 @@ class Server(Base, TimestampMixin):
     metrics_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
     metrics_collected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     group_id: Mapped[int | None] = mapped_column(ForeignKey("server_groups.id"), nullable=True)
+    panel_key_fingerprint: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    panel_key_deployed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     group: Mapped[ServerGroup | None] = relationship(back_populates="servers")
+
+
+class PanelSshKey(Base, TimestampMixin):
+    __tablename__ = "panel_ssh_keys"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    private_key_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    public_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(128), nullable=False)
 
 
 class CommandPattern(Base, TimestampMixin):
