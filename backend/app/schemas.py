@@ -41,18 +41,20 @@ class ServerBase(BaseModel):
     setup_cost: float | None = Field(default=None, ge=0)
     notes: str | None = None
 
-    @field_validator("billing_period")
+    @field_validator("billing_period", mode="before")
     @classmethod
-    def validate_billing_period(cls, value: str) -> str:
-        normalized = (value or "monthly").strip().lower()
+    def validate_billing_period(cls, value: object) -> str:
+        normalized = (str(value).strip().lower() if value not in (None, "") else "monthly")
         if normalized not in {"monthly", "yearly", "quarterly"}:
             raise ValueError("Период оплаты: monthly, yearly или quarterly.")
         return normalized
 
-    @field_validator("currency")
+    @field_validator("currency", mode="before")
     @classmethod
-    def validate_currency(cls, value: str) -> str:
-        return (value or "RUB").strip().upper()[:8]
+    def validate_currency(cls, value: object) -> str:
+        if value in (None, ""):
+            return "RUB"
+        return str(value).strip().upper()[:8]
 
 
 class ServerCreate(ServerBase):

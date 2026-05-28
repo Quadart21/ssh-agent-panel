@@ -1052,19 +1052,27 @@ def quick_update_server(
         server.monthly_cost = changes["monthly_cost"]
     if "billing_period" in changes:
         server.billing_period = changes["billing_period"]
+    elif server.billing_period is None:
+        server.billing_period = "monthly"
     if "currency" in changes:
         server.currency = changes["currency"]
+    elif server.currency is None:
+        server.currency = "RUB"
 
     db.commit()
     db.refresh(server)
-    write_audit_log(
-        db,
-        user=current_user,
-        action="server.update",
-        target_type="server",
-        target_id=str(server.id),
-        details=f"{server.name}: quick",
-    )
+    try:
+        write_audit_log(
+            db,
+            user=current_user,
+            action="server.update",
+            target_type="server",
+            target_id=str(server.id),
+            details=f"{server.name}: quick",
+        )
+    except Exception:
+        db.rollback()
+        logger.warning("Failed to write audit log for server %s quick update", server.id, exc_info=True)
     return serialize_server(server)
 
 
