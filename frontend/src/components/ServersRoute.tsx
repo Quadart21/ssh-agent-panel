@@ -89,7 +89,10 @@ function ServersRoute({
     onError("");
     try {
       const payload = {
-        ...form,
+        name: form.name,
+        ip: form.ip,
+        port: Number(form.port),
+        login: form.login,
         group_id: form.group_id ? Number(form.group_id) : null,
         pay_until: form.pay_until ? new Date(form.pay_until).toISOString() : null,
         password_enc: form.password_enc || null,
@@ -98,7 +101,8 @@ function ServersRoute({
         setup_cost: form.setup_cost.trim() ? Number(form.setup_cost) : null,
         provider: form.provider.trim() || null,
         billing_period: form.billing_period,
-        currency: form.currency
+        currency: form.currency,
+        notes: form.notes.trim() || null
       };
       if (editingServerId) {
         await api.updateServer(editingServerId, payload);

@@ -1204,6 +1204,8 @@ def update_server(
             if not value:
                 continue
             value = encrypt_secret(value)
+        if field == "key_path" and not value:
+            continue
         setattr(server, field, value)
 
     if server.pay_until and (old_pay_until is None or server.pay_until > old_pay_until):
@@ -1213,7 +1215,11 @@ def update_server(
 
     db.commit()
     db.refresh(server)
-    write_audit_log(db, user=current_user, action="server.update", target_type="server", target_id=str(server.id), details=server.name)
+    try:
+        write_audit_log(db, user=current_user, action="server.update", target_type="server", target_id=str(server.id), details=server.name)
+    except Exception:
+        db.rollback()
+        logger.warning("Failed to write audit log for server %s update", server.id, exc_info=True)
     return serialize_server(server)
 
 

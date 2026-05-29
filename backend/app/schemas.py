@@ -1,6 +1,14 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field, field_validator
+
+
+def to_naive_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
 
 
 class GroupBase(BaseModel):
@@ -55,6 +63,19 @@ class ServerBase(BaseModel):
         if value in (None, ""):
             return "RUB"
         return str(value).strip().upper()[:8]
+
+    @field_validator("pay_until", mode="before")
+    @classmethod
+    def normalize_pay_until(cls, value: object) -> datetime | None:
+        if value in (None, ""):
+            return None
+        if isinstance(value, datetime):
+            return to_naive_utc(value)
+        text = str(value).strip()
+        if not text:
+            return None
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return to_naive_utc(parsed)
 
 
 class ServerCreate(ServerBase):
