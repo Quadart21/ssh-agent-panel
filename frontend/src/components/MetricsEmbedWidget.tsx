@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { useParams } from "react-router-dom";
 
 import { api } from "../api";
 import MetricRing from "./servers/MetricRing";
+import { metricEmbedDefaultAccent } from "./metricEmbeds/config";
 import type { PublicEmbedMetrics } from "../types";
 
 function MetricsEmbedWidget() {
@@ -44,9 +46,17 @@ function MetricsEmbedWidget() {
   }, [token]);
 
   const theme = data?.theme ?? "dark";
+  const accentColor = useMemo(
+    () => data?.accent_color || metricEmbedDefaultAccent(theme),
+    [data?.accent_color, theme]
+  );
+  const widgetStyle = {
+    "--embed-accent-override": accentColor,
+    "--embed-accent-soft": `color-mix(in srgb, ${accentColor} 18%, transparent)`
+  } as CSSProperties;
 
   return (
-    <div className={`metrics-embed-widget theme-${theme}`}>
+    <div className={`metrics-embed-widget theme-${theme}`} style={widgetStyle}>
       <header className="metrics-embed-head">
         <div>
           <p className="eyebrow">Server metrics</p>
@@ -71,9 +81,9 @@ function MetricsEmbedWidget() {
               </div>
               {server.metrics_available !== false ? (
                 <div className="server-metric-visuals">
-                  <MetricRing label="CPU" value={server.cpu_percent} tone="sky" compact />
-                  <MetricRing label="RAM" value={server.ram_percent} tone="mint" compact />
-                  <MetricRing label="Disk" value={server.disk_percent} tone="amber" compact />
+                  <MetricRing label="CPU" value={server.cpu_percent} tone="sky" compact accentColor={accentColor} />
+                  <MetricRing label="RAM" value={server.ram_percent} tone="mint" compact accentColor={accentColor} />
+                  <MetricRing label="Disk" value={server.disk_percent} tone="amber" compact accentColor={accentColor} />
                   <div className="metric-uptime">
                     <span className="muted">Uptime</span>
                     <strong>{server.uptime}</strong>

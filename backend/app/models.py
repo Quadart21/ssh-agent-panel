@@ -241,6 +241,7 @@ class MetricsEmbed(Base):
     token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     server_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     theme: Mapped[str] = mapped_column(String(16), nullable=False, default="dark")
+    accent_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_by_email: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

@@ -37,6 +37,7 @@ def serialize_embed(embed: MetricsEmbed) -> MetricsEmbedRead:
         token=embed.token,
         server_ids=list(embed.server_ids or []),
         theme=embed.theme,
+        accent_color=embed.accent_color,
         enabled=embed.enabled,
         created_by_email=embed.created_by_email,
         created_at=embed.created_at,
@@ -80,6 +81,7 @@ def create_metric_embed(
         token=_generate_token(),
         server_ids=list(dict.fromkeys(payload.server_ids)),
         theme=payload.theme,
+        accent_color=payload.accent_color,
         enabled=True,
         created_by_email=current_user.email,
         created_at=datetime.utcnow(),
@@ -117,6 +119,8 @@ def update_metric_embed(
         embed.server_ids = list(dict.fromkeys(payload.server_ids))
     if payload.theme is not None:
         embed.theme = payload.theme
+    if "accent_color" in payload.model_dump(exclude_unset=True):
+        embed.accent_color = payload.accent_color
     if payload.enabled is not None:
         embed.enabled = payload.enabled
     embed.updated_at = datetime.utcnow()
@@ -225,6 +229,7 @@ def public_embed_metrics(token: str, response: Response, db: Session = Depends(g
     return PublicEmbedMetricsRead(
         title=embed.title,
         theme=embed.theme,
+        accent_color=embed.accent_color,
         updated_at=datetime.utcnow(),
         servers=payload,
     )

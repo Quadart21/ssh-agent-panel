@@ -384,12 +384,15 @@ export type SecurityReport = {
   fail2ban_jails: Fail2BanJail[];
 };
 
+export type MetricEmbedTheme = "dark" | "light" | "midnight" | "slate" | "ocean";
+
 export type MetricsEmbed = {
   id: number;
   title: string;
   token: string;
   server_ids: number[];
-  theme: "dark" | "light";
+  theme: MetricEmbedTheme;
+  accent_color: string | null;
   enabled: boolean;
   created_by_email: string;
   created_at: string;
@@ -410,7 +413,8 @@ export type PublicEmbedServerMetrics = {
 
 export type PublicEmbedMetrics = {
   title: string;
-  theme: "dark" | "light";
+  theme: MetricEmbedTheme;
+  accent_color: string | null;
   updated_at: string;
   servers: PublicEmbedServerMetrics[];
 };

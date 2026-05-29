@@ -5,14 +5,15 @@ type Props = {
   value: number;
   tone: "sky" | "mint" | "amber";
   compact?: boolean;
+  accentColor?: string;
 };
 
-function MetricRing({ label, value, tone, compact = false }: Props) {
+function MetricRing({ label, value, tone, compact = false, accentColor }: Props) {
   const normalized = Math.max(0, Math.min(100, value));
+  const defaultAccent = tone === "sky" ? "#7cc8ff" : tone === "mint" ? "#6df7c1" : "#ffc56a";
   const style = {
     "--metric-value": normalized,
-    "--metric-accent":
-      tone === "sky" ? "#7cc8ff" : tone === "mint" ? "#6df7c1" : "#ffc56a"
+    "--metric-accent": accentColor || defaultAccent
   } as CSSProperties;
 
   return (

@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 
 import { api } from "../api";
-import type { MetricsEmbed, Server } from "../types";
+import {
+  METRIC_EMBED_THEMES,
+  metricEmbedDefaultAccent,
+  metricEmbedThemeLabel,
+  normalizeAccentColor
+} from "./metricEmbeds/config";
+import type { MetricEmbedTheme, MetricsEmbed, Server } from "../types";
 
 type Props = {
   servers: Server[];
@@ -11,13 +18,15 @@ type Props = {
 type FormState = {
   title: string;
   server_ids: number[];
-  theme: "dark" | "light";
+  theme: MetricEmbedTheme;
+  accent_color: string;
 };
 
 const emptyForm: FormState = {
   title: "",
   server_ids: [],
-  theme: "dark"
+  theme: "dark",
+  accent_color: ""
 };
 
 function MetricEmbedsPage({ servers, onError }: Props) {
@@ -29,6 +38,11 @@ function MetricEmbedsPage({ servers, onError }: Props) {
   const [status, setStatus] = useState("Создайте виджет и вставьте iframe на сторонний сайт.");
 
   const editingEmbed = useMemo(() => embeds.find((item) => item.id === editingId) ?? null, [embeds, editingId]);
+  const previewAccent = form.accent_color.trim() || metricEmbedDefaultAccent(form.theme);
+  const previewStyle = {
+    "--embed-accent-override": previewAccent,
+    "--embed-accent-soft": `color-mix(in srgb, ${previewAccent} 18%, transparent)`
+  } as CSSProperties;
 
   const loadEmbeds = useCallback(async () => {
     setLoading(true);
@@ -67,9 +81,20 @@ function MetricEmbedsPage({ servers, onError }: Props) {
     setForm({
       title: embed.title,
       server_ids: [...embed.server_ids],
-      theme: embed.theme
+      theme: embed.theme,
+      accent_color: embed.accent_color ?? ""
     });
     setStatus(`Редактирование: ${embed.title}`);
+  }
+
+  function buildPayload() {
+    const accent = normalizeAccentColor(form.accent_color);
+    return {
+      title: form.title.trim(),
+      server_ids: form.server_ids,
+      theme: form.theme,
+      accent_color: accent || null
+    };
   }
 
   async function handleSubmit() {
@@ -81,22 +106,19 @@ function MetricEmbedsPage({ servers, onError }: Props) {
       onError("Выберите хотя бы один сервер.");
       return;
     }
+    if (form.accent_color.trim() && !normalizeAccentColor(form.accent_color)) {
+      onError("Цвет акцента укажите в формате #RRGGBB.");
+      return;
+    }
     setBusy(true);
     onError("");
     try {
+      const payload = buildPayload();
       if (editingId) {
-        await api.updateMetricEmbed(editingId, {
-          title: form.title.trim(),
-          server_ids: form.server_ids,
-          theme: form.theme
-        });
+        await api.updateMetricEmbed(editingId, payload);
         setStatus("Виджет обновлён.");
       } else {
-        await api.createMetricEmbed({
-          title: form.title.trim(),
-          server_ids: form.server_ids,
-          theme: form.theme
-        });
+        await api.createMetricEmbed(payload);
         setStatus("Виджет создан. Скопируйте iframe-код ниже.");
       }
       resetForm();
@@ -197,16 +219,61 @@ function MetricEmbedsPage({ servers, onError }: Props) {
             />
           </label>
 
-          <label>
-            Тема
-            <select
-              value={form.theme}
-              onChange={(event) => setForm((current) => ({ ...current, theme: event.target.value as "dark" | "light" }))}
-            >
-              <option value="dark">Тёмная</option>
-              <option value="light">Светлая</option>
-            </select>
+          <div className="metric-embeds-theme-picker">
+            <strong>Оформление</strong>
+            <div className="metric-embeds-theme-grid">
+              {METRIC_EMBED_THEMES.map((theme) => (
+                <button
+                  key={theme.id}
+                  type="button"
+                  className={`metric-embeds-theme-option theme-${theme.id}${form.theme === theme.id ? " active" : ""}`}
+                  onClick={() => setForm((current) => ({ ...current, theme: theme.id }))}
+                >
+                  <span className="metric-embeds-theme-swatch" style={{ background: theme.defaultAccent }} />
+                  <span>{theme.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label className="metric-embeds-color-field">
+            Цвет акцента
+            <div className="metric-embeds-color-row">
+              <input
+                type="color"
+                value={normalizeAccentColor(form.accent_color) || metricEmbedDefaultAccent(form.theme)}
+                onChange={(event) => setForm((current) => ({ ...current, accent_color: event.target.value }))}
+                aria-label="Выбор цвета акцента"
+              />
+              <input
+                value={form.accent_color}
+                onChange={(event) => setForm((current) => ({ ...current, accent_color: event.target.value }))}
+                placeholder={metricEmbedDefaultAccent(form.theme)}
+              />
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setForm((current) => ({ ...current, accent_color: "" }))}
+              >
+                По умолчанию
+              </button>
+            </div>
+            <span className="muted">Используется для колец CPU/RAM/Disk и статуса online. Пустое значение — цвет темы.</span>
           </label>
+
+          <div className={`metric-embeds-preview metrics-embed-widget theme-${form.theme}`} style={previewStyle}>
+            <div className="metric-embeds-preview-card">
+              <div className="metrics-embed-card-head">
+                <strong>{form.title.trim() || "Пример сервера"}</strong>
+                <span className="status-pill online">online</span>
+              </div>
+              <div className="metric-embeds-preview-rings">
+                <span style={{ color: previewAccent }}>CPU 42%</span>
+                <span style={{ color: previewAccent }}>RAM 61%</span>
+                <span style={{ color: previewAccent }}>Disk 28%</span>
+              </div>
+            </div>
+          </div>
 
           <div className="metric-embeds-server-picker">
             <strong>Серверы в виджете</strong>
@@ -248,7 +315,8 @@ function MetricEmbedsPage({ servers, onError }: Props) {
                     <div>
                       <strong>{embed.title}</strong>
                       <p className="muted">
-                        {embed.server_ids.length} сервер(ов) · {embed.theme === "dark" ? "тёмная" : "светлая"} тема
+                        {embed.server_ids.length} сервер(ов) · {metricEmbedThemeLabel(embed.theme)}
+                        {embed.accent_color ? ` · акцент ${embed.accent_color}` : ""}
                       </p>
                     </div>
                     <span className={`status-pill ${embed.enabled ? "online" : "offline"}`}>

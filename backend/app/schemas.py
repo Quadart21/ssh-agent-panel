@@ -624,14 +624,35 @@ class Fail2BanUnbanRequest(BaseModel):
 class MetricsEmbedCreate(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     server_ids: list[int] = Field(min_length=1)
-    theme: str = Field(default="dark", pattern="^(dark|light)$")
+    theme: str = Field(default="dark", pattern="^(dark|light|midnight|slate|ocean)$")
+    accent_color: str | None = Field(default=None, max_length=7)
+
+    @field_validator("accent_color", mode="before")
+    @classmethod
+    def normalize_accent_color(cls, value: object) -> str | None:
+        if value in (None, ""):
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        if not text.startswith("#"):
+            text = f"#{text}"
+        if len(text) != 7 or any(ch not in "0123456789abcdefABCDEF#" for ch in text[1:]):
+            raise ValueError("Цвет акцента укажите в формате #RRGGBB.")
+        return f"#{text[1:].lower()}"
 
 
 class MetricsEmbedUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=120)
     server_ids: list[int] | None = Field(default=None, min_length=1)
-    theme: str | None = Field(default=None, pattern="^(dark|light)$")
+    theme: str | None = Field(default=None, pattern="^(dark|light|midnight|slate|ocean)$")
+    accent_color: str | None = Field(default=None, max_length=7)
     enabled: bool | None = None
+
+    @field_validator("accent_color", mode="before")
+    @classmethod
+    def normalize_accent_color(cls, value: object) -> str | None:
+        return MetricsEmbedCreate.normalize_accent_color(value)
 
 
 class MetricsEmbedRead(BaseModel):
@@ -640,6 +661,7 @@ class MetricsEmbedRead(BaseModel):
     token: str
     server_ids: list[int]
     theme: str
+    accent_color: str | None = None
     enabled: bool
     created_by_email: str
     created_at: datetime
@@ -661,6 +683,7 @@ class PublicEmbedServerMetricsRead(BaseModel):
 class PublicEmbedMetricsRead(BaseModel):
     title: str
     theme: str
+    accent_color: str | None = None
     updated_at: datetime
     servers: list[PublicEmbedServerMetricsRead] = Field(default_factory=list)
 
