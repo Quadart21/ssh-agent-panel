@@ -58,6 +58,7 @@ function ServersRoute({
   const [accounting, setAccounting] = useState<ServerAccountingSummary | null>(null);
   const [accountingLoading, setAccountingLoading] = useState(true);
   const [metricsRefreshingAll, setMetricsRefreshingAll] = useState(false);
+  const [filezillaExporting, setFilezillaExporting] = useState(false);
   const [agentsReinstallingAll, setAgentsReinstallingAll] = useState(false);
   const [quickSavingServerId, setQuickSavingServerId] = useState<number | null>(null);
   const [convertingToKeyServerId, setConvertingToKeyServerId] = useState<number | null>(null);
@@ -231,6 +232,24 @@ function ServersRoute({
     }
   }
 
+  async function handleExportFilezilla() {
+    onError("");
+    setFilezillaExporting(true);
+    try {
+      const blob = await api.downloadFilezillaExport();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `filezilla_servers_${new Date().toISOString().slice(0, 10)}.xml`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось выгрузить FileZilla XML.");
+    } finally {
+      setFilezillaExporting(false);
+    }
+  }
+
   async function handleReinstallAllAgents() {
     if (!window.confirm("Переустановить агентов на всех серверах с SSH-доступом? Будут выпущены новые токены.")) {
       return;
@@ -392,6 +411,8 @@ function ServersRoute({
       convertingToKeyServerId={convertingToKeyServerId}
       onRefreshAllMetrics={() => void handleRefreshAllMetrics()}
       onRefreshServerMetrics={(id) => void handleRefreshServerMetrics(id)}
+      onExportFilezilla={() => void handleExportFilezilla()}
+      filezillaExporting={filezillaExporting}
       metricsRefreshingAll={metricsRefreshingAll}
       refreshingMetricServerId={refreshingMetricServerId}
       bulkInput={bulkInput}

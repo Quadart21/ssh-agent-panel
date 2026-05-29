@@ -1,0 +1,12 @@
+---
+description: Git commits without Cursor co-author attribution
+alwaysApply: true
+---
+
+# Git commits
+
+Never add to commit messages or PR bodies:
+- `Co-authored-by: Cursor <cursoragent@cursor.com>`
+- `Made-with: Cursor` or any Cursor attribution trailer
+
+When committing via shell, use only the user's message — no co-author lines.

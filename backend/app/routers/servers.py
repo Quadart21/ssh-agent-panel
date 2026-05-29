@@ -6,7 +6,8 @@ import shlex
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, status
-from sqlalchemy.orm import Session
+from fastapi.responses import Response
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.security import decode_access_token
 from app.core.security import encrypt_secret
@@ -51,7 +52,9 @@ from app.schemas import (
 )
 from app.services.accounting import build_accounting_summary, normalize_monthly_cost
 from app.services.alerts import collect_server_alerts
+from app.services.audit import write_audit_log
 from app.services.auth_state import validate_user_session
+from app.services.filezilla_export import build_filezilla_site_manager_xml
 from app.services.metrics_cache import persist_metrics_snapshot, read_cached_metric_snapshot
 from app.services.ssh import execute_commands, fetch_server_metrics, run_command_on_server, stream_command_on_server, test_ssh_connection
 from app.services.ssh_keys import (
@@ -199,6 +202,35 @@ def servers_accounting_summary(
     ensure_section_access(current_user, "servers")
     servers = _servers_query_for_user(db, current_user).order_by(Server.name.asc()).all()
     return build_accounting_summary(servers)
+
+
+@router.get("/export/filezilla")
+def export_filezilla_site_manager(
+    db: Session = Depends(get_db),
+    current_user: object = Depends(get_current_user),
+):
+    ensure_section_access(current_user, "servers")
+    query = _servers_query_for_user(db, current_user).options(joinedload(Server.group)).order_by(Server.name.asc())
+    servers = query.all()
+    xml_payload = build_filezilla_site_manager_xml(servers)
+    try:
+        write_audit_log(
+            db,
+            user=current_user,
+            action="server.export_filezilla",
+            target_type="server",
+            target_id="fleet",
+            details=f"{len(servers)} сервер(ов)",
+        )
+    except Exception:
+        db.rollback()
+        logger.warning("Failed to write audit log for FileZilla export", exc_info=True)
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    return Response(
+        content=xml_payload,
+        media_type="application/xml; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="filezilla_servers_{timestamp}.xml"'},
+    )
 
 
 def _find_existing_server(db: Session, ip: str, port: int) -> Server | None:

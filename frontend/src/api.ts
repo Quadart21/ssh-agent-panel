@@ -308,6 +308,17 @@ export const api = {
     }
     return response.json() as Promise<TmuxActionResponse>;
   },
+  downloadFilezillaExport: async () => {
+    const token = getStoredToken();
+    const response = await fetch(`${API_BASE}/servers/export/filezilla`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({ detail: "Не удалось выгрузить FileZilla XML." }));
+      throw new ApiError(formatApiDetail(payload.detail), response.status);
+    }
+    return response.blob();
+  },
   listAlerts: () => request<Alert[]>("/servers/alerts"),
   listServers: () => request<Server[]>("/servers"),
   serversAccounting: () => request<ServerAccountingSummary>("/servers/accounting"),

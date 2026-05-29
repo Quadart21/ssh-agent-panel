@@ -39,6 +39,8 @@ type Props = {
   convertingToKeyServerId: number | null;
   onRefreshAllMetrics: () => void;
   onRefreshServerMetrics: (id: number) => void;
+  onExportFilezilla: () => void;
+  filezillaExporting: boolean;
   metricsRefreshingAll: boolean;
   refreshingMetricServerId: number | null;
   bulkInput: string;
@@ -92,6 +94,8 @@ function ServersPage({
   convertingToKeyServerId,
   onRefreshAllMetrics,
   onRefreshServerMetrics,
+  onExportFilezilla,
+  filezillaExporting,
   metricsRefreshingAll,
   refreshingMetricServerId,
   bulkInput,
@@ -164,6 +168,9 @@ function ServersPage({
               </p>
             </div>
             <div className="panel-actions">
+              <button type="button" className="ghost" disabled={filezillaExporting} onClick={onExportFilezilla}>
+                {filezillaExporting ? "Экспорт…" : "FileZilla XML"}
+              </button>
               <button type="button" className="ghost" disabled={metricsRefreshingAll} onClick={onRefreshAllMetrics}>
                 {metricsRefreshingAll ? "Опрос…" : "Запросить все"}
               </button>
