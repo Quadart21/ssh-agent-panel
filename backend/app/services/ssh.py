@@ -11,7 +11,7 @@ from app.db import SessionLocal
 from app.models import AgentTask, Server
 from app.schemas import CommandExecutionResult, ConnectionTestResult, Pm2ProcessRead, ServerConnectionCheck
 from app.core.security import decrypt_secret
-from app.services.pm2_shell import wrap_pm2_command
+from app.services.pm2_shell import parse_pm2_jlist_payload, wrap_pm2_command, wrap_pm2_jlist_command
 from app.services.ssh_keys import load_private_key, resolve_server_private_key
 
 
@@ -282,28 +282,23 @@ def stream_command_on_server(server: Server, command: str, timeout: int = 30):
 def list_pm2_processes(server: Server, run_as_user: str | None = None) -> list[Pm2ProcessRead]:
     exit_code, output, error = run_command_on_server(
         server,
-        wrap_pm2_command(server, "jlist", run_as_user),
+        wrap_pm2_jlist_command(server, run_as_user),
         timeout=45,
     )
     if exit_code != 0:
         raise RuntimeError(error or output or "Не удалось выполнить pm2 jlist. Установлен ли PM2 и доступен ли он пользователю?")
 
-    text = (output or "").strip()
-    if not text:
-        return []
-
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Некорректный JSON от pm2 jlist: {exc}") from exc
-
-    if not isinstance(data, list):
-        raise RuntimeError("Ожидался массив процессов от pm2 jlist.")
+    raw_items = parse_pm2_jlist_payload(output, error)
+    if raw_items is None:
+        combined = f"{output}\n{error}".strip()
+        preview = combined[:300].replace("\n", "\\n") if combined else "(пустой вывод)"
+        raise RuntimeError(
+            "Не удалось разобрать JSON от pm2 jlist. "
+            f"PM2 вернул не-JSON вывод: {preview}"
+        )
 
     processes: list[Pm2ProcessRead] = []
-    for raw in data:
-        if not isinstance(raw, dict):
-            continue
+    for raw in raw_items:
         pm2_env = raw.get("pm2_env") if isinstance(raw.get("pm2_env"), dict) else {}
         monit = raw.get("monit") if isinstance(raw.get("monit"), dict) else {}
         exec_mode = str(pm2_env.get("exec_mode") or "")
