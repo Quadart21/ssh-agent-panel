@@ -9,7 +9,8 @@ from app.deps import ensure_action_access, ensure_section_access, ensure_server_
 from app.models import Server
 from app.schemas import Pm2AppStart, Pm2LogsResponse, Pm2ProcessRead, TmuxActionResponse
 from app.services.audit import write_audit_log
-from app.services.ssh import list_pm2_processes, run_command_on_server, wrap_command_for_server_user
+from app.services.pm2_shell import wrap_pm2_command
+from app.services.ssh import list_pm2_processes, run_command_on_server
 
 router = APIRouter(prefix="/pm2", tags=["pm2"])
 
@@ -25,19 +26,19 @@ def _decode_app_name(app_name: str) -> str:
     return unquote(app_name)
 
 
-def _build_pm2_start_command(payload: Pm2AppStart) -> str:
+def _build_pm2_start_args(payload: Pm2AppStart) -> str:
     script = payload.script.strip()
     name = payload.name.strip()
-    parts = ["pm2", "start", shlex.quote(script)]
+    parts = ["start", shlex.quote(script)]
     if payload.cwd and payload.cwd.strip():
         parts.extend(["--cwd", shlex.quote(payload.cwd.strip())])
     if payload.instances > 1:
         parts.extend(["-i", str(payload.instances)])
     parts.extend(["--name", shlex.quote(name)])
-    cmd = " ".join(parts)
+    args = " ".join(parts)
     if payload.script_args and payload.script_args.strip():
-        return f"{cmd} -- {payload.script_args.strip()}"
-    return cmd
+        return f"{args} -- {payload.script_args.strip()}"
+    return args
 
 
 @router.get("/{server_id}/apps", response_model=list[Pm2ProcessRead])
@@ -68,11 +69,10 @@ def start_pm2_app(
     ensure_section_access(current_user, "pm2")
     ensure_action_access(current_user, "pm2_use")
     ensure_server_access(current_user, server)
-    command = _build_pm2_start_command(payload)
     try:
         exit_code, output, error = run_command_on_server(
             server,
-            wrap_command_for_server_user(server, command, payload.run_as_user),
+            wrap_pm2_command(server, _build_pm2_start_args(payload), payload.run_as_user),
             timeout=120,
         )
     except Exception as exc:
@@ -103,11 +103,10 @@ def stop_pm2_app(
     ensure_action_access(current_user, "pm2_use")
     ensure_server_access(current_user, server)
     name = _decode_app_name(app_name)
-    command = f"pm2 stop {shlex.quote(name)}"
     try:
         exit_code, output, error = run_command_on_server(
             server,
-            wrap_command_for_server_user(server, command, run_as_user),
+            wrap_pm2_command(server, f"stop {shlex.quote(name)}", run_as_user),
             timeout=60,
         )
     except Exception as exc:
@@ -132,11 +131,10 @@ def restart_pm2_app(
     ensure_action_access(current_user, "pm2_use")
     ensure_server_access(current_user, server)
     name = _decode_app_name(app_name)
-    command = f"pm2 restart {shlex.quote(name)}"
     try:
         exit_code, output, error = run_command_on_server(
             server,
-            wrap_command_for_server_user(server, command, run_as_user),
+            wrap_pm2_command(server, f"restart {shlex.quote(name)}", run_as_user),
             timeout=120,
         )
     except Exception as exc:
@@ -161,11 +159,10 @@ def delete_pm2_app(
     ensure_action_access(current_user, "pm2_use")
     ensure_server_access(current_user, server)
     name = _decode_app_name(app_name)
-    command = f"pm2 delete {shlex.quote(name)}"
     try:
         exit_code, output, error = run_command_on_server(
             server,
-            wrap_command_for_server_user(server, command, run_as_user),
+            wrap_pm2_command(server, f"delete {shlex.quote(name)}", run_as_user),
             timeout=60,
         )
     except Exception as exc:
@@ -191,11 +188,10 @@ def get_pm2_logs(
     ensure_action_access(current_user, "pm2_use")
     ensure_server_access(current_user, server)
     name = _decode_app_name(app_name)
-    command = f"pm2 logs {shlex.quote(name)} --nostream --lines {lines}"
     try:
         exit_code, output, error = run_command_on_server(
             server,
-            wrap_command_for_server_user(server, command, run_as_user),
+            wrap_pm2_command(server, f"logs {shlex.quote(name)} --nostream --lines {lines}", run_as_user),
             timeout=90,
         )
     except Exception as exc:

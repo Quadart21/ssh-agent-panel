@@ -11,6 +11,7 @@ from app.db import SessionLocal
 from app.models import AgentTask, Server
 from app.schemas import CommandExecutionResult, ConnectionTestResult, Pm2ProcessRead, ServerConnectionCheck
 from app.core.security import decrypt_secret
+from app.services.pm2_shell import wrap_pm2_command
 from app.services.ssh_keys import load_private_key, resolve_server_private_key
 
 
@@ -281,7 +282,7 @@ def stream_command_on_server(server: Server, command: str, timeout: int = 30):
 def list_pm2_processes(server: Server, run_as_user: str | None = None) -> list[Pm2ProcessRead]:
     exit_code, output, error = run_command_on_server(
         server,
-        wrap_command_for_server_user(server, "pm2 jlist", run_as_user),
+        wrap_pm2_command(server, "jlist", run_as_user),
         timeout=45,
     )
     if exit_code != 0:
