@@ -43,6 +43,13 @@ def _build_test_notification(event_type: str) -> str:
             facts=[("Сервер", "api-prod-01"), ("Категория", "server_offline")],
             lines=["Сервер не отвечает по SSH.", "Проверьте сеть, firewall и SSH daemon."],
         )
+    if event_type == "server_online":
+        return format_telegram_message(
+            "Сервер восстановлен",
+            icon="🟢",
+            facts=[("Сервер", "api-prod-01"), ("Категория", "server_online")],
+            lines=["Сервер снова отвечает по SSH."],
+        )
     if event_type == "payment_expired":
         return format_telegram_message(
             "Оплата просрочена",
@@ -84,6 +91,8 @@ def _build_test_notification(event_type: str) -> str:
 def _topic_event_for_alert_category(category: str) -> str:
     if category == "server_offline":
         return "server_offline"
+    if category == "server_online":
+        return "server_online"
     if category in {"payment_expired", "payment_expiring"}:
         return "payment_expiring"
     return "alerts_digest"

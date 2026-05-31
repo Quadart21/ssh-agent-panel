@@ -49,6 +49,7 @@ def resolve_telegram_topic_id(profile: NotificationSettings | None, event_type: 
     mapping = {
         "login": profile.telegram_topic_login,
         "server_offline": profile.telegram_topic_servers,
+        "server_online": profile.telegram_topic_servers,
         "server_check": profile.telegram_topic_servers,
         "payment_expired": profile.telegram_topic_payments,
         "payment_expiring": profile.telegram_topic_payments,

@@ -29,6 +29,7 @@ type FormState = {
 const testNotificationKinds = [
   { key: "login", label: "Тест: вход в панель" },
   { key: "server_offline", label: "Тест: офлайн-сервер" },
+  { key: "server_online", label: "Тест: сервер восстановлен" },
   { key: "payment_expired", label: "Тест: просроченная оплата" },
   { key: "payment_expiring", label: "Тест: оплата истекает" },
   { key: "automation_failed", label: "Тест: ошибка автоматизации" },

@@ -77,7 +77,7 @@ def alert_fingerprint(alert: AlertRead) -> str:
 def format_alerts_for_telegram(alerts: list[AlertRead], prefix: str | None = None) -> str:
     title = prefix or "Фоновые алерты"
     lines = [f"Событий: {len(alerts)}"]
-    level_icon = {"critical": "🔴", "warning": "🟠", "info": "🔵"}
+    level_icon = {"critical": "🔴", "warning": "🟠", "info": "🔵", "success": "🟢"}
     for alert in alerts[:20]:
         icon = level_icon.get(alert.level, "⚪")
         server_name = alert.server_name or "без сервера"
@@ -91,9 +91,22 @@ def format_alerts_for_telegram(alerts: list[AlertRead], prefix: str | None = Non
 def _topic_event_for_alert_category(category: str) -> str:
     if category == "server_offline":
         return "server_offline"
+    if category == "server_online":
+        return "server_online"
     if category in {"payment_expired", "payment_expiring"}:
         return "payment_expiring"
     return "alerts_digest"
+
+
+def _build_server_online_alert(server: Server) -> AlertRead:
+    return AlertRead(
+        level="success",
+        category="server_online",
+        title="Сервер восстановлен",
+        message=f"{server.name} снова отвечает по SSH.",
+        server_id=server.id,
+        server_name=server.name,
+    )
 
 
 def sync_alert_notifications(db: Session) -> tuple[int, int]:
@@ -140,25 +153,42 @@ def sync_alert_notifications(db: Session) -> tuple[int, int]:
         if state.last_sent_at is None or should_repeat:
             sendable_alerts.append(alert)
 
+    recovery_alerts: list[AlertRead] = []
     for fingerprint, state in existing_states.items():
         if fingerprint not in active_fingerprints:
+            if (
+                state.is_active
+                and state.category == "server_offline"
+                and state.last_sent_at is not None
+                and profile.notify_server_offline
+            ):
+                server = db.get(Server, state.server_id) if state.server_id else None
+                if server is not None:
+                    recovery_alerts.append(_build_server_online_alert(server))
             state.is_active = False
 
     sent_count = 0
-    telegram_alerts = [alert for alert in sendable_alerts if alert.category not in {"payment_expired", "payment_expiring"}]
+    telegram_alerts = [
+        alert
+        for alert in [*sendable_alerts, *recovery_alerts]
+        if alert.category not in {"payment_expired", "payment_expiring"}
+    ]
     if telegram_alerts and telegram_is_configured(db):
         grouped: dict[str, list[AlertRead]] = {}
         for alert in telegram_alerts:
             key = _topic_event_for_alert_category(alert.category)
             grouped.setdefault(key, []).append(alert)
         for event_type, grouped_alerts in grouped.items():
+            prefix = "Восстановление серверов" if event_type == "server_online" else None
             send_telegram_message(
-                format_alerts_for_telegram(grouped_alerts),
+                format_alerts_for_telegram(grouped_alerts, prefix=prefix),
                 db,
                 parse_mode="HTML",
                 topic_id=resolve_telegram_topic_id(profile, event_type),
             )
-        for alert in telegram_alerts:
+        for alert in sendable_alerts:
+            if alert.category in {"payment_expired", "payment_expiring"}:
+                continue
             existing_states[alert_fingerprint(alert)].last_sent_at = now
         sent_count = len(telegram_alerts)
 
@@ -169,7 +199,7 @@ def sync_alert_notifications(db: Session) -> tuple[int, int]:
 def filter_alerts_by_preferences(alerts: list[AlertRead], profile: NotificationSettings) -> list[AlertRead]:
     filtered: list[AlertRead] = []
     for alert in alerts:
-        if alert.category == "server_offline" and not profile.notify_server_offline:
+        if alert.category in {"server_offline", "server_online"} and not profile.notify_server_offline:
             continue
         if alert.category == "payment_expired" and not profile.notify_payment_expired:
             continue
