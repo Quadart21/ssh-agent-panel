@@ -67,6 +67,7 @@ function ServersRoute({
   const [bulkGroupId, setBulkGroupId] = useState("");
   const [bulkStatus, setBulkStatus] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [filezillaImporting, setFilezillaImporting] = useState(false);
 
   async function loadAccounting() {
     setAccountingLoading(true);
@@ -358,6 +359,25 @@ function ServersRoute({
     }
   }
 
+  async function handleImportFilezilla(file: File) {
+    onError("");
+    setFilezillaImporting(true);
+    setBulkStatus("");
+    try {
+      const response = await api.importFilezilla(file);
+      const skipped = response.skipped ?? 0;
+      setBulkStatus(
+        `FileZilla: создано ${response.created}, пропущено ${skipped}, ошибок ${response.failed}.`
+      );
+      await onReload();
+      await loadAccounting();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось импортировать FileZilla XML.");
+    } finally {
+      setFilezillaImporting(false);
+    }
+  }
+
   function handleEditServer(server: Server) {
     setEditingServerId(server.id);
     setConnectionResult(null);
@@ -426,6 +446,8 @@ function ServersRoute({
       onBulkCreate={() => void handleBulkCreate()}
       bulkStatus={bulkStatus}
       bulkBusy={bulkBusy}
+      onImportFilezilla={(file) => void handleImportFilezilla(file)}
+      filezillaImporting={filezillaImporting}
     />
   );
 }

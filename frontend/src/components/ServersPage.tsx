@@ -50,6 +50,8 @@ type Props = {
   onBulkCreate: () => void;
   bulkStatus: string;
   bulkBusy: boolean;
+  onImportFilezilla: (file: File) => void;
+  filezillaImporting: boolean;
 };
 
 const defaultFilters: FleetFilters = {
@@ -104,7 +106,9 @@ function ServersPage({
   setBulkGroupId,
   onBulkCreate,
   bulkStatus,
-  bulkBusy
+  bulkBusy,
+  onImportFilezilla,
+  filezillaImporting
 }: Props) {
   const [activeTab, setActiveTab] = useState<ServerViewTab>("fleet");
   const [filters, setFilters] = useState<FleetFilters>(defaultFilters);
@@ -325,6 +329,8 @@ function ServersPage({
           onBulkCreate={onBulkCreate}
           bulkStatus={bulkStatus}
           bulkBusy={bulkBusy}
+          onImportFilezilla={onImportFilezilla}
+          filezillaImporting={filezillaImporting}
           canCreate={canCreate}
         />
       ) : null}

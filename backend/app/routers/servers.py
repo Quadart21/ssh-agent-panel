@@ -5,7 +5,7 @@ import secrets
 import shlex
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, WebSocket, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session, joinedload
 
@@ -55,6 +55,7 @@ from app.services.alerts import collect_server_alerts
 from app.services.audit import write_audit_log
 from app.services.auth_state import validate_user_session
 from app.services.filezilla_export import build_filezilla_site_manager_xml
+from app.services.filezilla_import import parse_filezilla_site_manager_xml
 from app.services.metrics_cache import persist_metrics_snapshot, read_cached_metric_snapshot
 from app.services.ssh import execute_commands, fetch_server_metrics, run_command_on_server, stream_command_on_server, test_ssh_connection
 from app.services.ssh_keys import (
@@ -231,6 +232,132 @@ def export_filezilla_site_manager(
         media_type="application/xml; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="filezilla_servers_{timestamp}.xml"'},
     )
+
+
+def _resolve_or_create_group(db: Session, name: str | None, *, actor: User) -> int | None:
+    cleaned = (name or "").strip()
+    if not cleaned:
+        return None
+
+    group = db.query(ServerGroup).filter(ServerGroup.name == cleaned).first()
+    if group:
+        return group.id
+
+    ensure_action_access(actor, "group_create")
+    group = ServerGroup(name=cleaned)
+    db.add(group)
+    db.flush()
+    write_audit_log(
+        db,
+        user=actor,
+        action="group.create",
+        target_type="group",
+        target_id=str(group.id),
+        details=f"{group.name} (FileZilla import)",
+    )
+    return group.id
+
+
+@router.post("/import/filezilla", response_model=BulkServerCreateResponse)
+async def import_filezilla_site_manager(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: object = Depends(get_current_user),
+):
+    ensure_section_access(current_user, "servers")
+    ensure_action_access(current_user, "server_create")
+
+    filename = (file.filename or "").lower()
+    if not filename.endswith(".xml"):
+        raise HTTPException(status_code=400, detail="Загрузите XML-файл FileZilla Site Manager.")
+
+    raw = await file.read()
+    try:
+        xml_content = raw.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Файл FileZilla должен быть в кодировке UTF-8.") from exc
+
+    try:
+        imported = parse_filezilla_site_manager_xml(xml_content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    results: list[BulkServerCreateItemResult] = []
+    created = 0
+    skipped = 0
+
+    for item in imported:
+        existing = _find_existing_server(db, item.ip, item.port)
+        if existing:
+            skipped += 1
+            results.append(
+                BulkServerCreateItemResult(
+                    name=item.name,
+                    ip=item.ip,
+                    ok=True,
+                    server_id=existing.id,
+                    message=f"Сервер уже существует ({existing.name}), пропущен.",
+                )
+            )
+            continue
+
+        try:
+            group_id = _resolve_or_create_group(db, item.group_name, actor=current_user)
+            payload = ServerCreate(
+                name=item.name,
+                ip=item.ip,
+                port=item.port,
+                login=item.login,
+                password_enc=item.password,
+                group_id=group_id,
+                test_connection=bool(item.password),
+                auto_install_agent=bool(item.password),
+            )
+            server = _create_server_internal(db, payload, request, actor=current_user)
+            created += 1
+            results.append(
+                BulkServerCreateItemResult(
+                    name=server.name,
+                    ip=server.ip,
+                    ok=True,
+                    server_id=server.id,
+                    message="Сервер импортирован из FileZilla.",
+                )
+            )
+            write_audit_log(
+                db,
+                user=current_user,
+                action="server.create.filezilla_import",
+                target_type="server",
+                target_id=str(server.id),
+                details=server.name,
+            )
+        except Exception as exc:
+            db.rollback()
+            if isinstance(exc, HTTPException):
+                detail = str(exc.detail)
+            else:
+                detail = str(exc)
+            results.append(
+                BulkServerCreateItemResult(
+                    name=item.name,
+                    ip=item.ip,
+                    ok=False,
+                    message=detail or "Ошибка импорта сервера.",
+                )
+            )
+
+    failed = len(results) - created - skipped
+    write_audit_log(
+        db,
+        user=current_user,
+        action="server.import.filezilla",
+        target_type="servers",
+        target_id=str(created),
+        details=f"created={created};skipped={skipped};failed={failed};file={file.filename}",
+    )
+    return BulkServerCreateResponse(total=len(results), created=created, skipped=skipped, failed=failed, results=results)
 
 
 def _find_existing_server(db: Session, ip: str, port: int) -> Server | None:

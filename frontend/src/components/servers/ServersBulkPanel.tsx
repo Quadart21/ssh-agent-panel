@@ -9,6 +9,8 @@ type Props = {
   onBulkCreate: () => void;
   bulkStatus: string;
   bulkBusy: boolean;
+  onImportFilezilla: (file: File) => void;
+  filezillaImporting: boolean;
   canCreate: boolean;
 };
 
@@ -21,6 +23,8 @@ function ServersBulkPanel({
   onBulkCreate,
   bulkStatus,
   bulkBusy,
+  onImportFilezilla,
+  filezillaImporting,
   canCreate
 }: Props) {
   return (
@@ -55,6 +59,29 @@ function ServersBulkPanel({
           Выбранная группа применится ко всем импортируемым серверам. Если в строке указана своя группа — она имеет
           приоритет.
         </p>
+      </div>
+
+      <div className="bulk-format-card">
+        <strong>Импорт из FileZilla</strong>
+        <p className="muted">
+          Загрузите XML из FileZilla Site Manager (Файл → Экспорт). Папки станут группами, серверы с тем же IP и
+          портом пропускаются.
+        </p>
+        <div className="compact-form">
+          <input
+            type="file"
+            accept=".xml,application/xml,text/xml"
+            disabled={!canCreate || bulkBusy || filezillaImporting}
+            onChange={(event) => {
+              const selected = event.target.files?.[0];
+              event.target.value = "";
+              if (selected) {
+                onImportFilezilla(selected);
+              }
+            }}
+          />
+          {filezillaImporting ? <p className="muted">Импортируем FileZilla XML…</p> : null}
+        </div>
       </div>
 
       <div className="bulk-format-card">

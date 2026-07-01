@@ -319,6 +319,21 @@ export const api = {
     }
     return response.blob();
   },
+  importFilezilla: async (file: File) => {
+    const token = getStoredToken();
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch(`${API_BASE}/servers/import/filezilla`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: formData
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({ detail: "Не удалось импортировать FileZilla XML." }));
+      throw new ApiError(formatApiDetail(payload.detail), response.status);
+    }
+    return response.json() as Promise<BulkServerCreateResponse>;
+  },
   listAlerts: () => request<Alert[]>("/servers/alerts"),
   listServers: () => request<Server[]>("/servers"),
   serversAccounting: () => request<ServerAccountingSummary>("/servers/accounting"),
