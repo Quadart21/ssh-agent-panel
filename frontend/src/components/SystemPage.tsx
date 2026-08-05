@@ -1,13 +1,14 @@
 import { useState } from "react";
 
 import { api } from "../api";
+import { PageHero, PageShell, Panel } from "./ui";
 
 type Props = {
   onError: (message: string) => void;
 };
 
 function SystemPage({ onError }: Props) {
-  const [message, setMessage] = useState("Здесь доступны резервные копии и восстановление панели.");
+  const [message, setMessage] = useState("Резервные копии и восстановление панели.");
   const [backupFile, setBackupFile] = useState<File | null>(null);
 
   async function handleDownloadBackup() {
@@ -41,36 +42,26 @@ function SystemPage({ onError }: Props) {
   }
 
   return (
-    <div className="page-stack">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">Система</p>
-          <h1>Резервные копии и обслуживание</h1>
-          <p className="hero-copy">{message}</p>
-        </div>
-      </section>
+    <PageShell>
+      <PageHero eyebrow="Система" title="Система" description={message} />
 
       <section className="dashboard-grid">
-        <article className="panel">
-          <h2>Экспорт резервной копии</h2>
-          <p className="muted">Сохраняет основные настройки панели, серверы, группы, шаблоны, пользователей и 2FA.</p>
+        <Panel title="Экспорт" description="Серверы, группы, шаблоны, пользователи и 2FA.">
           <button type="button" onClick={() => void handleDownloadBackup()}>
             Скачать backup
           </button>
-        </article>
+        </Panel>
 
-        <article className="panel">
-          <h2>Восстановление из backup</h2>
-          <p className="muted">Осторожно: восстановление заменяет текущие данные панели содержимым файла.</p>
+        <Panel title="Восстановление" description="Заменяет текущие данные панели содержимым файла.">
           <div className="compact-form">
             <input type="file" accept=".json,application/json" onChange={(event) => setBackupFile(event.target.files?.[0] ?? null)} />
             <button type="button" className="danger" onClick={() => void handleImportBackup()}>
               Восстановить backup
             </button>
           </div>
-        </article>
+        </Panel>
       </section>
-    </div>
+    </PageShell>
   );
 }
 

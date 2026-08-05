@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api";
 import type { Group, LinuxUser, LinuxUserOperationResponse, Server } from "../types";
+import { PageHero, PageShell, Panel } from "./ui";
 
 type CreateForm = {
   server_ids: number[];
@@ -136,21 +137,13 @@ function UsersPage({ servers, groups, onError }: Props) {
   }
 
   return (
-    <div className="page-stack">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">Пользователи</p>
-          <h1>Управление Linux-пользователями</h1>
-          <p className="hero-copy">
-            Создавайте и удаляйте системных пользователей по одному серверу, по списку или сразу по группе.
-          </p>
-        </div>
-      </section>
+    <PageShell>
+      <PageHero eyebrow="Пользователи" title="Пользователи" description="Создание и удаление системных пользователей на серверах." />
 
       <section className="dashboard-grid">
-        <article className="panel">
-          <div className="panel-head">
-            <h2>Пользователи на сервере</h2>
+        <Panel
+          title="Пользователи на сервере"
+          actions={
             <select value={selectedServerId} onChange={(event) => setSelectedServerId(event.target.value)}>
               <option value="">Выберите сервер</option>
               {servers.map((server) => (
@@ -159,7 +152,8 @@ function UsersPage({ servers, groups, onError }: Props) {
                 </option>
               ))}
             </select>
-          </div>
+          }
+        >
           <p className="muted">{status}</p>
           <div className="list-stack">
             {usersLoading ? <p className="muted">Загрузка...</p> : null}
@@ -173,10 +167,9 @@ function UsersPage({ servers, groups, onError }: Props) {
               </article>
             ))}
           </div>
-        </article>
+        </Panel>
 
-        <article className="panel">
-          <h2>Создать пользователя</h2>
+        <Panel title="Создать пользователя">
           <form className="command-grid" onSubmit={handleCreateUser}>
             <label>
               Группа серверов
@@ -241,12 +234,11 @@ function UsersPage({ servers, groups, onError }: Props) {
             </div>
             <button type="submit">Создать пользователя</button>
           </form>
-        </article>
+        </Panel>
       </section>
 
       <section className="page-stack">
-        <article className="panel">
-          <h2>Удалить пользователя</h2>
+        <Panel title="Удалить пользователя">
           <form className="command-grid" onSubmit={handleDeleteUser}>
             <label>
               Группа серверов
@@ -295,11 +287,10 @@ function UsersPage({ servers, groups, onError }: Props) {
               Удалить пользователя
             </button>
           </form>
-        </article>
+        </Panel>
 
         {results ? (
-          <article className="panel">
-            <h2>Результаты операции</h2>
+          <Panel title="Результаты операции">
             <div className="result-stack">
               {results.results.map((result, index) => (
                 <article className="result-card" key={`${result.server_id}-${result.username}-${index}`}>
@@ -317,10 +308,10 @@ function UsersPage({ servers, groups, onError }: Props) {
                 </article>
               ))}
             </div>
-          </article>
+          </Panel>
         ) : null}
       </section>
-    </div>
+    </PageShell>
   );
 }
 

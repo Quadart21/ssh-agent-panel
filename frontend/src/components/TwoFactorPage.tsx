@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api";
 import type { TwoFactorRecoveryCodes, TwoFactorSetup, TwoFactorStatus } from "../types";
+import { PageHero, PageShell } from "./ui";
 
 type Props = {
   onError: (message: string) => void;
@@ -16,7 +17,7 @@ function TwoFactorPage({ onError }: Props) {
   const [disablePassword, setDisablePassword] = useState("");
   const [disableOtpCode, setDisableOtpCode] = useState("");
   const [disableRecoveryCode, setDisableRecoveryCode] = useState("");
-  const [message, setMessage] = useState("Здесь можно включить 2FA через Google Authenticator или другое TOTP-приложение.");
+  const [message, setMessage] = useState("TOTP через Google Authenticator или аналог.");
 
   async function loadStatus() {
     onError("");
@@ -93,19 +94,13 @@ function TwoFactorPage({ onError }: Props) {
   }
 
   return (
-    <div className="page-stack">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">2FA</p>
-          <h1>Двухфакторная авторизация</h1>
-          <p className="hero-copy">{message}</p>
-        </div>
-      </section>
+    <PageShell>
+      <PageHero eyebrow="2FA" title="2FA" description={message} />
 
       <section className="dashboard-grid">
         <article className="panel">
           <div className="panel-head">
-            <h2>Статус 2FA</h2>
+            <h2>Статус</h2>
             <span className={`status-pill ${status?.enabled ? "online" : "offline"}`}>
               {status?.enabled ? "включена" : "выключена"}
             </span>
@@ -192,7 +187,7 @@ function TwoFactorPage({ onError }: Props) {
           </form>
         </article>
       ) : null}
-    </div>
+    </PageShell>
   );
 }
 

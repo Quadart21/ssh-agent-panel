@@ -9,6 +9,7 @@ import {
   normalizeAccentColor
 } from "./metricEmbeds/config";
 import type { MetricEmbedTheme, MetricsEmbed, Server } from "../types";
+import { EmptyState, PageHero, PageShell, Panel } from "./ui";
 
 type Props = {
   servers: Server[];
@@ -187,29 +188,20 @@ function MetricEmbedsPage({ servers, onError }: Props) {
   }
 
   return (
-    <div className="page-stack metric-embeds-page">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">Виджеты</p>
-          <h1>Встраивание метрик</h1>
-          <p className="hero-copy">
-            Создайте публичный виджет с CPU, RAM и Disk для выбранных серверов и вставьте его на любой сайт через iframe.
-            IP-адреса и учётные данные не передаются.
-          </p>
-        </div>
-      </section>
+    <PageShell className="metric-embeds-page">
+      <PageHero eyebrow="Виджеты" title="Виджеты" description="Публичные iframe-виджеты с CPU, RAM и Disk без передачи IP и учётных данных." />
 
       <section className="dashboard-grid metric-embeds-layout">
-        <article className="panel">
-          <div className="panel-head">
-            <h2>{editingEmbed ? "Редактировать виджет" : "Новый виджет"}</h2>
-            {editingEmbed ? (
+        <Panel
+          title={editingEmbed ? "Редактировать виджет" : "Новый виджет"}
+          actions={
+            editingEmbed ? (
               <button type="button" className="ghost" onClick={resetForm}>
                 Отмена
               </button>
-            ) : null}
-          </div>
-
+            ) : null
+          }
+        >
           <label>
             Название
             <input
@@ -299,14 +291,9 @@ function MetricEmbedsPage({ servers, onError }: Props) {
             </button>
             <p className="muted">{status}</p>
           </div>
-        </article>
+        </Panel>
 
-        <article className="panel">
-          <div className="panel-head">
-            <h2>Готовые виджеты</h2>
-            <span className="muted">{loading ? "Загрузка…" : `${embeds.length} шт.`}</span>
-          </div>
-
+        <Panel title="Готовые виджеты" description={loading ? "Загрузка…" : `${embeds.length} шт.`}>
           {embeds.length ? (
             <div className="metric-embeds-list">
               {embeds.map((embed) => (
@@ -367,11 +354,11 @@ function MetricEmbedsPage({ servers, onError }: Props) {
               ))}
             </div>
           ) : (
-            <p className="muted">Виджетов пока нет.</p>
+            <EmptyState title="Виджетов пока нет" description="Создайте первый виджет слева." />
           )}
-        </article>
+        </Panel>
       </section>
-    </div>
+    </PageShell>
   );
 }
 

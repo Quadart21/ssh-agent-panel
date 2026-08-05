@@ -1,4 +1,5 @@
 import type { Alert } from "../types";
+import { EmptyState, PageHero, PageShell, Panel } from "./ui";
 
 type Props = {
   alerts: Alert[];
@@ -7,24 +8,14 @@ type Props = {
 
 function AlertsPage({ alerts, loading }: Props) {
   return (
-    <div className="page-stack">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">Уведомления</p>
-          <h1>Критичные события и сроки оплаты</h1>
-          <p className="hero-copy">
-            Этот раздел собирает офлайн-серверы и оплаты, которые уже просрочены или истекают в ближайшие дни.
-          </p>
-        </div>
-      </section>
+    <PageShell>
+      <PageHero eyebrow="Уведомления" title="Уведомления" description="Офлайн-серверы и просроченные или скорые оплаты." />
 
-      <article className="panel">
-        <div className="panel-head">
-          <h2>Активные уведомления</h2>
-          <span className="muted">{loading ? "Загрузка..." : `Событий: ${alerts.length}`}</span>
-        </div>
+      <Panel title="Активные уведомления" description={loading ? "Загрузка..." : `Событий: ${alerts.length}`}>
         <div className="result-stack">
-          {alerts.length === 0 ? <p className="muted">Активных уведомлений нет.</p> : null}
+          {alerts.length === 0 ? (
+            <EmptyState title="Всё спокойно" description="Активных уведомлений нет." />
+          ) : null}
           {alerts.map((alert, index) => (
             <article className={`result-card alert-card ${alert.level}`} key={`${alert.category}-${index}`}>
               <div className="server-card-row">
@@ -36,8 +27,8 @@ function AlertsPage({ alerts, loading }: Props) {
             </article>
           ))}
         </div>
-      </article>
-    </div>
+      </Panel>
+    </PageShell>
   );
 }
 

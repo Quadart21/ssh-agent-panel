@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import type { ConnectionTestResult, Group, Server, ServerAccountingSummary, ServerMetricSnapshot } from "../types";
+import { EmptyState, PageHero, PageShell, PageToolbar, Panel } from "./ui";
 import ServersAccountingPanel from "./ServersAccountingPanel";
 import ServerCard from "./servers/ServerCard";
 import ServerFormPanel from "./servers/ServerFormPanel";
@@ -61,11 +62,11 @@ const defaultFilters: FleetFilters = {
   agent: "all"
 };
 
-const tabs: { id: ServerViewTab; label: string; hint: string }[] = [
-  { id: "fleet", label: "Парк серверов", hint: "Список, фильтры и метрики" },
-  { id: "form", label: "Добавить узел", hint: "Один сервер с проверкой SSH" },
-  { id: "bulk", label: "Импорт", hint: "Пакетное добавление" },
-  { id: "accounting", label: "Бухгалтерия", hint: "Расходы и оплаты" }
+const tabs: { id: ServerViewTab; label: string }[] = [
+  { id: "fleet", label: "Список" },
+  { id: "form", label: "Добавить" },
+  { id: "bulk", label: "Импорт" },
+  { id: "accounting", label: "Оплаты" }
 ];
 
 function ServersPage({
@@ -112,6 +113,8 @@ function ServersPage({
 }: Props) {
   const [activeTab, setActiveTab] = useState<ServerViewTab>("fleet");
   const [filters, setFilters] = useState<FleetFilters>(defaultFilters);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement | null>(null);
 
   const fleetStats = useMemo(() => computeFleetStats(servers, metrics, accounting), [servers, metrics, accounting]);
   const filteredServers = useMemo(() => filterServers(servers, metrics, filters), [servers, metrics, filters]);
@@ -121,6 +124,18 @@ function ServersPage({
       setActiveTab("form");
     }
   }, [editingServerId]);
+
+  useEffect(() => {
+    function handleClick(event: MouseEvent) {
+      if (!moreRef.current?.contains(event.target as Node)) {
+        setMoreOpen(false);
+      }
+    }
+    if (moreOpen) {
+      document.addEventListener("mousedown", handleClick);
+    }
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [moreOpen]);
 
   function handleEdit(server: Server) {
     onEdit(server);
@@ -132,22 +147,22 @@ function ServersPage({
     setActiveTab("fleet");
   }
 
+  const tabHint =
+    activeTab === "fleet"
+      ? "Парк серверов, фильтры и метрики"
+      : activeTab === "form"
+        ? editingServerId
+          ? "Редактирование сервера"
+          : "Добавление одного сервера"
+        : activeTab === "bulk"
+          ? "Пакетное добавление"
+          : "Расходы и даты оплаты";
+
   return (
-    <div className="page-stack servers-page">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">Серверы</p>
-          <h1>Управление узлами и доступом</h1>
-          <p className="hero-copy">
-            Следите за состоянием парка, добавляйте узлы по одному или пачкой, проверяйте SSH и агент, ведите учёт
-            оплаты по каждому серверу.
-          </p>
-        </div>
-      </section>
+    <PageShell className="servers-page">
+      <PageHero eyebrow="Инфраструктура" title="Серверы" description={tabHint} />
 
-      <ServersOverviewStats stats={fleetStats} />
-
-      <nav className="page-tabs" aria-label="Разделы управления серверами">
+      <nav className="page-tabs page-tabs--compact" aria-label="Разделы управления серверами">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -156,59 +171,79 @@ function ServersPage({
             onClick={() => setActiveTab(tab.id)}
           >
             <span>{tab.label}</span>
-            <small>{tab.hint}</small>
           </button>
         ))}
       </nav>
 
       {activeTab === "fleet" ? (
-        <section className="panel servers-fleet-panel">
-          <div className="panel-head">
-            <div>
-              <h2>Парк серверов</h2>
-              <p className="muted">
-                Показано {filteredServers.length} из {servers.length}. Группу и стоимость можно менять прямо на
-                карточке. Метрики — кнопкой «Запросить все» или по серверу.
-              </p>
-            </div>
-            <div className="panel-actions">
-              <button type="button" className="ghost" disabled={filezillaExporting} onClick={onExportFilezilla}>
-                {filezillaExporting ? "Экспорт…" : "FileZilla XML"}
-              </button>
-              <button type="button" className="ghost" disabled={metricsRefreshingAll} onClick={onRefreshAllMetrics}>
-                {metricsRefreshingAll ? "Опрос…" : "Запросить все"}
-              </button>
-              {canEnrollAgent ? (
-                <button
-                  type="button"
-                  className="ghost"
-                  disabled={agentsReinstallingAll}
-                  onClick={onReinstallAllAgents}
-                >
-                  {agentsReinstallingAll ? "Обновление агентов…" : "Обновить всех агентов"}
-                </button>
-              ) : null}
-              {(canCreate || canEdit) && (
-                <>
-                  <button type="button" className="ghost" onClick={() => setActiveTab("form")}>
-                    + Добавить узел
-                  </button>
-                  {canCreate ? (
-                    <button type="button" className="ghost" onClick={() => setActiveTab("bulk")}>
-                      Импорт
-                    </button>
-                  ) : null}
-                </>
-              )}
-            </div>
-          </div>
+        <>
+          <ServersOverviewStats stats={fleetStats} />
 
-          <div className="servers-toolbar">
+          <PageToolbar
+            meta={`${filteredServers.length} из ${servers.length}`}
+            actions={
+              <>
+                <button type="button" className="ghost" disabled={metricsRefreshingAll} onClick={onRefreshAllMetrics}>
+                  {metricsRefreshingAll ? "Опрос…" : "Запросить метрики"}
+                </button>
+                {canCreate || canEdit ? (
+                  <button type="button" onClick={() => setActiveTab("form")}>
+                    Добавить
+                  </button>
+                ) : null}
+                <div className="servers-more-menu" ref={moreRef}>
+                  <button type="button" className="ghost" onClick={() => setMoreOpen((open) => !open)}>
+                    Ещё
+                  </button>
+                  {moreOpen ? (
+                    <div className="servers-more-dropdown">
+                      <button
+                        type="button"
+                        className="ghost btn-sm"
+                        disabled={filezillaExporting}
+                        onClick={() => {
+                          setMoreOpen(false);
+                          onExportFilezilla();
+                        }}
+                      >
+                        {filezillaExporting ? "Экспорт…" : "Экспорт FileZilla"}
+                      </button>
+                      {canEnrollAgent ? (
+                        <button
+                          type="button"
+                          className="ghost btn-sm"
+                          disabled={agentsReinstallingAll}
+                          onClick={() => {
+                            setMoreOpen(false);
+                            onReinstallAllAgents();
+                          }}
+                        >
+                          {agentsReinstallingAll ? "Обновление…" : "Обновить агентов"}
+                        </button>
+                      ) : null}
+                      {canCreate ? (
+                        <button
+                          type="button"
+                          className="ghost btn-sm"
+                          onClick={() => {
+                            setMoreOpen(false);
+                            setActiveTab("bulk");
+                          }}
+                        >
+                          Импорт
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            }
+          >
             <label className="toolbar-search">
-              <span className="sr-only">Поиск</span>
+              Поиск
               <input
                 type="search"
-                placeholder="Поиск по имени, IP, логину, группе…"
+                placeholder="Имя, IP, логин, группа…"
                 value={filters.query}
                 onChange={(event) => setFilters({ ...filters, query: event.target.value })}
               />
@@ -219,7 +254,7 @@ function ServersPage({
                 value={filters.groupId}
                 onChange={(event) => setFilters({ ...filters, groupId: event.target.value })}
               >
-                <option value="">Все группы</option>
+                <option value="">Все</option>
                 {groups.map((group) => (
                   <option key={group.id} value={group.id}>
                     {group.name}
@@ -246,62 +281,66 @@ function ServersPage({
               >
                 <option value="all">Любой</option>
                 <option value="online">Онлайн</option>
-                <option value="pending">Ожидает связи</option>
-                <option value="none">Не установлен</option>
+                <option value="pending">Ожидает</option>
+                <option value="none">Нет</option>
               </select>
             </label>
             {filters.query || filters.groupId || filters.status !== "all" || filters.agent !== "all" ? (
-              <button type="button" className="ghost" onClick={() => setFilters(defaultFilters)}>
+              <button type="button" className="ghost btn-sm" onClick={() => setFilters(defaultFilters)}>
                 Сбросить
               </button>
             ) : null}
-          </div>
+          </PageToolbar>
 
-          {filteredServers.length === 0 ? (
-            <div className="empty-state">
-              <strong>{servers.length === 0 ? "Серверов пока нет" : "Ничего не найдено"}</strong>
-              <p className="muted">
-                {servers.length === 0
-                  ? "Добавьте первый узел вручную или импортируйте список из CSV-подобного формата."
-                  : "Измените фильтры или очистите поиск, чтобы увидеть другие узлы."}
-              </p>
-              {canCreate && servers.length === 0 ? (
-                <div className="card-actions">
-                  <button type="button" onClick={() => setActiveTab("form")}>
-                    Добавить сервер
-                  </button>
-                  <button type="button" className="ghost" onClick={() => setActiveTab("bulk")}>
-                    Массовый импорт
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <div className="servers-grid">
-              {filteredServers.map((server) => (
-                <ServerCard
-                  key={server.id}
-                  server={server}
-                  groups={groups}
-                  metric={metrics.find((item) => item.server_id === server.id)}
-                  isEditing={editingServerId === server.id}
-                  canEdit={canEdit}
-                  canDelete={canDelete}
-                  canEnrollAgent={canEnrollAgent}
-                  quickSaving={quickSavingServerId === server.id}
-                  onEdit={handleEdit}
-                  onDelete={onDelete}
-                  onEnrollAgent={onEnrollAgent}
-                  onQuickUpdate={onQuickUpdateServer}
-                  onConvertToKey={onConvertToKey}
-                  convertingToKey={convertingToKeyServerId === server.id}
-                  onRefreshMetrics={onRefreshServerMetrics}
-                  metricsRefreshing={refreshingMetricServerId === server.id}
-                />
-              ))}
-            </div>
-          )}
-        </section>
+          <Panel title="Серверы">
+            {filteredServers.length === 0 ? (
+              <EmptyState
+                title={servers.length === 0 ? "Серверов пока нет" : "Ничего не найдено"}
+                description={
+                  servers.length === 0
+                    ? "Добавьте сервер вручную или импортируйте список."
+                    : "Измените фильтры или очистите поиск."
+                }
+                actions={
+                  canCreate && servers.length === 0 ? (
+                    <>
+                      <button type="button" onClick={() => setActiveTab("form")}>
+                        Добавить сервер
+                      </button>
+                      <button type="button" className="ghost" onClick={() => setActiveTab("bulk")}>
+                        Импорт
+                      </button>
+                    </>
+                  ) : null
+                }
+              />
+            ) : (
+              <div className="servers-grid">
+                {filteredServers.map((server) => (
+                  <ServerCard
+                    key={server.id}
+                    server={server}
+                    groups={groups}
+                    metric={metrics.find((item) => item.server_id === server.id)}
+                    isEditing={editingServerId === server.id}
+                    canEdit={canEdit}
+                    canDelete={canDelete}
+                    canEnrollAgent={canEnrollAgent}
+                    quickSaving={quickSavingServerId === server.id}
+                    onEdit={handleEdit}
+                    onDelete={onDelete}
+                    onEnrollAgent={onEnrollAgent}
+                    onQuickUpdate={onQuickUpdateServer}
+                    onConvertToKey={onConvertToKey}
+                    convertingToKey={convertingToKeyServerId === server.id}
+                    onRefreshMetrics={onRefreshServerMetrics}
+                    metricsRefreshing={refreshingMetricServerId === server.id}
+                  />
+                ))}
+              </div>
+            )}
+          </Panel>
+        </>
       ) : null}
 
       {activeTab === "form" ? (
@@ -338,7 +377,7 @@ function ServersPage({
       {activeTab === "accounting" ? (
         <ServersAccountingPanel summary={accounting} loading={accountingLoading} embedded />
       ) : null}
-    </div>
+    </PageShell>
   );
 }
 

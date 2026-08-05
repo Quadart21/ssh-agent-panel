@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../api";
 import type { ServerKeyBinding, ServerKeyBindingStatus, SshKeysOverview } from "../types";
+import { PageHero, PageShell, Panel } from "./ui";
 
 type Props = {
   canManage: boolean;
@@ -152,18 +153,10 @@ function SshKeysPage({ canManage, onError }: Props) {
   const stats = overview?.stats ?? {};
 
   return (
-    <div className="page-stack ssh-keys-page">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">SSH-ключи</p>
-          <h1>Общий ключ панели и привязка к серверам</h1>
-          <p className="hero-copy">
-            Сгенерируйте один Ed25519-ключ, пропишите его на серверах через SSH и отслеживайте, где он уже установлен.
-          </p>
-        </div>
-      </section>
+    <PageShell className="ssh-keys-page">
+      <PageHero eyebrow="SSH-ключи" title="SSH-ключи" description="Общий ключ панели и отслеживание установки на серверах." />
 
-      <section className="dashboard-kpi-grid">
+      <section className="dashboard-kpi-row">
         <article className="dashboard-kpi-card mint">
           <span>Привязан</span>
           <strong>{stats.panel_bound ?? 0}</strong>
@@ -187,11 +180,7 @@ function SshKeysPage({ canManage, onError }: Props) {
       </section>
 
       <section className="dashboard-grid">
-        <article className="panel ssh-keys-panel-key">
-          <div className="panel-head">
-            <h2>Ключ панели</h2>
-            <span className="muted">{panelKey?.configured ? "Настроен" : "Не создан"}</span>
-          </div>
+        <Panel className="ssh-keys-panel-key" title="Ключ панели" description={panelKey?.configured ? "Настроен" : "Не создан"}>
           {panelKey?.configured ? (
             <div className="ssh-keys-key-block">
               <p>
@@ -231,7 +220,7 @@ function SshKeysPage({ canManage, onError }: Props) {
               ) : null}
             </div>
           ) : null}
-        </article>
+        </Panel>
 
         <article className="panel">
           <h2>Массовая установка</h2>
@@ -314,7 +303,7 @@ function SshKeysPage({ canManage, onError }: Props) {
           {filteredServers.length === 0 ? <p className="muted">Нет серверов по выбранному фильтру.</p> : null}
         </div>
       </article>
-    </div>
+    </PageShell>
   );
 }
 

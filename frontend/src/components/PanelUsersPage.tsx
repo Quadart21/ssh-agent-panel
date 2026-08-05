@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { summarizeAccess } from "../navigation/panelPermissions";
 import type { PanelUserCreated, Server, User } from "../types";
 import PanelUserEditor, { type PanelUserEditorState } from "./PanelUserEditor";
+import { PageHero, PageShell } from "./ui";
 
 type Props = {
   users: User[];
@@ -48,21 +49,19 @@ function PanelUsersPage({
   onDeleteUser
 }: Props) {
   return (
-    <div className="page-stack panel-users-page">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">Доступ</p>
-          <h1>Пользователи панели</h1>
-          <p className="hero-copy">
-            Создавайте аккаунты с автогенерацией пароля и отправкой полных данных входа в Telegram.
-          </p>
-        </div>
-        {!editorOpen ? (
-          <button type="button" onClick={onStartCreate}>
-            + Новый пользователь
-          </button>
-        ) : null}
-      </section>
+    <PageShell className="panel-users-page">
+      <PageHero
+        eyebrow="Доступ"
+        title="Доступ"
+        description="Пользователи панели и права."
+        actions={
+          !editorOpen ? (
+            <button type="button" onClick={onStartCreate}>
+              + Новый пользователь
+            </button>
+          ) : null
+        }
+      />
 
       {createdResult ? (
         <section className="panel panel-user-created-banner">
@@ -171,7 +170,7 @@ function PanelUsersPage({
           ))}
         </div>
       </section>
-    </div>
+    </PageShell>
   );
 }
 

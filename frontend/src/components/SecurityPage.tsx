@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api";
 import type { SecurityReport, Server } from "../types";
+import { PageHero, PageShell, Panel } from "./ui";
 
 type Props = {
   servers: Server[];
@@ -82,21 +83,13 @@ function SecurityPage({ servers, onError }: Props) {
   }
 
   return (
-    <div className="page-stack">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">Безопасность</p>
-          <h1>SSH-журналы и fail2ban</h1>
-          <p className="hero-copy">
-            Проверяйте свежие входы и ошибки, смотрите блокировки fail2ban и выполняйте базовые защитные действия прямо из панели.
-          </p>
-        </div>
-      </section>
+    <PageShell>
+      <PageHero eyebrow="Безопасность" title="Безопасность" description="SSH-журналы, fail2ban и базовые защитные действия." />
 
       <section className="dashboard-grid">
-        <article className="panel">
-          <div className="panel-head">
-            <h2>Отчёт по серверу</h2>
+        <Panel
+          title="Отчёт по серверу"
+          actions={
             <select value={selectedServerId} onChange={(event) => setSelectedServerId(event.target.value)}>
               <option value="">Выберите сервер</option>
               {servers.map((server) => (
@@ -105,7 +98,8 @@ function SecurityPage({ servers, onError }: Props) {
                 </option>
               ))}
             </select>
-          </div>
+          }
+        >
           <p className="muted">{status}</p>
           <div className="action-row">
             <button type="button" className="ghost" onClick={() => void loadReport(selectedServerId)} disabled={!selectedServerId}>
@@ -136,11 +130,9 @@ function SecurityPage({ servers, onError }: Props) {
               </div>
             </div>
           ) : null}
-        </article>
+        </Panel>
 
-        <article className="panel">
-          <h2>Действия безопасности</h2>
-
+        <Panel title="Действия безопасности">
           <form className="compact-form" onSubmit={handleKickUser}>
             <label>
               Завершить сессии пользователя
@@ -197,9 +189,9 @@ function SecurityPage({ servers, onError }: Props) {
               <p className="muted">Jail-список пока пуст или fail2ban не активен.</p>
             )}
           </div>
-        </article>
+        </Panel>
       </section>
-    </div>
+    </PageShell>
   );
 }
 

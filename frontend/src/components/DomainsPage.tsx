@@ -1,6 +1,7 @@
 import type { FormEvent } from "react";
 
 import type { CloudflareDnsRecord, CloudflareDnsRecordForm, CloudflareSettings, CloudflareZone } from "../types";
+import { EmptyState, PageHero, PageShell, Panel } from "./ui";
 
 type SettingsForm = {
   api_token: string;
@@ -83,17 +84,8 @@ function DomainsPage({
   const apexCount = records.length - subdomainCount;
 
   return (
-    <div className="page-stack domains-page">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">Cloudflare</p>
-          <h1>Управление доменами и DNS</h1>
-          <p className="hero-copy">
-            Просматривайте зоны Cloudflare, все DNS-записи и поддомены, добавляйте A/CNAME/TXT-записи и управляйте
-            проксированием через Cloudflare API.
-          </p>
-        </div>
-      </section>
+    <PageShell className="domains-page">
+      <PageHero eyebrow="Cloudflare" title="Домены" description="Зоны, DNS-записи и поддомены через Cloudflare API." />
 
       <section className="stats-grid domains-overview-stats">
         <article className="stat-card ice">
@@ -116,16 +108,15 @@ function DomainsPage({
 
       <section className="dashboard-grid">
         {isAdmin ? (
-          <article className="panel">
-            <div className="panel-head">
-              <div>
-                <h2>Cloudflare API</h2>
-                <p className="muted">API token с правами Zone:Read и DNS:Edit. Account ID необязателен.</p>
-              </div>
+          <Panel
+            title="Cloudflare API"
+            description="API token с правами Zone:Read и DNS:Edit. Account ID необязателен."
+            actions={
               <span className={`status-pill ${settings?.configured ? "online" : "offline"}`}>
                 {settings?.configured ? "настроен" : "не настроен"}
               </span>
-            </div>
+            }
+          >
             <form className="form-grid" onSubmit={onSaveSettings}>
               <label className="full-width">
                 API Token
@@ -162,29 +153,27 @@ function DomainsPage({
               </div>
             </form>
             {statusMessage ? <p className="muted">{statusMessage}</p> : null}
-          </article>
+          </Panel>
         ) : (
-          <article className="panel">
-            <h2>Cloudflare API</h2>
+          <Panel title="Cloudflare API">
             <p className="muted">
               {settings?.configured
                 ? "Cloudflare подключён. Настройки API доступны только администратору."
                 : "Cloudflare ещё не настроен администратором."}
             </p>
             {statusMessage ? <p className="muted">{statusMessage}</p> : null}
-          </article>
+          </Panel>
         )}
 
-        <article className="panel">
-          <div className="panel-head">
-            <div>
-              <h2>Зона / домен</h2>
-              <p className="muted">Выберите домен, чтобы увидеть DNS-записи и поддомены.</p>
-            </div>
+        <Panel
+          title="Зона / домен"
+          description="Выберите домен, чтобы увидеть DNS-записи и поддомены."
+          actions={
             <button type="button" className="ghost" onClick={onRefreshZones} disabled={loadingZones || !settings?.configured}>
               {loadingZones ? "Обновляем…" : "Обновить зоны"}
             </button>
-          </div>
+          }
+        >
           {!settings?.configured ? (
             <p className="muted">Сначала настройте Cloudflare API token.</p>
           ) : zones.length === 0 ? (
@@ -217,24 +206,23 @@ function DomainsPage({
               ) : null}
             </>
           )}
-        </article>
+        </Panel>
       </section>
 
-      <section className="panel domains-records-panel">
-        <div className="panel-head">
-          <div>
-            <h2>DNS-записи {selectedZone ? `· ${selectedZone.name}` : ""}</h2>
-            <p className="muted">
-              {loadingRecords
-                ? "Загружаем записи…"
-                : `Показано ${records.length} записей${onlySubdomains ? " (только поддомены)" : ""}.`}
-            </p>
-          </div>
+      <Panel
+        className="domains-records-panel"
+        title={`DNS-записи${selectedZone ? ` · ${selectedZone.name}` : ""}`}
+        description={
+          loadingRecords
+            ? "Загружаем записи…"
+            : `Показано ${records.length} записей${onlySubdomains ? " (только поддомены)" : ""}.`
+        }
+        actions={
           <button type="button" className="ghost" onClick={onRefreshRecords} disabled={!selectedZoneId || loadingRecords}>
             Обновить записи
           </button>
-        </div>
-
+        }
+      >
         <div className="servers-toolbar domains-toolbar">
           <label className="toolbar-search">
             <span className="sr-only">Поиск</span>
@@ -269,15 +257,9 @@ function DomainsPage({
         </div>
 
         {!selectedZoneId ? (
-          <div className="empty-state">
-            <strong>Выберите домен</strong>
-            <p className="muted">После выбора зоны здесь появятся DNS-записи и поддомены.</p>
-          </div>
+          <EmptyState title="Выберите домен" description="После выбора зоны здесь появятся DNS-записи и поддомены." />
         ) : records.length === 0 && !loadingRecords ? (
-          <div className="empty-state">
-            <strong>Записей не найдено</strong>
-            <p className="muted">Измените фильтры или добавьте первую DNS-запись ниже.</p>
-          </div>
+          <EmptyState title="Записей не найдено" description="Измените фильтры или добавьте первую DNS-запись ниже." />
         ) : (
           <div className="accounting-table-wrap">
             <table className="accounting-table domains-table">
@@ -324,24 +306,25 @@ function DomainsPage({
             </table>
           </div>
         )}
-      </section>
+      </Panel>
 
       {canManage && selectedZone ? (
-        <section className="panel">
-          <div className="panel-head">
-            <div>
-              <h2>{editingRecordId ? "Редактировать DNS-запись" : "Добавить поддомен / запись"}</h2>
-              <p className="muted">
-                Для поддомена укажите только имя, например <code>api</code> или <code>panel</code>. Для apex используйте{" "}
-                <code>@</code>.
-              </p>
-            </div>
-            {editingRecordId ? (
+        <Panel
+          title={editingRecordId ? "Редактировать DNS-запись" : "Добавить поддомен / запись"}
+          description={
+            <>
+              Для поддомена укажите только имя, например <code>api</code> или <code>panel</code>. Для apex используйте{" "}
+              <code>@</code>.
+            </>
+          }
+          actions={
+            editingRecordId ? (
               <button type="button" className="ghost" onClick={onCancelEdit}>
                 Отменить
               </button>
-            ) : null}
-          </div>
+            ) : null
+          }
+        >
           <form className="form-grid" onSubmit={onSaveRecord}>
             <label>
               Тип
@@ -415,9 +398,9 @@ function DomainsPage({
               </button>
             </div>
           </form>
-        </section>
+        </Panel>
       ) : null}
-    </div>
+    </PageShell>
   );
 }
 

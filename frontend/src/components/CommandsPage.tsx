@@ -1,6 +1,7 @@
 import type { FormEvent } from "react";
 
 import type { BulkCommandResponse, Group, Pattern, Server } from "../types";
+import { PageHero, PageShell, Panel } from "./ui";
 
 type CommandForm = {
   server_ids: number[];
@@ -62,21 +63,11 @@ function CommandsPage({
     totalPlannedCommands > 0 ? Math.min(100, Math.round((progress.finishedCommands / totalPlannedCommands) * 100)) : 0;
 
   return (
-    <div className="page-stack">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">Команды</p>
-          <h1>Массовые операции по серверам</h1>
-          <p className="hero-copy">Выбирайте группу или отдельные серверы и выполняйте команды сразу на нескольких узлах.</p>
-        </div>
-      </section>
+    <PageShell>
+      <PageHero eyebrow="Команды" title="Команды" description="Выберите серверы или группу и выполните команды сразу на всех." />
 
       <section className="page-stack">
-        <article className="panel">
-          <div className="panel-head">
-            <h2>Запуск команд</h2>
-            <span className="muted">{running ? "Идёт выполнение" : `Целей выбрано: ${targetCount}`}</span>
-          </div>
+        <Panel title="Запуск команд" description={running ? "Идёт выполнение" : `Целей выбрано: ${targetCount}`}>
           <p className="muted">{statusMessage}</p>
           <form className="command-grid" onSubmit={onSubmit}>
             <label>
@@ -131,13 +122,9 @@ function CommandsPage({
               {running ? "Выполняем команды..." : "Выполнить команды"}
             </button>
           </form>
-        </article>
+        </Panel>
 
-        <article className="panel">
-          <div className="panel-head">
-            <h2>Живой ход выполнения</h2>
-            <span className="muted">{running ? "Поток активен" : "Ожидание запуска"}</span>
-          </div>
+        <Panel title="Живой ход выполнения" description={running ? "Поток активен" : "Ожидание запуска"}>
           <div className="automation-progress">
             <div className="automation-progress-head">
               <strong>{running ? `${progressPercent}% выполнено` : "Прогресс появится после запуска"}</strong>
@@ -185,14 +172,10 @@ function CommandsPage({
               </div>
             ))}
           </div>
-        </article>
+        </Panel>
 
         {results ? (
-          <article className="panel">
-            <div className="panel-head">
-              <h2>Результаты выполнения</h2>
-              <span className="muted">Успешно: {successfulCount} · Ошибок: {failedCount}</span>
-            </div>
+          <Panel title="Результаты выполнения" description={`Успешно: ${successfulCount} · Ошибок: ${failedCount}`}>
             <div className="result-stack">
               {results.results.map((result, index) => (
                 <article className="result-card" key={`${result.server_id}-${index}-${result.command}`}>
@@ -208,10 +191,10 @@ function CommandsPage({
                 </article>
               ))}
             </div>
-          </article>
+          </Panel>
         ) : null}
       </section>
-    </div>
+    </PageShell>
   );
 }
 

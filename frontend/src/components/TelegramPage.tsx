@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api";
 import type { NotificationSettings, TelegramWebhookInfo } from "../types";
+import { PageHero, PageShell } from "./ui";
 
 type Props = {
   onError: (message: string) => void;
@@ -180,34 +181,24 @@ function TelegramPage({ onError }: Props) {
 
   if (!form) {
     return (
-      <div className="page-stack">
-        <section className="page-hero">
-          <div>
-            <p className="eyebrow">Telegram</p>
-            <h1>Уведомления и планировщик</h1>
-            <p className="hero-copy">{loading ? "Загружаю настройки..." : "Настройки пока недоступны."}</p>
-          </div>
-        </section>
-      </div>
+      <PageShell>
+        <PageHero
+          eyebrow="Telegram"
+          title="Telegram"
+          description={loading ? "Загружаю настройки…" : "Настройки пока недоступны."}
+        />
+      </PageShell>
     );
   }
 
   return (
-    <div className="page-stack">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">Telegram</p>
-          <h1>Уведомления и планировщик</h1>
-          <p className="hero-copy">
-            Настройте Telegram, включите или выключите фоновые проверки и отметьте чекбоксами только нужные уведомления.
-          </p>
-        </div>
-      </section>
+    <PageShell>
+      <PageHero eyebrow="Telegram" title="Telegram" description="Бот, планировщик и типы уведомлений." />
 
       <section className="dashboard-grid">
         <article className="panel">
           <div className="panel-head">
-            <h2>Подключение Telegram</h2>
+            <h2>Подключение</h2>
             <span className="muted">{loading ? "Загрузка..." : "Готово"}</span>
           </div>
           <form className="form-grid" onSubmit={handleSave}>
@@ -413,7 +404,7 @@ function TelegramPage({ onError }: Props) {
           </div>
         </article>
       </section>
-    </div>
+    </PageShell>
   );
 }
 

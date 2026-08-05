@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
-import MetricRing from "./servers/MetricRing";
 import { isPaymentExpired, isPaymentExpiringSoon } from "./servers/helpers";
 import SshAccessPopover from "./dashboard/SshAccessPopover";
+import { EmptyState, PageHero, PageShell, PageToolbar, Panel } from "./ui";
 import type { Alert, DashboardStats, Group, Server, ServerMetricSnapshot } from "../types";
 import { formatMoney } from "../utils/formatMoney";
 
@@ -22,15 +22,25 @@ type Props = {
 };
 
 type SortKey = "name" | "status" | "cpu" | "payment";
+type StatusFilter = "all" | "online" | "offline" | "issues" | "expired" | "expiring";
 
-function authLabel(method: Server["auth_method"] | undefined, hasPassword?: boolean) {
-  if (method === "key") {
-    return "Ключ";
+type AttentionItem = {
+  key: string;
+  level: string;
+  title: string;
+  message: string;
+  serverId: number | null;
+  serverName: string | null;
+};
+
+function onlineLabel(state: boolean | null) {
+  if (state === true) {
+    return "online";
   }
-  if (method === "password" || hasPassword) {
-    return "Пароль";
+  if (state === false) {
+    return "offline";
   }
-  return "Нет доступа";
+  return "не опрошен";
 }
 
 function resolveServerOnline(server: Server, metric: ServerMetricSnapshot | undefined): boolean | null {
@@ -43,14 +53,11 @@ function resolveServerOnline(server: Server, metric: ServerMetricSnapshot | unde
   return null;
 }
 
-function onlineLabel(state: boolean | null) {
-  if (state === true) {
-    return "online";
+function metricText(value: number | undefined) {
+  if (value == null || Number.isNaN(value)) {
+    return "—";
   }
-  if (state === false) {
-    return "offline";
-  }
-  return "не опрошен";
+  return `${Math.round(value)}%`;
 }
 
 function DashboardPage({
@@ -67,17 +74,76 @@ function DashboardPage({
   onError
 }: Props) {
   const [groupFilter, setGroupFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline" | "issues">("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("status");
   const [search, setSearch] = useState("");
   const [metricsRefreshing, setMetricsRefreshing] = useState(false);
-  const [hoveredServerId, setHoveredServerId] = useState<number | null>(null);
-  const [pinnedServerId, setPinnedServerId] = useState<number | null>(null);
+  const [accessServerId, setAccessServerId] = useState<number | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
-  const hoverTimerRef = useRef<number | null>(null);
-  const leaveTimerRef = useRef<number | null>(null);
+  const accessButtonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
 
   const metricMap = useMemo(() => new Map(metrics.map((item) => [item.server_id, item])), [metrics]);
+
+  const attentionItems = useMemo(() => {
+    const items: AttentionItem[] = [];
+    const seenServers = new Set<number>();
+
+    for (const alert of alerts) {
+      items.push({
+        key: `alert-${alert.category}-${alert.server_id ?? alert.title}`,
+        level: alert.level || "warning",
+        title: alert.title,
+        message: alert.message,
+        serverId: alert.server_id,
+        serverName: alert.server_name
+      });
+      if (alert.server_id != null) {
+        seenServers.add(alert.server_id);
+      }
+    }
+
+    for (const server of servers) {
+      if (seenServers.has(server.id)) {
+        continue;
+      }
+      const metric = metricMap.get(server.id);
+      const online = resolveServerOnline(server, metric);
+      if (online === false) {
+        items.push({
+          key: `offline-${server.id}`,
+          level: "critical",
+          title: "Сервер офлайн",
+          message: `${server.ip}:${server.port}`,
+          serverId: server.id,
+          serverName: server.name
+        });
+        continue;
+      }
+      if (isPaymentExpired(server.pay_until)) {
+        items.push({
+          key: `expired-${server.id}`,
+          level: "critical",
+          title: "Оплата просрочена",
+          message: server.pay_until ? `до ${new Date(server.pay_until).toLocaleDateString("ru-RU")}` : "дата не указана",
+          serverId: server.id,
+          serverName: server.name
+        });
+        continue;
+      }
+      if (isPaymentExpiringSoon(server.pay_until)) {
+        items.push({
+          key: `expiring-${server.id}`,
+          level: "warning",
+          title: "Скоро оплата",
+          message: server.pay_until ? `до ${new Date(server.pay_until).toLocaleDateString("ru-RU")}` : "",
+          serverId: server.id,
+          serverName: server.name
+        });
+      }
+    }
+
+    return items.slice(0, 8);
+  }, [alerts, servers, metricMap]);
 
   const filteredServers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -87,14 +153,21 @@ function DashboardPage({
       }
       const metric = metricMap.get(server.id);
       const online = resolveServerOnline(server, metric);
-      const paymentIssue = isPaymentExpired(server.pay_until) || isPaymentExpiringSoon(server.pay_until);
+      const paymentExpired = isPaymentExpired(server.pay_until);
+      const paymentExpiring = isPaymentExpiringSoon(server.pay_until);
       if (statusFilter === "online" && online !== true) {
         return false;
       }
       if (statusFilter === "offline" && online !== false) {
         return false;
       }
-      if (statusFilter === "issues" && online === true && !paymentIssue && server.agent_online) {
+      if (statusFilter === "expired" && !paymentExpired) {
+        return false;
+      }
+      if (statusFilter === "expiring" && (paymentExpired || !paymentExpiring)) {
+        return false;
+      }
+      if (statusFilter === "issues" && online === true && !paymentExpired && !paymentExpiring && server.agent_online) {
         return false;
       }
       if (!query) {
@@ -128,39 +201,15 @@ function DashboardPage({
     return items;
   }, [servers, groupFilter, statusFilter, search, sortKey, metricMap]);
 
-  const activePopoverId = pinnedServerId ?? hoveredServerId;
-  const activeServer = servers.find((server) => server.id === activePopoverId) ?? null;
+  const activeServer = servers.find((server) => server.id === accessServerId) ?? null;
 
-  function openPopover(serverId: number, rect: DOMRect) {
-    if (!canViewAccess) {
-      return;
-    }
-    setHoveredServerId(serverId);
-    setAnchorRect(rect);
+  function openAccess(serverId: number, button: HTMLButtonElement) {
+    setAccessServerId(serverId);
+    setAnchorRect(button.getBoundingClientRect());
   }
 
-  function scheduleClosePopover() {
-    if (leaveTimerRef.current) {
-      window.clearTimeout(leaveTimerRef.current);
-    }
-    leaveTimerRef.current = window.setTimeout(() => {
-      if (!pinnedServerId) {
-        closePopover();
-      }
-    }, 180);
-  }
-
-  function keepPopoverOpen(serverId: number) {
-    if (leaveTimerRef.current) {
-      window.clearTimeout(leaveTimerRef.current);
-      leaveTimerRef.current = null;
-    }
-    setHoveredServerId(serverId);
-  }
-
-  function closePopover() {
-    setHoveredServerId(null);
-    setPinnedServerId(null);
+  function closeAccess() {
+    setAccessServerId(null);
     setAnchorRect(null);
   }
 
@@ -176,65 +225,141 @@ function DashboardPage({
     }
   }
 
+  function applyKpiFilter(next: StatusFilter) {
+    setStatusFilter((current) => (current === next ? "all" : next));
+  }
+
   return (
-    <div className="page-stack dashboard-v2">
-      <section className="page-hero dashboard-hero">
-        <div>
-          <p className="eyebrow">Дашборд</p>
-          <h1>Операционный центр парка серверов</h1>
-          <p className="hero-copy">
-            Сводка по доступности, нагрузке, оплате и SSH-доступу. Наведите на сервер, чтобы увидеть данные для
-            подключения, или закрепите карточку кликом.
-          </p>
-        </div>
-        <div className="dashboard-hero-actions">
-          <button type="button" className="button-link" disabled={metricsRefreshing} onClick={() => void handleRefreshMetrics()}>
-            {metricsRefreshing ? "Опрос серверов…" : "Обновить состояние"}
-          </button>
-          <Link to="/servers" className="button-link ghost-link">
-            Управление серверами
-          </Link>
-          <Link to="/terminal" className="button-link ghost-link">
-            Терминал
-          </Link>
-        </div>
-      </section>
+    <PageShell className="dashboard-page">
+      <PageHero
+        eyebrow="Обзор"
+        title="Дашборд"
+        description="Состояние парка: доступность, оплаты и быстрый доступ к серверам."
+        actions={
+          <>
+            <button type="button" disabled={metricsRefreshing} onClick={() => void handleRefreshMetrics()}>
+              {metricsRefreshing ? "Опрос…" : "Обновить"}
+            </button>
+            <Link to="/servers" className="button-link ghost-link">
+              Серверы
+            </Link>
+          </>
+        }
+      />
 
-      <section className="dashboard-kpi-grid">
-        <KpiCard label="Всего серверов" value={stats?.total_servers ?? 0} hint={`${stats?.groups_total ?? 0} групп`} tone="sky" />
-        <KpiCard label="Онлайн" value={stats?.online_servers ?? 0} hint={`${stats?.offline_servers ?? 0} офлайн`} tone="mint" />
-        <KpiCard label="Агенты" value={stats?.agent_online ?? 0} hint="heartbeat < 90с" tone="ice" />
-        <KpiCard
-          label="Средняя нагрузка"
-          value={`${stats?.avg_cpu ?? 0}%`}
-          hint={`RAM ${stats?.avg_ram ?? 0}% · Disk ${stats?.avg_disk ?? 0}%`}
-          tone="amber"
-          raw
-        />
-        <KpiCard
-          label="Расход / мес"
-          value={formatMoney(stats?.monthly_spend ?? 0, stats?.monthly_currency ?? "RUB")}
-          hint={`${stats?.password_auth_count ?? 0} пароль · ${stats?.key_auth_count ?? 0} ключ`}
-          tone="rose"
-          raw
-        />
-        <KpiCard
-          label="Оплата"
-          value={stats?.expiring_soon ?? 0}
-          hint={`${stats?.payment_expired ?? 0} просрочено · ${stats?.expiring_soon ?? 0} < 3д`}
-          tone="warning"
-        />
-      </section>
+      <div className="dashboard-kpi-rows">
+        <div className="dashboard-kpi-row">
+          <KpiCard label="Всего" value={stats?.total_servers ?? 0} hint={`${stats?.groups_total ?? 0} групп`} tone="sky" />
+          <KpiCard
+            label="Онлайн"
+            value={stats?.online_servers ?? 0}
+            hint="доступны по SSH"
+            tone="mint"
+            active={statusFilter === "online"}
+            onClick={() => applyKpiFilter("online")}
+          />
+          <KpiCard
+            label="Офлайн"
+            value={stats?.offline_servers ?? 0}
+            hint="нет ответа"
+            tone="danger"
+            active={statusFilter === "offline"}
+            onClick={() => applyKpiFilter("offline")}
+          />
+          <KpiCard label="Агенты" value={stats?.agent_online ?? 0} hint="heartbeat < 90с" tone="ice" />
+        </div>
+        <div className="dashboard-kpi-row dashboard-kpi-row--risk">
+          <KpiCard
+            label="Расход / мес"
+            value={formatMoney(stats?.monthly_spend ?? 0, stats?.monthly_currency ?? "RUB")}
+            hint={`${stats?.password_auth_count ?? 0} пароль · ${stats?.key_auth_count ?? 0} ключ`}
+            tone="rose"
+          />
+          <KpiCard
+            label="Просрочено"
+            value={stats?.payment_expired ?? 0}
+            hint="оплата истекла"
+            tone="danger"
+            active={statusFilter === "expired"}
+            onClick={() => applyKpiFilter("expired")}
+          />
+          <KpiCard
+            label="Скоро оплата"
+            value={stats?.expiring_soon ?? 0}
+            hint="менее 3 дней"
+            tone="warning"
+            active={statusFilter === "expiring"}
+            onClick={() => applyKpiFilter("expiring")}
+          />
+        </div>
+      </div>
 
-      <section className="dashboard-toolbar panel">
-        <label className="dashboard-search">
-          <span>Поиск</span>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Имя, IP, логин, группа..." />
+      <Panel
+        title="Требуют внимания"
+        description={attentionItems.length ? `${attentionItems.length} пунктов` : "Критичных проблем нет"}
+        actions={
+          <Link to="/alerts" className="muted">
+            Все уведомления
+          </Link>
+        }
+      >
+        {attentionItems.length === 0 ? (
+          <EmptyState title="Всё спокойно" description="Офлайн-серверов и срочных оплат нет." />
+        ) : (
+          <div className="dashboard-attention-list">
+            {attentionItems.map((item) => (
+              <article key={item.key} className={`dashboard-attention-item ${item.level}`}>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>
+                    {item.serverName ? `${item.serverName} · ` : ""}
+                    {item.message}
+                  </p>
+                </div>
+                <div className="dashboard-attention-meta">
+                  {item.serverName ? <span className="muted">{item.serverName}</span> : null}
+                  {item.serverId != null ? (
+                    <Link to="/servers" className="button-link ghost-link btn-sm">
+                      К серверам
+                    </Link>
+                  ) : (
+                    <Link to="/alerts" className="button-link ghost-link btn-sm">
+                      Открыть
+                    </Link>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </Panel>
+
+      <PageToolbar
+        meta={loading ? "Обновление…" : `${filteredServers.length} из ${servers.length}`}
+        actions={
+          statusFilter !== "all" || groupFilter !== "all" || search ? (
+            <button
+              type="button"
+              className="ghost btn-sm"
+              onClick={() => {
+                setStatusFilter("all");
+                setGroupFilter("all");
+                setSearch("");
+              }}
+            >
+              Сбросить
+            </button>
+          ) : null
+        }
+      >
+        <label className="toolbar-search">
+          Поиск
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Имя, IP, логин, группа…" />
         </label>
         <label>
-          <span>Группа</span>
+          Группа
           <select value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)}>
-            <option value="all">Все группы</option>
+            <option value="all">Все</option>
             {groups.map((group) => (
               <option key={group.id} value={String(group.id)}>
                 {group.name}
@@ -243,16 +368,18 @@ function DashboardPage({
           </select>
         </label>
         <label>
-          <span>Статус</span>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as Props["statusFilter"])}>
+          Статус
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}>
             <option value="all">Все</option>
             <option value="online">Онлайн</option>
             <option value="offline">Офлайн</option>
             <option value="issues">Требуют внимания</option>
+            <option value="expired">Просрочена оплата</option>
+            <option value="expiring">Скоро оплата</option>
           </select>
         </label>
         <label>
-          <span>Сортировка</span>
+          Сортировка
           <select value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)}>
             <option value="status">По статусу</option>
             <option value="name">По имени</option>
@@ -260,153 +387,126 @@ function DashboardPage({
             <option value="payment">По оплате</option>
           </select>
         </label>
-        <span className="muted dashboard-toolbar-meta">{loading ? "Обновление..." : `Показано ${filteredServers.length} из ${servers.length}`}</span>
-      </section>
+      </PageToolbar>
 
-      <section className="dashboard-main-grid">
-        <article className="panel dashboard-servers-panel">
-          <div className="panel-head">
-            <h2>Серверы</h2>
-            <span className="muted">{canViewAccess ? "Наведите для SSH-доступа" : "Нет прав на просмотр доступа"}</span>
+      <Panel title="Обзор парка" description="Компактный список серверов">
+        {filteredServers.length === 0 ? (
+          <EmptyState title="Ничего не найдено" description="Измените фильтры или сбросьте поиск." />
+        ) : (
+          <div className="dashboard-table-wrap">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Сервер</th>
+                  <th>Статус</th>
+                  <th>Нагрузка</th>
+                  <th>Группа</th>
+                  <th>Оплата</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {filteredServers.map((server) => {
+                  const metric = metricMap.get(server.id);
+                  const online = resolveServerOnline(server, metric);
+                  const paymentExpired = isPaymentExpired(server.pay_until);
+                  const paymentExpiring = isPaymentExpiringSoon(server.pay_until);
+                  const pillTone = online === true ? "online" : online === false ? "offline" : "pending";
+                  return (
+                    <tr key={server.id}>
+                      <td>
+                        <div className="dashboard-table-name">
+                          <strong>{server.name}</strong>
+                          <span>
+                            {server.ip}:{server.port}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`status-pill ${pillTone}`}>{onlineLabel(online)}</span>
+                      </td>
+                      <td>
+                        {metric?.metrics_available !== false && metric ? (
+                          <div className="dashboard-table-metrics">
+                            <span>
+                              CPU <b>{metricText(metric.cpu_percent)}</b>
+                            </span>
+                            <span>
+                              RAM <b>{metricText(metric.ram_percent)}</b>
+                            </span>
+                            <span>
+                              Disk <b>{metricText(metric.disk_percent)}</b>
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                      <td>{server.group_name ?? "—"}</td>
+                      <td>
+                        {paymentExpired ? (
+                          <span className="server-chip danger-chip">просрочено</span>
+                        ) : paymentExpiring ? (
+                          <span className="server-chip warning-chip">скоро</span>
+                        ) : server.pay_until ? (
+                          <span className="muted">{new Date(server.pay_until).toLocaleDateString("ru-RU")}</span>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                      <td>
+                        {canViewAccess ? (
+                          <button
+                            type="button"
+                            className="ghost btn-sm"
+                            ref={(node) => {
+                              if (node) {
+                                accessButtonRefs.current.set(server.id, node);
+                              } else {
+                                accessButtonRefs.current.delete(server.id);
+                              }
+                            }}
+                            onClick={(event) => openAccess(server.id, event.currentTarget)}
+                          >
+                            Доступ
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          {filteredServers.length === 0 ? <p className="muted">Серверы не найдены по текущим фильтрам.</p> : null}
-          <div className="dashboard-server-grid">
-            {filteredServers.map((server) => {
-              const metric = metricMap.get(server.id);
-              const paymentExpired = isPaymentExpired(server.pay_until);
-              const paymentExpiring = isPaymentExpiringSoon(server.pay_until);
-              const online = resolveServerOnline(server, metric);
-              const cardTone = online === true ? "online" : online === false ? "offline" : "unknown";
-              const pillTone = online === true ? "online" : online === false ? "offline" : "pending";
-              return (
-                <article
-                  key={server.id}
-                  className={`dashboard-server-card ${cardTone} ${activePopoverId === server.id ? "active" : ""}`}
-                  onMouseEnter={(event) => {
-                    if (pinnedServerId || !canViewAccess) {
-                      return;
-                    }
-                    if (hoverTimerRef.current) {
-                      window.clearTimeout(hoverTimerRef.current);
-                    }
-                    hoverTimerRef.current = window.setTimeout(() => {
-                      openPopover(server.id, event.currentTarget.getBoundingClientRect());
-                    }, 350);
-                  }}
-                  onMouseLeave={() => {
-                    if (hoverTimerRef.current) {
-                      window.clearTimeout(hoverTimerRef.current);
-                      hoverTimerRef.current = null;
-                    }
-                    if (!pinnedServerId) {
-                      scheduleClosePopover();
-                    }
-                  }}
-                  onClick={(event) => {
-                    if (!canViewAccess) {
-                      return;
-                    }
-                    event.stopPropagation();
-                    setPinnedServerId(server.id);
-                    setHoveredServerId(server.id);
-                    setAnchorRect(event.currentTarget.getBoundingClientRect());
-                  }}
-                >
-                  <div className="dashboard-server-card-head">
-                    <div>
-                      <strong>{server.name}</strong>
-                      <p>
-                        {server.ip}:{server.port} · {server.login}
-                      </p>
-                    </div>
-                    <span className={`status-pill ${pillTone}`}>{onlineLabel(online)}</span>
-                  </div>
+        )}
+      </Panel>
 
-                  <div className="dashboard-server-tags">
-                    <span className="server-chip">{server.group_name ?? "Без группы"}</span>
-                    <span className="server-chip muted-chip">{authLabel(server.auth_method, server.has_password)}</span>
-                    {server.agent_online ? <span className="server-chip online-chip">agent</span> : null}
-                    {paymentExpired ? <span className="server-chip danger-chip">оплата</span> : null}
-                    {!paymentExpired && paymentExpiring ? <span className="server-chip warning-chip">скоро оплата</span> : null}
-                  </div>
-
-                  {metric?.metrics_available !== false && metric ? (
-                    <div className="dashboard-server-metrics">
-                      <MetricRing label="CPU" value={metric.cpu_percent} tone="sky" compact />
-                      <MetricRing label="RAM" value={metric.ram_percent} tone="mint" compact />
-                      <MetricRing label="Disk" value={metric.disk_percent} tone="amber" compact />
-                    </div>
-                  ) : (
-                    <p className="muted dashboard-server-empty-metric">{metric?.uptime ?? "Метрики не собраны"}</p>
-                  )}
-
-                  <div className="dashboard-server-foot">
-                    <span className="muted">{metric?.uptime ?? "—"}</span>
-                    {server.monthly_equivalent != null ? (
-                      <span>{formatMoney(server.monthly_equivalent, server.currency)} / мес</span>
-                    ) : (
-                      <span className="muted">без стоимости</span>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </article>
-
-        <aside className="dashboard-side-stack">
-          <article className="panel">
-            <div className="panel-head">
-              <h2>Алерты</h2>
-              <Link to="/alerts" className="muted">
-                Все
-              </Link>
-            </div>
-            <div className="list-stack">
-              {alerts.slice(0, 6).map((alert, index) => (
-                <article className={`mini-card alert-card ${alert.level}`} key={`${alert.category}-${index}`}>
-                  <strong>{alert.title}</strong>
-                  <p>{alert.message}</p>
-                  {alert.server_name ? <span className="muted">{alert.server_name}</span> : null}
-                </article>
-              ))}
-              {alerts.length === 0 ? (
-                <article className="mini-card">
-                  <strong>Всё спокойно</strong>
-                  <p>Критичных алертов нет.</p>
-                </article>
-              ) : null}
-            </div>
-          </article>
-
-          <article className="panel">
-            <h2>Быстрые действия</h2>
-            <div className="dashboard-quick-links">
-              <Link to="/commands">Массовые команды</Link>
-              <Link to="/automation">Автоматизация</Link>
-              <Link to="/pm2">PM2</Link>
-              <Link to="/firewall">Firewall</Link>
-            </div>
-          </article>
-        </aside>
-      </section>
+      <Panel title="Быстрые действия">
+        <div className="dashboard-quick-links">
+          <Link to="/commands">Команды</Link>
+          <Link to="/automation">Автоматизация</Link>
+          <Link to="/terminal">Терминал</Link>
+          <Link to="/pm2">PM2</Link>
+          <Link to="/firewall">Firewall</Link>
+        </div>
+      </Panel>
 
       {activeServer && anchorRect && canViewAccess ? (
         <SshAccessPopover
           serverId={activeServer.id}
           serverName={activeServer.name}
           anchorRect={anchorRect}
-          pinned={pinnedServerId === activeServer.id}
+          pinned
           canConvert={canConvertKey}
-          onClose={closePopover}
-          onPin={() => setPinnedServerId(activeServer.id)}
-          onKeepOpen={() => keepPopoverOpen(activeServer.id)}
-          onScheduleClose={scheduleClosePopover}
+          onClose={closeAccess}
+          onPin={() => undefined}
+          onKeepOpen={() => undefined}
+          onScheduleClose={() => undefined}
           onConverted={() => void onReload()}
           onError={onError}
         />
       ) : null}
-    </div>
+    </PageShell>
   );
 }
 
@@ -415,21 +515,32 @@ function KpiCard({
   value,
   hint,
   tone,
-  raw = false
+  active = false,
+  onClick
 }: {
   label: string;
   value: number | string;
   hint: string;
-  tone: "sky" | "mint" | "amber" | "rose" | "ice" | "warning";
-  raw?: boolean;
+  tone: "sky" | "mint" | "amber" | "rose" | "ice" | "warning" | "danger";
+  active?: boolean;
+  onClick?: () => void;
 }) {
-  return (
-    <article className={`dashboard-kpi-card ${tone}`}>
+  const className = `dashboard-kpi-card ${tone}${active ? " is-active" : ""}${onClick ? " is-clickable" : ""}`;
+  const body = (
+    <>
       <span>{label}</span>
-      <strong>{raw ? value : value}</strong>
+      <strong>{value}</strong>
       <p className="muted">{hint}</p>
-    </article>
+    </>
   );
+  if (onClick) {
+    return (
+      <button type="button" className={className} onClick={onClick}>
+        {body}
+      </button>
+    );
+  }
+  return <article className={className}>{body}</article>;
 }
 
 export default DashboardPage;

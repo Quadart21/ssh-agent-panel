@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api";
 import type { UserSession } from "../types";
+import { PageHero, PageShell } from "./ui";
 
 type Props = {
   onError: (message: string) => void;
@@ -9,7 +10,7 @@ type Props = {
 
 function SessionsPage({ onError }: Props) {
   const [sessions, setSessions] = useState<UserSession[]>([]);
-  const [message, setMessage] = useState("Здесь можно управлять активными входами в панель.");
+  const [message, setMessage] = useState("Активные входы в панель.");
 
   async function loadSessions() {
     onError("");
@@ -47,14 +48,8 @@ function SessionsPage({ onError }: Props) {
   }
 
   return (
-    <div className="page-stack">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">Сессии</p>
-          <h1>Контроль входов в панель</h1>
-          <p className="hero-copy">{message}</p>
-        </div>
-      </section>
+    <PageShell>
+      <PageHero eyebrow="Сессии" title="Сессии" description={message} />
 
       <article className="panel">
         <div className="panel-head">
@@ -87,7 +82,7 @@ function SessionsPage({ onError }: Props) {
           ))}
         </div>
       </article>
-    </div>
+    </PageShell>
   );
 }
 

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api";
 import type { FirewallStatus, Server } from "../types";
+import { PageHero, PageShell, Panel } from "./ui";
 
 type RuleForm = {
   action: "allow" | "deny" | "delete";
@@ -91,21 +92,13 @@ function FirewallPage({ servers, onError }: Props) {
   }
 
   return (
-    <div className="page-stack">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">Firewall</p>
-          <h1>Управление UFW и портами</h1>
-          <p className="hero-copy">
-            Включайте и выключайте UFW, открывайте или закрывайте порты и просматривайте активные правила на сервере.
-          </p>
-        </div>
-      </section>
+    <PageShell>
+      <PageHero eyebrow="Firewall" title="Firewall" description="Управление UFW: включение, порты и активные правила." />
 
       <section className="dashboard-grid">
-        <article className="panel">
-          <div className="panel-head">
-            <h2>Состояние firewall</h2>
+        <Panel
+          title="Состояние firewall"
+          actions={
             <select value={selectedServerId} onChange={(event) => setSelectedServerId(event.target.value)}>
               <option value="">Выберите сервер</option>
               {servers.map((server) => (
@@ -114,7 +107,8 @@ function FirewallPage({ servers, onError }: Props) {
                 </option>
               ))}
             </select>
-          </div>
+          }
+        >
           <div className="server-card-row">
             <p className="muted">{status}</p>
             {firewall ? (
@@ -147,10 +141,9 @@ function FirewallPage({ servers, onError }: Props) {
               </article>
             ))}
           </div>
-        </article>
+        </Panel>
 
-        <article className="panel">
-          <h2>Применить правило</h2>
+        <Panel title="Применить правило">
           <form className="form-grid" onSubmit={handleApplyRule}>
             <label>
               Действие
@@ -201,9 +194,9 @@ function FirewallPage({ servers, onError }: Props) {
               <pre>{firewall.raw_output}</pre>
             </div>
           ) : null}
-        </article>
+        </Panel>
       </section>
-    </div>
+    </PageShell>
   );
 }
 

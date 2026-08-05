@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "../api";
 import type { AutomationPreset, BulkCommandResponse, Group, Server } from "../types";
+import { PageHero, PageShell, Panel } from "./ui";
 
 type FormState = {
   preset_key: string;
@@ -417,23 +418,11 @@ function AutomationPage({ servers, groups, token, onError }: Props) {
   }
 
   return (
-    <div className="page-stack">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">Автоматизация</p>
-          <h1>Сценарии автоматизации для серверов</h1>
-          <p className="hero-copy">
-            Запускайте типовые установщики и сервисные сценарии по выбранным серверам или сразу по группе.
-          </p>
-        </div>
-      </section>
+    <PageShell>
+      <PageHero eyebrow="Автоматизация" title="Автоматизация" description="Готовые сценарии установки и обслуживания для серверов или групп." />
 
       <section className="dashboard-grid">
-        <article className="panel">
-          <div className="panel-head">
-            <h2>Запуск сценария</h2>
-            <span className="muted">{loading ? "Загрузка..." : `Сценариев: ${presets.length}`}</span>
-          </div>
+        <Panel title="Запуск сценария" description={loading ? "Загрузка..." : `Сценариев: ${presets.length}`}>
           <form className="command-grid" onSubmit={handleRun}>
             <label>
               Сценарий
@@ -489,10 +478,9 @@ function AutomationPage({ servers, groups, token, onError }: Props) {
               {running ? "Сценарий выполняется..." : isDangerPreset ? "Запустить опасный сценарий" : "Запустить сценарий"}
             </button>
           </form>
-        </article>
+        </Panel>
 
-        <article className="panel">
-          <h2>Описание сценария</h2>
+        <Panel title="Описание сценария">
           {selectedPreset ? (
             <div className="automation-details">
               <div className="server-card-row">
@@ -508,14 +496,10 @@ function AutomationPage({ servers, groups, token, onError }: Props) {
           ) : (
             <p className="muted">Выберите сценарий, чтобы увидеть команды и описание.</p>
           )}
-        </article>
+        </Panel>
       </section>
 
-      <article className="panel">
-        <div className="panel-head">
-          <h2>Живой процесс выполнения</h2>
-          <span className="muted">{running ? "Идёт выполнение" : "Ожидание запуска"}</span>
-        </div>
+      <Panel title="Живой процесс выполнения" description={running ? "Идёт выполнение" : "Ожидание запуска"}>
         <div className="automation-progress">
           <div className="automation-progress-head">
             <strong>{running ? `${progressPercent}% выполнено` : "Прогресс появится после запуска"}</strong>
@@ -563,11 +547,10 @@ function AutomationPage({ servers, groups, token, onError }: Props) {
             </div>
           ))}
         </div>
-      </article>
+      </Panel>
 
       {results ? (
-        <article className="panel">
-          <h2>Результаты выполнения</h2>
+        <Panel title="Результаты выполнения">
           <div className="result-stack">
             {results.results.map((result, index) => (
               <article className="result-card" key={`${result.server_id}-${index}-${result.command}`}>
@@ -583,9 +566,9 @@ function AutomationPage({ servers, groups, token, onError }: Props) {
               </article>
             ))}
           </div>
-        </article>
+        </Panel>
       ) : null}
-    </div>
+    </PageShell>
   );
 }
 

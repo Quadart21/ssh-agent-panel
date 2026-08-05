@@ -5,6 +5,7 @@ import "xterm/css/xterm.css";
 
 import { api, getTerminalWsBaseUrl } from "../api";
 import type { Server } from "../types";
+import { PageHero, PageShell } from "./ui";
 
 const TERMINAL_WS_BASE = getTerminalWsBaseUrl();
 
@@ -155,10 +156,12 @@ function TerminalPanel({ servers, token }: Props) {
   }
 
   return (
-    <section className="panel span-two">
+    <PageShell>
+      <PageHero eyebrow="Операции" title="Терминал" description="Интерактивный SSH. Сначала выберите сервер и пользователя." />
+      <section className="panel">
       <div className="panel-head">
         <div>
-          <h2>SSH-терминал</h2>
+          <h2>Сеанс</h2>
           <p className="muted terminal-status">{status}</p>
         </div>
         <div className="terminal-toolbar">
@@ -192,6 +195,7 @@ function TerminalPanel({ servers, token }: Props) {
       </div>
       <div className="terminal-frame" ref={terminalRef} />
     </section>
+    </PageShell>
   );
 }
 

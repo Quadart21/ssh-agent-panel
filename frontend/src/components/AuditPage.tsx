@@ -1,4 +1,5 @@
 import type { AuditLog } from "../types";
+import { EmptyState, PageHero, PageShell, Panel } from "./ui";
 
 type Props = {
   logs: AuditLog[];
@@ -8,29 +9,20 @@ type Props = {
 
 function AuditPage({ logs, loading, onExport }: Props) {
   return (
-    <div className="page-stack">
-      <section className="page-hero">
-        <div>
-          <p className="eyebrow">Аудит</p>
-          <h1>Журнал действий пользователей</h1>
-          <p className="hero-copy">
-            Здесь видно, кто входил в систему, создавал серверы, запускал команды, открывал терминал и управлял PM2.
-          </p>
-        </div>
-      </section>
+    <PageShell>
+      <PageHero eyebrow="Аудит" title="Аудит" description="Журнал действий в панели." />
 
-      <article className="panel">
-        <div className="panel-head">
-          <h2>Последние события</h2>
-          <div className="panel-actions">
-            <span className="muted">{loading ? "Загрузка..." : `Записей: ${logs.length}`}</span>
-            <button type="button" className="ghost" onClick={onExport}>
-              Экспорт CSV
-            </button>
-          </div>
-        </div>
+      <Panel
+        title="Последние события"
+        description={loading ? "Загрузка…" : `Записей: ${logs.length}`}
+        actions={
+          <button type="button" className="ghost" onClick={onExport}>
+            Экспорт CSV
+          </button>
+        }
+      >
         <div className="result-stack">
-          {logs.length === 0 ? <p className="muted">Журнал пока пуст.</p> : null}
+          {logs.length === 0 ? <EmptyState title="Журнал пуст" description="Действий пока нет." /> : null}
           {logs.map((log) => (
             <article className="result-card" key={log.id}>
               <div className="server-card-row">
@@ -45,8 +37,8 @@ function AuditPage({ logs, loading, onExport }: Props) {
             </article>
           ))}
         </div>
-      </article>
-    </div>
+      </Panel>
+    </PageShell>
   );
 }
 

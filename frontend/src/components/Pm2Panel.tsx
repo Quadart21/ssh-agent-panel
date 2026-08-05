@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 
 import { api } from "../api";
 import type { LinuxUser, Pm2LogsResponse, Pm2Process, Server } from "../types";
+import { PageHero, PageShell } from "./ui";
 
 type Props = {
   servers: Server[];
@@ -170,10 +171,12 @@ function Pm2Panel({ servers, onError }: Props) {
   }
 
   return (
-    <section className="panel span-two">
+    <PageShell>
+      <PageHero eyebrow="Операции" title="PM2" description="Процессы Node: выберите сервер, затем управляйте приложениями." />
+      <section className="panel">
       <div className="panel-head">
         <div>
-          <h2>PM2</h2>
+          <h2>Сервер</h2>
           <p className="muted terminal-status">{status}</p>
         </div>
         <div className="terminal-toolbar">
@@ -318,6 +321,7 @@ function Pm2Panel({ servers, onError }: Props) {
         </article>
       ) : null}
     </section>
+    </PageShell>
   );
 }
 

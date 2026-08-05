@@ -35,9 +35,9 @@ function PasswordChangePage({ email, onSubmit, error }: Props) {
     <div className="login-shell">
       <div className="login-card">
         <p className="eyebrow">Безопасность</p>
-        <h1>Нужно изменить пароль</h1>
+        <h1>Смена пароля</h1>
         <p className="hero-copy">
-          Для пользователя <strong>{email}</strong> требуется смена стартового или сброшенного пароля перед продолжением работы.
+          Для <strong>{email}</strong> нужна смена стартового или сброшенного пароля.
         </p>
         {error ? <div className="banner error">{error}</div> : null}
         {localError ? <div className="banner error">{localError}</div> : null}

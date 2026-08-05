@@ -34,11 +34,11 @@ function ServerFormPanel({
     <article className="panel servers-form-panel">
       <div className="panel-head">
         <div>
-          <h2>{editingServerId ? "Редактирование узла" : "Новый сервер"}</h2>
+          <h2>{editingServerId ? "Редактирование" : "Новый сервер"}</h2>
           <p className="muted">
             {editingServerId
-              ? "Измените параметры подключения, группу и учёт оплаты. Пустой пароль оставит текущий."
-              : "Заполните SSH-доступ — агент установится на сервер автоматически после сохранения."}
+              ? "Подключение, группа и оплата. Пустой пароль оставит текущий."
+              : "SSH-доступ — после сохранения агент ставится автоматически."}
           </p>
         </div>
         <div className="panel-actions">

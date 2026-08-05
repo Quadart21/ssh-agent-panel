@@ -17,7 +17,7 @@ function AppSidebar({ permissionAwareSections, currentUser, onLogout }: Props) {
         <div className="brand-card">
           <p className="eyebrow">SSH Control</p>
           <strong>Panel</strong>
-          <span>Управление серверами по SSH</span>
+          <span>Серверы по SSH</span>
         </div>
 
         <nav className="sidebar-nav" aria-label="Разделы панели">

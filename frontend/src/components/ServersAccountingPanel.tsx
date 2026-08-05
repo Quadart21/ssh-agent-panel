@@ -11,8 +11,8 @@ function ServersAccountingPanel({ summary, loading, embedded = false }: Props) {
   if (loading && !summary) {
     return (
       <section className={`panel accounting-panel ${embedded ? "" : "span-two"}`}>
-        <h2>Бухгалтерия</h2>
-        <p className="muted">Загружаем сводку расходов…</p>
+        <h2>Оплаты</h2>
+        <p className="muted">Загружаем сводку…</p>
       </section>
     );
   }
@@ -20,8 +20,8 @@ function ServersAccountingPanel({ summary, loading, embedded = false }: Props) {
   if (!summary) {
     return (
       <section className={`panel accounting-panel ${embedded ? "" : "span-two"}`}>
-        <h2>Бухгалтерия</h2>
-        <p className="muted">Не удалось загрузить сводку расходов.</p>
+        <h2>Оплаты</h2>
+        <p className="muted">Не удалось загрузить сводку.</p>
       </section>
     );
   }
@@ -32,8 +32,8 @@ function ServersAccountingPanel({ summary, loading, embedded = false }: Props) {
     <section className={`panel accounting-panel ${embedded ? "" : "span-two"}`}>
       <div className="panel-head">
         <div>
-          <h2>Бухгалтерия</h2>
-          <p className="muted">Стоимость серверов, период оплаты и сводка расходов в месяц / год.</p>
+          <h2>Оплаты</h2>
+          <p className="muted">Расходы по серверам и даты оплаты.</p>
         </div>
       </div>
 

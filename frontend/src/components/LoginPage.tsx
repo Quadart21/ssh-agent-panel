@@ -27,10 +27,8 @@ function LoginPage({ onLogin, error }: Props) {
     <div className="login-shell">
       <div className="login-card">
         <p className="eyebrow">Авторизация</p>
-        <h1>Вход в панель управления</h1>
-        <p className="hero-copy">
-          Используйте учетную запись администратора, заданную в `backend/.env`, или данные существующего пользователя панели.
-        </p>
+        <h1>Вход</h1>
+        <p className="hero-copy">Email и пароль учётной записи панели.</p>
         {error ? <div className="banner error">{error}</div> : null}
         <form className="compact-form" onSubmit={handleSubmit}>
           <label>
