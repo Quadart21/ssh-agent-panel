@@ -95,7 +95,7 @@ function TwoFactorPage({ onError }: Props) {
 
   return (
     <PageShell>
-      <PageHero eyebrow="2FA" title="2FA" description={message} />
+      <PageHero eyebrow="Безопасность" title="2FA" description={message} />
 
       <section className="dashboard-grid">
         <article className="panel">

@@ -183,7 +183,7 @@ function TelegramPage({ onError }: Props) {
     return (
       <PageShell>
         <PageHero
-          eyebrow="Telegram"
+          eyebrow="Безопасность"
           title="Telegram"
           description={loading ? "Загружаю настройки…" : "Настройки пока недоступны."}
         />
@@ -193,7 +193,7 @@ function TelegramPage({ onError }: Props) {
 
   return (
     <PageShell>
-      <PageHero eyebrow="Telegram" title="Telegram" description="Бот, планировщик и типы уведомлений." />
+      <PageHero eyebrow="Безопасность" title="Telegram" description="Бот, планировщик и типы уведомлений." />
 
       <section className="dashboard-grid">
         <article className="panel">

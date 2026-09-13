@@ -25,46 +25,55 @@ function LoginPage({ onLogin, error }: Props) {
 
   return (
     <div className="login-shell">
-      <div className="login-card">
-        <p className="eyebrow">Авторизация</p>
-        <h1>Вход</h1>
-        <p className="hero-copy">Email и пароль учётной записи панели.</p>
-        {error ? <div className="banner error">{error}</div> : null}
-        <form className="compact-form" onSubmit={handleSubmit}>
-          <label>
-            Email
-            <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="admin@ssh.norenvpn.com" required />
-          </label>
-          <label>
-            Пароль
-            <input
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              type="password"
-              required
-            />
-          </label>
-          <label>
-            {useRecoveryCode ? "Recovery-код" : "Код 2FA"}
-            <input
-              value={useRecoveryCode ? recoveryCode : otpCode}
-              onChange={(event) => (useRecoveryCode ? setRecoveryCode(event.target.value) : setOtpCode(event.target.value))}
-              type="text"
-              placeholder={useRecoveryCode ? "Введите recovery-код" : "Введите 6-значный код, если 2FA включена"}
-            />
-          </label>
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              checked={useRecoveryCode}
-              onChange={(event) => setUseRecoveryCode(event.target.checked)}
-            />
-            Использовать recovery-код вместо TOTP
-          </label>
-          <button type="submit" disabled={loading}>
-            {loading ? "Входим..." : "Войти"}
-          </button>
-        </form>
+      <div className="login-stage">
+        <div className="login-brand">
+          <span className="brand-mark">SSH</span>
+          <div>
+            <strong>Control Panel</strong>
+            <span>Управление серверами по SSH</span>
+          </div>
+        </div>
+        <div className="login-card">
+          <p className="eyebrow">Авторизация</p>
+          <h1>Вход</h1>
+          <p className="hero-copy">Email и пароль учётной записи панели.</p>
+          {error ? <div className="banner error">{error}</div> : null}
+          <form className="compact-form" onSubmit={handleSubmit}>
+            <label>
+              Email
+              <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="admin@ssh.norenvpn.com" required />
+            </label>
+            <label>
+              Пароль
+              <input
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                type="password"
+                required
+              />
+            </label>
+            <label>
+              {useRecoveryCode ? "Recovery-код" : "Код 2FA"}
+              <input
+                value={useRecoveryCode ? recoveryCode : otpCode}
+                onChange={(event) => (useRecoveryCode ? setRecoveryCode(event.target.value) : setOtpCode(event.target.value))}
+                type="text"
+                placeholder={useRecoveryCode ? "Введите recovery-код" : "Введите 6-значный код, если 2FA включена"}
+              />
+            </label>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={useRecoveryCode}
+                onChange={(event) => setUseRecoveryCode(event.target.checked)}
+              />
+              Использовать recovery-код вместо TOTP
+            </label>
+            <button type="submit" disabled={loading}>
+              {loading ? "Входим..." : "Войти"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

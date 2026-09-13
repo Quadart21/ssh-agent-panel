@@ -419,7 +419,7 @@ function AutomationPage({ servers, groups, token, onError }: Props) {
 
   return (
     <PageShell>
-      <PageHero eyebrow="Автоматизация" title="Автоматизация" description="Готовые сценарии установки и обслуживания для серверов или групп." />
+      <PageHero eyebrow="Операции" title="Автоматизация" description="Сценарии установки и обслуживания." />
 
       <section className="dashboard-grid">
         <Panel title="Запуск сценария" description={loading ? "Загрузка..." : `Сценариев: ${presets.length}`}>

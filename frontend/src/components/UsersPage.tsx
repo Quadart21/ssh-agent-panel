@@ -138,7 +138,7 @@ function UsersPage({ servers, groups, onError }: Props) {
 
   return (
     <PageShell>
-      <PageHero eyebrow="Пользователи" title="Пользователи" description="Создание и удаление системных пользователей на серверах." />
+      <PageHero eyebrow="Инфраструктура" title="Пользователи" description="Системные Linux-пользователи на серверах." />
 
       <section className="dashboard-grid">
         <Panel

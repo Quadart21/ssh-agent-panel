@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { sectionGroups } from "../navigation";
 import type { SectionItem } from "../navigation";
 import type { User } from "../types";
+import NavIcon from "./NavIcon";
 
 type Props = {
   permissionAwareSections: SectionItem[];
@@ -10,14 +11,24 @@ type Props = {
   onLogout: () => void;
 };
 
+function userInitial(fullName: string): string {
+  const trimmed = fullName.trim();
+  if (!trimmed) {
+    return "?";
+  }
+  return trimmed.charAt(0).toUpperCase();
+}
+
 function AppSidebar({ permissionAwareSections, currentUser, onLogout }: Props) {
   return (
     <aside className="sidebar sidebar--desktop" id="app-sidebar">
       <div className="sidebar-inner">
         <div className="brand-card">
-          <p className="eyebrow">SSH Control</p>
-          <strong>Panel</strong>
-          <span>Серверы по SSH</span>
+          <div className="brand-mark" aria-hidden>SSH</div>
+          <div className="brand-text">
+            <strong>Control</strong>
+            <span>панель серверов</span>
+          </div>
         </div>
 
         <nav className="sidebar-nav" aria-label="Разделы панели">
@@ -37,8 +48,13 @@ function AppSidebar({ permissionAwareSections, currentUser, onLogout }: Props) {
                       className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}
                       end={section.path === "/dashboard"}
                     >
-                      <span className="nav-link-label">{section.label}</span>
-                      <span className="nav-link-desc">{section.description}</span>
+                      <span className="nav-link-icon">
+                        <NavIcon path={section.path} />
+                      </span>
+                      <span className="nav-link-copy">
+                        <span className="nav-link-label">{section.label}</span>
+                        <span className="nav-link-desc">{section.description}</span>
+                      </span>
                     </NavLink>
                   ))}
                 </div>
@@ -50,8 +66,13 @@ function AppSidebar({ permissionAwareSections, currentUser, onLogout }: Props) {
         <div className="sidebar-footer">
           {currentUser ? (
             <div className="user-chip">
-              <span className="user-chip-name">{currentUser.full_name}</span>
-              <span className="user-chip-role">{currentUser.role}</span>
+              <span className="user-chip-avatar" aria-hidden>
+                {userInitial(currentUser.full_name)}
+              </span>
+              <div className="user-chip-meta">
+                <span className="user-chip-name">{currentUser.full_name}</span>
+                <span className="user-chip-role">{currentUser.role}</span>
+              </div>
             </div>
           ) : null}
           <button type="button" className="ghost sidebar-logout" onClick={() => void onLogout()}>

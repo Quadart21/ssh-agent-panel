@@ -43,7 +43,7 @@ function SystemPage({ onError }: Props) {
 
   return (
     <PageShell>
-      <PageHero eyebrow="Система" title="Система" description={message} />
+      <PageHero eyebrow="Администрирование" title="Система" description={message} />
 
       <section className="dashboard-grid">
         <Panel title="Экспорт" description="Серверы, группы, шаблоны, пользователи и 2FA.">

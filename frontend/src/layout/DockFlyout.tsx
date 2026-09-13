@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 
 import type { SectionItem } from "../navigation";
+import NavIcon from "./NavIcon";
 
 type Props = {
   groupLabel: string;
@@ -24,8 +25,13 @@ function DockFlyout({ groupLabel, sections, onClose }: Props) {
               onClick={onClose}
               role="menuitem"
             >
-              <strong>{section.label}</strong>
-              <span>{section.description}</span>
+              <span className="nav-link-icon">
+                <NavIcon path={section.path} />
+              </span>
+              <span className="nav-link-copy">
+                <strong>{section.label}</strong>
+                <span>{section.description}</span>
+              </span>
             </NavLink>
           ))}
         </div>

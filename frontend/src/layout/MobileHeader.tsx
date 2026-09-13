@@ -14,7 +14,7 @@ function MobileHeader({ topBarTitle, currentUser, onLogout, sections }: Props) {
     <div className="mobile-header">
       <header className="top-bar top-bar--mobile">
         <div className="top-bar-brand">
-          <span className="top-bar-brand-mark" aria-hidden>
+          <span className="top-bar-brand-mark brand-mark" aria-hidden>
             SSH
           </span>
           <span className="top-bar-title">{topBarTitle}</span>

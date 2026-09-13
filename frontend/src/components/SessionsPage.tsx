@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api";
 import type { UserSession } from "../types";
-import { PageHero, PageShell } from "./ui";
+import { EmptyState, PageHero, PageShell, Panel } from "./ui";
 
 type Props = {
   onError: (message: string) => void;
@@ -49,17 +49,19 @@ function SessionsPage({ onError }: Props) {
 
   return (
     <PageShell>
-      <PageHero eyebrow="Сессии" title="Сессии" description={message} />
+      <PageHero eyebrow="Безопасность" title="Сессии" description={message} />
 
-      <article className="panel">
-        <div className="panel-head">
-          <h2>Текущие сессии</h2>
+      <Panel
+        as="article"
+        title="Текущие сессии"
+        actions={
           <button type="button" className="ghost" onClick={() => void handleLogoutAll()}>
             Завершить все прочие
           </button>
-        </div>
+        }
+      >
         <div className="result-stack">
-          {sessions.length === 0 ? <p className="muted">Активных сессий не найдено.</p> : null}
+          {sessions.length === 0 ? <EmptyState title="Нет сессий" description="Активных сессий не найдено." /> : null}
           {sessions.map((session) => (
             <article className="result-card" key={session.id}>
               <div className="server-card-row">
@@ -81,7 +83,7 @@ function SessionsPage({ onError }: Props) {
             </article>
           ))}
         </div>
-      </article>
+      </Panel>
     </PageShell>
   );
 }

@@ -154,7 +154,7 @@ function SshKeysPage({ canManage, onError }: Props) {
 
   return (
     <PageShell className="ssh-keys-page">
-      <PageHero eyebrow="SSH-ключи" title="SSH-ключи" description="Общий ключ панели и отслеживание установки на серверах." />
+      <PageHero eyebrow="Безопасность" title="SSH-ключи" description="Ключ панели и статус установки на серверах." />
 
       <section className="dashboard-kpi-row">
         <article className="dashboard-kpi-card mint">

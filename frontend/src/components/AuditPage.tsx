@@ -10,7 +10,7 @@ type Props = {
 function AuditPage({ logs, loading, onExport }: Props) {
   return (
     <PageShell>
-      <PageHero eyebrow="Аудит" title="Аудит" description="Журнал действий в панели." />
+      <PageHero eyebrow="Администрирование" title="Аудит" description="Журнал действий в панели." />
 
       <Panel
         title="Последние события"

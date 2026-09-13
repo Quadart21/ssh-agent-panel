@@ -37,7 +37,7 @@ function GroupsPage({
 }: Props) {
   return (
     <PageShell>
-      <PageHero eyebrow="Группы" title="Группы" description="Разделяйте серверы по проектам или ролям для удобных массовых операций." />
+      <PageHero eyebrow="Инфраструктура" title="Группы" description="Группировка серверов для массовых операций." />
 
       <section className="dashboard-grid">
         <Panel

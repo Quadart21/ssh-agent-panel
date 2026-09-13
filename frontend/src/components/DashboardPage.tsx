@@ -234,7 +234,7 @@ function DashboardPage({
       <PageHero
         eyebrow="Обзор"
         title="Дашборд"
-        description="Состояние парка: доступность, оплаты и быстрый доступ к серверам."
+        description="Сводка по парку: доступность, оплаты и быстрый доступ к серверам."
         actions={
           <>
             <button type="button" disabled={metricsRefreshing} onClick={() => void handleRefreshMetrics()}>
@@ -247,92 +247,120 @@ function DashboardPage({
         }
       />
 
-      <div className="dashboard-kpi-rows">
-        <div className="dashboard-kpi-row">
-          <KpiCard label="Всего" value={stats?.total_servers ?? 0} hint={`${stats?.groups_total ?? 0} групп`} tone="sky" />
-          <KpiCard
-            label="Онлайн"
-            value={stats?.online_servers ?? 0}
-            hint="доступны по SSH"
-            tone="mint"
-            active={statusFilter === "online"}
-            onClick={() => applyKpiFilter("online")}
-          />
-          <KpiCard
-            label="Офлайн"
-            value={stats?.offline_servers ?? 0}
-            hint="нет ответа"
-            tone="danger"
-            active={statusFilter === "offline"}
-            onClick={() => applyKpiFilter("offline")}
-          />
-          <KpiCard label="Агенты" value={stats?.agent_online ?? 0} hint="heartbeat < 90с" tone="ice" />
-        </div>
-        <div className="dashboard-kpi-row dashboard-kpi-row--risk">
-          <KpiCard
-            label="Расход / мес"
-            value={formatMoney(stats?.monthly_spend ?? 0, stats?.monthly_currency ?? "RUB")}
-            hint={`${stats?.password_auth_count ?? 0} пароль · ${stats?.key_auth_count ?? 0} ключ`}
-            tone="rose"
-          />
-          <KpiCard
-            label="Просрочено"
-            value={stats?.payment_expired ?? 0}
-            hint="оплата истекла"
-            tone="danger"
-            active={statusFilter === "expired"}
-            onClick={() => applyKpiFilter("expired")}
-          />
-          <KpiCard
-            label="Скоро оплата"
-            value={stats?.expiring_soon ?? 0}
-            hint="менее 3 дней"
-            tone="warning"
-            active={statusFilter === "expiring"}
-            onClick={() => applyKpiFilter("expiring")}
-          />
-        </div>
-      </div>
-
-      <Panel
-        title="Требуют внимания"
-        description={attentionItems.length ? `${attentionItems.length} пунктов` : "Критичных проблем нет"}
-        actions={
-          <Link to="/alerts" className="muted">
-            Все уведомления
-          </Link>
-        }
-      >
-        {attentionItems.length === 0 ? (
-          <EmptyState title="Всё спокойно" description="Офлайн-серверов и срочных оплат нет." />
-        ) : (
-          <div className="dashboard-attention-list">
-            {attentionItems.map((item) => (
-              <article key={item.key} className={`dashboard-attention-item ${item.level}`}>
-                <div>
-                  <strong>{item.title}</strong>
-                  <p>
-                    {item.serverName ? `${item.serverName} · ` : ""}
-                    {item.message}
-                  </p>
-                </div>
-                <div className="dashboard-attention-meta">
-                  {item.serverName ? <span className="muted">{item.serverName}</span> : null}
-                  {item.serverId != null ? (
-                    <Link to="/servers" className="button-link ghost-link btn-sm">
-                      К серверам
-                    </Link>
-                  ) : (
-                    <Link to="/alerts" className="button-link ghost-link btn-sm">
-                      Открыть
-                    </Link>
-                  )}
-                </div>
-              </article>
-            ))}
+      <section className="dash-stats" aria-label="Сводка">
+        <div className="dashboard-kpi-rows">
+          <p className="dash-stats__label">Парк</p>
+          <div className="dashboard-kpi-row">
+            <KpiCard label="Всего" value={stats?.total_servers ?? 0} hint={`${stats?.groups_total ?? 0} групп`} tone="sky" />
+            <KpiCard
+              label="Онлайн"
+              value={stats?.online_servers ?? 0}
+              hint="доступны по SSH"
+              tone="mint"
+              active={statusFilter === "online"}
+              onClick={() => applyKpiFilter("online")}
+            />
+            <KpiCard
+              label="Офлайн"
+              value={stats?.offline_servers ?? 0}
+              hint="нет ответа"
+              tone="danger"
+              active={statusFilter === "offline"}
+              onClick={() => applyKpiFilter("offline")}
+            />
+            <KpiCard label="Агенты" value={stats?.agent_online ?? 0} hint="heartbeat < 90с" tone="ice" />
           </div>
-        )}
-      </Panel>
+          <p className="dash-stats__label">Риски</p>
+          <div className="dashboard-kpi-row dashboard-kpi-row--risk">
+            <KpiCard
+              label="Расход / мес"
+              value={formatMoney(stats?.monthly_spend ?? 0, stats?.monthly_currency ?? "RUB")}
+              hint={`${stats?.password_auth_count ?? 0} пароль · ${stats?.key_auth_count ?? 0} ключ`}
+              tone="rose"
+            />
+            <KpiCard
+              label="Просрочено"
+              value={stats?.payment_expired ?? 0}
+              hint="оплата истекла"
+              tone="danger"
+              active={statusFilter === "expired"}
+              onClick={() => applyKpiFilter("expired")}
+            />
+            <KpiCard
+              label="Скоро оплата"
+              value={stats?.expiring_soon ?? 0}
+              hint="менее 3 дней"
+              tone="warning"
+              active={statusFilter === "expiring"}
+              onClick={() => applyKpiFilter("expiring")}
+            />
+          </div>
+        </div>
+      </section>
+
+      <div className="dash-split">
+        <Panel
+          className="dash-split-main"
+          title="Требуют внимания"
+          description={attentionItems.length ? `${attentionItems.length} пунктов` : "Критичных проблем нет"}
+          actions={
+            <Link to="/alerts" className="muted">
+              Все уведомления
+            </Link>
+          }
+        >
+          {attentionItems.length === 0 ? (
+            <EmptyState title="Всё спокойно" description="Офлайн-серверов и срочных оплат нет." />
+          ) : (
+            <div className="dashboard-attention-list">
+              {attentionItems.map((item) => (
+                <article key={item.key} className={`dashboard-attention-item ${item.level}`}>
+                  <span className={`dash-attention-dot ${item.level}`} aria-hidden />
+                  <div>
+                    <strong>{item.title}</strong>
+                    <p>
+                      {item.serverName ? `${item.serverName} · ` : ""}
+                      {item.message}
+                    </p>
+                  </div>
+                  <div className="dashboard-attention-meta">
+                    {item.serverName ? <span className="muted">{item.serverName}</span> : null}
+                    {item.serverId != null ? (
+                      <Link to="/servers" className="button-link ghost-link btn-sm">
+                        К серверам
+                      </Link>
+                    ) : (
+                      <Link to="/alerts" className="button-link ghost-link btn-sm">
+                        Открыть
+                      </Link>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        <Panel title="Быстрые действия" className="dash-split-side">
+          <div className="dashboard-quick-links">
+            <Link to="/commands" className="dash-quick-link" data-section="commands">
+              Команды
+            </Link>
+            <Link to="/automation" className="dash-quick-link" data-section="automation">
+              Автоматизация
+            </Link>
+            <Link to="/terminal" className="dash-quick-link" data-section="terminal">
+              Терминал
+            </Link>
+            <Link to="/pm2" className="dash-quick-link" data-section="pm2">
+              PM2
+            </Link>
+            <Link to="/firewall" className="dash-quick-link" data-section="firewall">
+              Firewall
+            </Link>
+          </div>
+        </Panel>
+      </div>
 
       <PageToolbar
         meta={loading ? "Обновление…" : `${filteredServers.length} из ${servers.length}`}
@@ -389,7 +417,7 @@ function DashboardPage({
         </label>
       </PageToolbar>
 
-      <Panel title="Обзор парка" description="Компактный список серверов">
+      <Panel title="Обзор парка" description="Компактный список серверов" className="dash-fleet">
         {filteredServers.length === 0 ? (
           <EmptyState title="Ничего не найдено" description="Измените фильтры или сбросьте поиск." />
         ) : (
@@ -481,16 +509,6 @@ function DashboardPage({
         )}
       </Panel>
 
-      <Panel title="Быстрые действия">
-        <div className="dashboard-quick-links">
-          <Link to="/commands">Команды</Link>
-          <Link to="/automation">Автоматизация</Link>
-          <Link to="/terminal">Терминал</Link>
-          <Link to="/pm2">PM2</Link>
-          <Link to="/firewall">Firewall</Link>
-        </div>
-      </Panel>
-
       {activeServer && anchorRect && canViewAccess ? (
         <SshAccessPopover
           serverId={activeServer.id}
@@ -515,6 +533,7 @@ function KpiCard({
   value,
   hint,
   tone,
+  prefix,
   active = false,
   onClick
 }: {
@@ -522,12 +541,14 @@ function KpiCard({
   value: number | string;
   hint: string;
   tone: "sky" | "mint" | "amber" | "rose" | "ice" | "warning" | "danger";
+  prefix?: string;
   active?: boolean;
   onClick?: () => void;
 }) {
   const className = `dashboard-kpi-card ${tone}${active ? " is-active" : ""}${onClick ? " is-clickable" : ""}`;
   const body = (
     <>
+      {prefix ? <span className="dash-kpi-prefix">{prefix}</span> : null}
       <span>{label}</span>
       <strong>{value}</strong>
       <p className="muted">{hint}</p>

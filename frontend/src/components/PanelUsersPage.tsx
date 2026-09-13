@@ -51,9 +51,9 @@ function PanelUsersPage({
   return (
     <PageShell className="panel-users-page">
       <PageHero
-        eyebrow="Доступ"
+        eyebrow="Администрирование"
         title="Доступ"
-        description="Пользователи панели и права."
+        description="Пользователи панели и права доступа."
         actions={
           !editorOpen ? (
             <button type="button" onClick={onStartCreate}>

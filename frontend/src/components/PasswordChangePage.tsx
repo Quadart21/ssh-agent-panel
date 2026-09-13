@@ -33,32 +33,41 @@ function PasswordChangePage({ email, onSubmit, error }: Props) {
 
   return (
     <div className="login-shell">
-      <div className="login-card">
-        <p className="eyebrow">Безопасность</p>
-        <h1>Смена пароля</h1>
-        <p className="hero-copy">
-          Для <strong>{email}</strong> нужна смена стартового или сброшенного пароля.
-        </p>
-        {error ? <div className="banner error">{error}</div> : null}
-        {localError ? <div className="banner error">{localError}</div> : null}
-        <form className="compact-form" onSubmit={handleSubmit}>
-          <label>
-            Текущий пароль
-            <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required />
-          </label>
-          <label>
-            Новый пароль
-            <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required />
-          </label>
-          <label>
-            Подтверждение нового пароля
-            <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />
-          </label>
-          <p className="muted">Минимум 10 символов, строчные и заглавные буквы, цифра и спецсимвол.</p>
-          <button type="submit" disabled={loading}>
-            {loading ? "Сохраняем..." : "Изменить пароль"}
-          </button>
-        </form>
+      <div className="login-stage">
+        <div className="login-brand">
+          <span className="brand-mark">SSH</span>
+          <div>
+            <strong>Control Panel</strong>
+            <span>Управление серверами по SSH</span>
+          </div>
+        </div>
+        <div className="login-card">
+          <p className="eyebrow">Безопасность</p>
+          <h1>Смена пароля</h1>
+          <p className="hero-copy">
+            Для <strong>{email}</strong> нужна смена стартового или сброшенного пароля.
+          </p>
+          {error ? <div className="banner error">{error}</div> : null}
+          {localError ? <div className="banner error">{localError}</div> : null}
+          <form className="compact-form" onSubmit={handleSubmit}>
+            <label>
+              Текущий пароль
+              <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required />
+            </label>
+            <label>
+              Новый пароль
+              <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required />
+            </label>
+            <label>
+              Подтверждение нового пароля
+              <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />
+            </label>
+            <p className="muted">Минимум 10 символов, строчные и заглавные буквы, цифра и спецсимвол.</p>
+            <button type="submit" disabled={loading}>
+              {loading ? "Сохраняем..." : "Изменить пароль"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

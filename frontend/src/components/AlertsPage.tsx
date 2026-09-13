@@ -9,7 +9,7 @@ type Props = {
 function AlertsPage({ alerts, loading }: Props) {
   return (
     <PageShell>
-      <PageHero eyebrow="Уведомления" title="Уведомления" description="Офлайн-серверы и просроченные или скорые оплаты." />
+      <PageHero eyebrow="Обзор" title="Уведомления" description="Офлайн-серверы и просроченные или скорые оплаты." />
 
       <Panel title="Активные уведомления" description={loading ? "Загрузка..." : `Событий: ${alerts.length}`}>
         <div className="result-stack">

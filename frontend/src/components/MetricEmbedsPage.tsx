@@ -189,7 +189,7 @@ function MetricEmbedsPage({ servers, onError }: Props) {
 
   return (
     <PageShell className="metric-embeds-page">
-      <PageHero eyebrow="Виджеты" title="Виджеты" description="Публичные iframe-виджеты с CPU, RAM и Disk без передачи IP и учётных данных." />
+      <PageHero eyebrow="Инфраструктура" title="Виджеты" description="Публичные iframe-виджеты метрик без IP и учёток." />
 
       <section className="dashboard-grid metric-embeds-layout">
         <Panel

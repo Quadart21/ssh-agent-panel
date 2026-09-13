@@ -85,7 +85,7 @@ function DomainsPage({
 
   return (
     <PageShell className="domains-page">
-      <PageHero eyebrow="Cloudflare" title="Домены" description="Зоны, DNS-записи и поддомены через Cloudflare API." />
+      <PageHero eyebrow="Инфраструктура" title="Домены" description="Зоны и DNS через Cloudflare API." />
 
       <section className="stats-grid domains-overview-stats">
         <article className="stat-card ice">

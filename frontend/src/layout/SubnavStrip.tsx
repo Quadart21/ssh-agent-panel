@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 
 import type { SectionItem } from "../navigation";
+import NavIcon from "./NavIcon";
 
 type Props = {
   sections: SectionItem[];
@@ -21,7 +22,12 @@ function SubnavStrip({ sections, variant = "default" }: Props) {
           className={({ isActive }) => `subnav-item ${isActive ? "active" : ""}`}
           end={section.path === "/dashboard"}
         >
-          <strong>{section.label}</strong>
+          <span className="subnav-item-inner">
+            <span className="nav-link-icon" aria-hidden>
+              <NavIcon path={section.path} />
+            </span>
+            <strong>{section.label}</strong>
+          </span>
           {variant === "default" ? <span>{section.description}</span> : null}
         </NavLink>
       ))}

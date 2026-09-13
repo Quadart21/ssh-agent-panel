@@ -93,7 +93,7 @@ function FirewallPage({ servers, onError }: Props) {
 
   return (
     <PageShell>
-      <PageHero eyebrow="Firewall" title="Firewall" description="Управление UFW: включение, порты и активные правила." />
+      <PageHero eyebrow="Безопасность" title="Firewall" description="UFW: порты и активные правила." />
 
       <section className="dashboard-grid">
         <Panel

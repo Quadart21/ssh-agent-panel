@@ -84,7 +84,7 @@ function SecurityPage({ servers, onError }: Props) {
 
   return (
     <PageShell>
-      <PageHero eyebrow="Безопасность" title="Безопасность" description="SSH-журналы, fail2ban и базовые защитные действия." />
+      <PageHero eyebrow="Безопасность" title="Безопасность" description="SSH-журналы, fail2ban и защитные действия." />
 
       <section className="dashboard-grid">
         <Panel

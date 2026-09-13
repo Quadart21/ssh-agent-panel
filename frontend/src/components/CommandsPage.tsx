@@ -64,7 +64,7 @@ function CommandsPage({
 
   return (
     <PageShell>
-      <PageHero eyebrow="Команды" title="Команды" description="Выберите серверы или группу и выполните команды сразу на всех." />
+      <PageHero eyebrow="Операции" title="Команды" description="Массовый запуск команд по серверам или группе." />
 
       <section className="page-stack">
         <Panel title="Запуск команд" description={running ? "Идёт выполнение" : `Целей выбрано: ${targetCount}`}>

@@ -38,7 +38,7 @@ function PatternsPage({
 }: Props) {
   return (
     <PageShell>
-      <PageHero eyebrow="Шаблоны" title="Шаблоны" description="Переиспользуемые цепочки команд для ручного запуска и массовых операций." />
+      <PageHero eyebrow="Операции" title="Шаблоны" description="Готовые цепочки команд для повторного запуска." />
 
       <section className="dashboard-grid">
         <Panel
