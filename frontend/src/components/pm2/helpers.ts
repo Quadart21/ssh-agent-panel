@@ -1,7 +1,6 @@
 import type { Pm2Process } from "../../types";
 
-export const PM2_LOG_PAGES = 50;
-export const PM2_LOG_LINES_PER_PAGE = 50;
+export const PM2_LOG_LINES = 50;
 
 export function formatBytes(n: number) {
   if (!n) {

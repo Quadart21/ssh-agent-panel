@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import type { Pm2LogsResponse } from "../../types";
-import { PM2_LOG_PAGES, PM2_LOG_LINES_PER_PAGE } from "./helpers";
+import { PM2_LOG_LINES } from "./helpers";
 
 type Props = {
   logs: Pm2LogsResponse;
@@ -28,16 +28,14 @@ function Pm2LogViewer({ logs, loading, onRefresh, onClose }: Props) {
     }
   }
 
-  const pagesShown = Math.max(1, Math.ceil((logs.lines || 0) / (logs.lines_per_page || PM2_LOG_LINES_PER_PAGE)));
-
   return (
     <section className="pm2-logs panel">
       <div className="panel-head">
         <div>
           <h2>Логи · {logs.app_name}</h2>
           <p className="muted">
-            Последние {logs.pages || PM2_LOG_PAGES} стр. · {logs.lines} строк
-            {logs.truncated ? " · обрезано" : ""} · показано ≈ {pagesShown} стр.
+            Последние {logs.lines_per_page || PM2_LOG_LINES} строк · получено {logs.lines}
+            {logs.truncated ? " · обрезано" : ""}
           </p>
         </div>
         <div className="panel-actions">

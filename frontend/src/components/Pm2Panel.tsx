@@ -7,8 +7,7 @@ import Pm2LogViewer from "./pm2/Pm2LogViewer";
 import Pm2ProcessList from "./pm2/Pm2ProcessList";
 import Pm2StartForm from "./pm2/Pm2StartForm";
 import {
-  PM2_LOG_LINES_PER_PAGE,
-  PM2_LOG_PAGES,
+  PM2_LOG_LINES,
   computePm2Stats,
   filterPm2Apps
 } from "./pm2/helpers";
@@ -137,12 +136,11 @@ function Pm2Panel({ servers, onError }: Props) {
     setLoadingLogs(true);
     try {
       const data = await api.getPm2Logs(selectedServerId, appName, {
-        pages: PM2_LOG_PAGES,
-        linesPerPage: PM2_LOG_LINES_PER_PAGE,
+        lines: PM2_LOG_LINES,
         runAsUser: runAsUser || undefined
       });
       setLogs(data);
-      setStatus(`Логи: ${appName} · последние ${PM2_LOG_PAGES} стр.`);
+      setStatus(`Логи: ${appName} · последние ${PM2_LOG_LINES} строк`);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Не удалось получить логи PM2.");
     } finally {
@@ -185,7 +183,7 @@ function Pm2Panel({ servers, onError }: Props) {
       <PageHero
         eyebrow="Операции"
         title="PM2"
-        description="Процессы Node/Python: статус, метрики, логи (последние 50 страниц) и управление."
+        description="Процессы Node/Python: статус, метрики, логи (последние 50 строк) и управление."
         actions={
           selectedServerId ? (
             <>

@@ -187,14 +187,7 @@ def delete_pm2_app(
 def get_pm2_logs(
     server_id: int,
     app_name: str,
-    pages: int = Query(default=50, ge=1, le=200, description="Сколько последних страниц логов вернуть."),
-    lines_per_page: int = Query(default=50, ge=20, le=200, description="Строк на страницу."),
-    lines: int | None = Query(
-        default=None,
-        ge=1,
-        le=10000,
-        description="Явный лимит строк (если задан — перекрывает pages * lines_per_page).",
-    ),
+    lines: int = Query(default=50, ge=1, le=10000, description="Сколько последних строк логов вернуть."),
     run_as_user: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: object = Depends(get_current_user),
@@ -204,7 +197,7 @@ def get_pm2_logs(
     ensure_action_access(current_user, "pm2_use")
     ensure_server_access(current_user, server)
     name = _decode_app_name(app_name)
-    total_lines = lines if lines is not None else min(pages * lines_per_page, 10000)
+    total_lines = lines
     try:
         exit_code, output, error = run_command_on_server(
             server,
@@ -227,7 +220,7 @@ def get_pm2_logs(
         app_name=name,
         content=content,
         lines=len(raw_lines),
-        pages=pages if lines is None else max(1, (len(raw_lines) + lines_per_page - 1) // lines_per_page),
-        lines_per_page=lines_per_page,
+        pages=1,
+        lines_per_page=total_lines,
         truncated=truncated,
     )

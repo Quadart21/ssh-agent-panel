@@ -464,13 +464,11 @@ export const api = {
   getPm2Logs: (
     serverId: number,
     appName: string,
-    options?: { pages?: number; linesPerPage?: number; lines?: number; runAsUser?: string }
+    options?: { lines?: number; runAsUser?: string }
   ) =>
     request<Pm2LogsResponse>(
       appendQuery(`/pm2/${serverId}/apps/${encodeURIComponent(appName)}/logs`, {
         run_as_user: options?.runAsUser,
-        pages: options?.pages,
-        lines_per_page: options?.linesPerPage,
         lines: options?.lines
       })
     ),
