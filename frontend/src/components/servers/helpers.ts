@@ -62,6 +62,16 @@ function matchesAgent(server: Server, agent: AgentFilter): boolean {
   return !server.agent_enabled;
 }
 
+function matchesPayment(server: Server, payment: FleetFilters["payment"]): boolean {
+  if (payment === "all") {
+    return true;
+  }
+  if (payment === "expired") {
+    return isPaymentExpired(server.pay_until);
+  }
+  return isPaymentExpiringSoon(server.pay_until);
+}
+
 export function filterServers(
   servers: Server[],
   metrics: ServerMetricSnapshot[],
@@ -77,6 +87,9 @@ export function filterServers(
       return false;
     }
     if (!matchesAgent(server, filters.agent)) {
+      return false;
+    }
+    if (!matchesPayment(server, filters.payment)) {
       return false;
     }
     if (!query) {

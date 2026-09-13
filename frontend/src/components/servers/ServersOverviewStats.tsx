@@ -1,39 +1,66 @@
 import { formatMoney } from "../../utils/formatMoney";
-import type { FleetStats } from "./types";
+import type { FleetStatKey, FleetStats } from "./types";
 
 type Props = {
   stats: FleetStats;
+  activeKey?: FleetStatKey | null;
+  onSelect?: (key: FleetStatKey) => void;
 };
 
-function ServersOverviewStats({ stats }: Props) {
+const items: Array<{
+  key: FleetStatKey | "spend";
+  label: string;
+  tone: string;
+  getValue: (stats: FleetStats) => string | number;
+  filterable: boolean;
+}> = [
+  { key: "total", label: "Всего", tone: "neutral", getValue: (s) => s.total, filterable: true },
+  { key: "online", label: "SSH онлайн", tone: "mint", getValue: (s) => s.online, filterable: true },
+  { key: "offline", label: "Офлайн", tone: "rose", getValue: (s) => s.offline, filterable: true },
+  { key: "agentOnline", label: "Агент", tone: "sky", getValue: (s) => s.agentOnline, filterable: true },
+  { key: "expiringSoon", label: "Оплата < 3 дн.", tone: "amber", getValue: (s) => s.expiringSoon, filterable: true },
+  {
+    key: "spend",
+    label: "Расход / мес",
+    tone: "ice",
+    getValue: (s) => (s.monthlySpend != null ? formatMoney(s.monthlySpend, s.currency) : "—"),
+    filterable: false
+  }
+];
+
+function ServersOverviewStats({ stats, activeKey = null, onSelect }: Props) {
   return (
-    <section className="stats-grid servers-overview-stats">
-      <article className="stat-card ice">
-        <span>Всего узлов</span>
-        <strong>{stats.total}</strong>
-      </article>
-      <article className="stat-card mint">
-        <span>SSH онлайн</span>
-        <strong>{stats.online}</strong>
-      </article>
-      <article className="stat-card sky">
-        <span>Агент активен</span>
-        <strong>{stats.agentOnline}</strong>
-      </article>
-      <article className="stat-card rose">
-        <span>SSH офлайн</span>
-        <strong>{stats.offline}</strong>
-      </article>
-      <article className="stat-card amber">
-        <span>Оплата &lt; 3 дн.</span>
-        <strong>{stats.expiringSoon}</strong>
-      </article>
-      <article className="stat-card mint">
-        <span>Расход / мес.</span>
-        <strong>
-          {stats.monthlySpend != null ? formatMoney(stats.monthlySpend, stats.currency) : "—"}
-        </strong>
-      </article>
+    <section className="fleet-stats" aria-label="Сводка парка">
+      {items.map((item) => {
+        const isActive = item.filterable && activeKey === item.key;
+        const className = `fleet-stat ${item.tone}${isActive ? " is-active" : ""}${
+          item.filterable && onSelect ? " is-clickable" : ""
+        }`;
+        const body = (
+          <>
+            <span>{item.label}</span>
+            <strong>{item.getValue(stats)}</strong>
+          </>
+        );
+        if (item.filterable && onSelect) {
+          return (
+            <button
+              key={item.key}
+              type="button"
+              className={className}
+              aria-pressed={isActive}
+              onClick={() => onSelect(item.key as FleetStatKey)}
+            >
+              {body}
+            </button>
+          );
+        }
+        return (
+          <article key={item.key} className={className}>
+            {body}
+          </article>
+        );
+      })}
     </section>
   );
 }

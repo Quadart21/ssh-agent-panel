@@ -10,7 +10,7 @@ import ServersBulkPanel from "./servers/ServersBulkPanel";
 import type { ServerQuickPatch } from "./servers/ServerQuickFields";
 import { computeFleetStats, filterServers } from "./servers/helpers";
 import ServersOverviewStats from "./servers/ServersOverviewStats";
-import type { FleetFilters, ServerForm, ServerViewTab } from "./servers/types";
+import type { FleetFilters, FleetStatKey, ServerForm, ServerViewTab } from "./servers/types";
 
 type Props = {
   groups: Group[];
@@ -59,15 +59,41 @@ const defaultFilters: FleetFilters = {
   query: "",
   groupId: "",
   status: "all",
-  agent: "all"
+  agent: "all",
+  payment: "all"
 };
 
 const tabs: { id: ServerViewTab; label: string }[] = [
-  { id: "fleet", label: "Список" },
+  { id: "fleet", label: "Парк" },
   { id: "form", label: "Добавить" },
   { id: "bulk", label: "Импорт" },
   { id: "accounting", label: "Оплаты" }
 ];
+
+function activeStatKey(filters: FleetFilters): FleetStatKey | null {
+  if (filters.status === "online") {
+    return "online";
+  }
+  if (filters.status === "offline") {
+    return "offline";
+  }
+  if (filters.agent === "online") {
+    return "agentOnline";
+  }
+  if (filters.payment === "expiring") {
+    return "expiringSoon";
+  }
+  if (
+    filters.status === "all" &&
+    filters.agent === "all" &&
+    filters.payment === "all" &&
+    !filters.query &&
+    !filters.groupId
+  ) {
+    return "total";
+  }
+  return null;
+}
 
 function ServersPage({
   groups,
@@ -118,6 +144,12 @@ function ServersPage({
 
   const fleetStats = useMemo(() => computeFleetStats(servers, metrics, accounting), [servers, metrics, accounting]);
   const filteredServers = useMemo(() => filterServers(servers, metrics, filters), [servers, metrics, filters]);
+  const filtersDirty =
+    Boolean(filters.query) ||
+    Boolean(filters.groupId) ||
+    filters.status !== "all" ||
+    filters.agent !== "all" ||
+    filters.payment !== "all";
 
   useEffect(() => {
     if (editingServerId != null) {
@@ -147,20 +179,60 @@ function ServersPage({
     setActiveTab("fleet");
   }
 
+  function handleStatSelect(key: FleetStatKey) {
+    if (key === "total") {
+      setFilters(defaultFilters);
+      return;
+    }
+    if (key === "online") {
+      setFilters({ ...defaultFilters, status: filters.status === "online" ? "all" : "online" });
+      return;
+    }
+    if (key === "offline") {
+      setFilters({ ...defaultFilters, status: filters.status === "offline" ? "all" : "offline" });
+      return;
+    }
+    if (key === "agentOnline") {
+      setFilters({ ...defaultFilters, agent: filters.agent === "online" ? "all" : "online" });
+      return;
+    }
+    if (key === "expiringSoon") {
+      setFilters({ ...defaultFilters, payment: filters.payment === "expiring" ? "all" : "expiring" });
+    }
+  }
+
   const tabHint =
     activeTab === "fleet"
-      ? "Парк серверов, фильтры и метрики"
+      ? "Парк серверов: статус, метрики и оплаты в одном списке."
       : activeTab === "form"
         ? editingServerId
           ? "Редактирование сервера"
           : "Добавление одного сервера"
         : activeTab === "bulk"
-          ? "Пакетное добавление"
+          ? "Пакетное добавление и импорт FileZilla"
           : "Расходы и даты оплаты";
 
   return (
     <PageShell className="servers-page">
-      <PageHero eyebrow="Инфраструктура" title="Серверы" description={tabHint} />
+      <PageHero
+        eyebrow="Инфраструктура"
+        title="Серверы"
+        description={tabHint}
+        actions={
+          activeTab === "fleet" ? (
+            <>
+              <button type="button" className="ghost" disabled={metricsRefreshingAll} onClick={onRefreshAllMetrics}>
+                {metricsRefreshingAll ? "Опрос…" : "Обновить метрики"}
+              </button>
+              {canCreate || canEdit ? (
+                <button type="button" onClick={() => setActiveTab("form")}>
+                  Добавить
+                </button>
+              ) : null}
+            </>
+          ) : null
+        }
+      />
 
       <nav className="page-tabs page-tabs--compact" aria-label="Разделы управления серверами">
         {tabs.map((tab) => (
@@ -177,66 +249,60 @@ function ServersPage({
 
       {activeTab === "fleet" ? (
         <>
-          <ServersOverviewStats stats={fleetStats} />
+          <ServersOverviewStats
+            stats={fleetStats}
+            activeKey={activeStatKey(filters)}
+            onSelect={handleStatSelect}
+          />
 
           <PageToolbar
             meta={`${filteredServers.length} из ${servers.length}`}
             actions={
-              <>
-                <button type="button" className="ghost" disabled={metricsRefreshingAll} onClick={onRefreshAllMetrics}>
-                  {metricsRefreshingAll ? "Опрос…" : "Запросить метрики"}
+              <div className="servers-more-menu" ref={moreRef}>
+                <button type="button" className="ghost btn-sm" onClick={() => setMoreOpen((open) => !open)}>
+                  Ещё
                 </button>
-                {canCreate || canEdit ? (
-                  <button type="button" onClick={() => setActiveTab("form")}>
-                    Добавить
-                  </button>
-                ) : null}
-                <div className="servers-more-menu" ref={moreRef}>
-                  <button type="button" className="ghost" onClick={() => setMoreOpen((open) => !open)}>
-                    Ещё
-                  </button>
-                  {moreOpen ? (
-                    <div className="servers-more-dropdown">
+                {moreOpen ? (
+                  <div className="servers-more-dropdown">
+                    <button
+                      type="button"
+                      className="ghost btn-sm"
+                      disabled={filezillaExporting}
+                      onClick={() => {
+                        setMoreOpen(false);
+                        onExportFilezilla();
+                      }}
+                    >
+                      {filezillaExporting ? "Экспорт…" : "Экспорт FileZilla"}
+                    </button>
+                    {canEnrollAgent ? (
                       <button
                         type="button"
                         className="ghost btn-sm"
-                        disabled={filezillaExporting}
+                        disabled={agentsReinstallingAll}
                         onClick={() => {
                           setMoreOpen(false);
-                          onExportFilezilla();
+                          onReinstallAllAgents();
                         }}
                       >
-                        {filezillaExporting ? "Экспорт…" : "Экспорт FileZilla"}
+                        {agentsReinstallingAll ? "Обновление…" : "Обновить агентов"}
                       </button>
-                      {canEnrollAgent ? (
-                        <button
-                          type="button"
-                          className="ghost btn-sm"
-                          disabled={agentsReinstallingAll}
-                          onClick={() => {
-                            setMoreOpen(false);
-                            onReinstallAllAgents();
-                          }}
-                        >
-                          {agentsReinstallingAll ? "Обновление…" : "Обновить агентов"}
-                        </button>
-                      ) : null}
-                      {canCreate ? (
-                        <button
-                          type="button"
-                          className="ghost btn-sm"
-                          onClick={() => {
-                            setMoreOpen(false);
-                            setActiveTab("bulk");
-                          }}
-                        >
-                          Импорт
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              </>
+                    ) : null}
+                    {canCreate ? (
+                      <button
+                        type="button"
+                        className="ghost btn-sm"
+                        onClick={() => {
+                          setMoreOpen(false);
+                          setActiveTab("bulk");
+                        }}
+                      >
+                        Импорт
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             }
           >
             <label className="toolbar-search">
@@ -285,14 +351,27 @@ function ServersPage({
                 <option value="none">Нет</option>
               </select>
             </label>
-            {filters.query || filters.groupId || filters.status !== "all" || filters.agent !== "all" ? (
+            <label>
+              Оплата
+              <select
+                value={filters.payment}
+                onChange={(event) =>
+                  setFilters({ ...filters, payment: event.target.value as FleetFilters["payment"] })
+                }
+              >
+                <option value="all">Любая</option>
+                <option value="expiring">Скоро</option>
+                <option value="expired">Просрочено</option>
+              </select>
+            </label>
+            {filtersDirty ? (
               <button type="button" className="ghost btn-sm" onClick={() => setFilters(defaultFilters)}>
                 Сбросить
               </button>
             ) : null}
           </PageToolbar>
 
-          <Panel title="Серверы">
+          <Panel className="fleet-panel" title="Парк" description={`${filteredServers.length} серверов`}>
             {filteredServers.length === 0 ? (
               <EmptyState
                 title={servers.length === 0 ? "Серверов пока нет" : "Ничего не найдено"}
@@ -315,7 +394,7 @@ function ServersPage({
                 }
               />
             ) : (
-              <div className="servers-grid">
+              <div className="fleet-list">
                 {filteredServers.map((server) => (
                   <ServerCard
                     key={server.id}

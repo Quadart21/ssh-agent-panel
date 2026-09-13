@@ -22,12 +22,17 @@ export type StatusFilter = "all" | "online" | "offline";
 
 export type AgentFilter = "all" | "online" | "pending" | "none";
 
+export type PaymentFilter = "all" | "expiring" | "expired";
+
 export type FleetFilters = {
   query: string;
   groupId: string;
   status: StatusFilter;
   agent: AgentFilter;
+  payment: PaymentFilter;
 };
+
+export type FleetStatKey = "total" | "online" | "offline" | "agentOnline" | "expiringSoon";
 
 export type FleetStats = {
   total: number;
