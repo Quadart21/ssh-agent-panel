@@ -26,10 +26,19 @@ def _decode_app_name(app_name: str) -> str:
     return unquote(app_name)
 
 
+def _is_python_script(script: str) -> bool:
+    path = script.strip().split()[0]
+    return path.lower().endswith(".py")
+
+
 def _build_pm2_start_args(payload: Pm2AppStart) -> str:
     script = payload.script.strip()
     name = payload.name.strip()
     parts = ["start", shlex.quote(script)]
+    if payload.interpreter and payload.interpreter.strip():
+        parts.extend(["--interpreter", shlex.quote(payload.interpreter.strip())])
+    elif _is_python_script(script):
+        parts.extend(["--interpreter", "python3"])
     if payload.cwd and payload.cwd.strip():
         parts.extend(["--cwd", shlex.quote(payload.cwd.strip())])
     if payload.instances > 1:
@@ -178,7 +187,14 @@ def delete_pm2_app(
 def get_pm2_logs(
     server_id: int,
     app_name: str,
-    lines: int = Query(default=80, ge=1, le=500),
+    pages: int = Query(default=50, ge=1, le=200, description="Сколько последних страниц логов вернуть."),
+    lines_per_page: int = Query(default=50, ge=20, le=200, description="Строк на страницу."),
+    lines: int | None = Query(
+        default=None,
+        ge=1,
+        le=10000,
+        description="Явный лимит строк (если задан — перекрывает pages * lines_per_page).",
+    ),
     run_as_user: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: object = Depends(get_current_user),
@@ -188,10 +204,11 @@ def get_pm2_logs(
     ensure_action_access(current_user, "pm2_use")
     ensure_server_access(current_user, server)
     name = _decode_app_name(app_name)
+    total_lines = lines if lines is not None else min(pages * lines_per_page, 10000)
     try:
         exit_code, output, error = run_command_on_server(
             server,
-            wrap_pm2_command(server, f"logs {shlex.quote(name)} --nostream --lines {lines}", run_as_user),
+            wrap_pm2_command(server, f"logs {shlex.quote(name)} --nostream --raw --lines {total_lines}", run_as_user),
             timeout=90,
         )
     except Exception as exc:
@@ -199,5 +216,18 @@ def get_pm2_logs(
 
     if exit_code != 0:
         raise HTTPException(status_code=400, detail=error or output or "Не удалось получить логи PM2.")
-    content = (output or "").strip() or (error or "").strip()
-    return Pm2LogsResponse(app_name=name, content=content)
+
+    raw = (output or "").strip() or (error or "").strip()
+    raw_lines = raw.splitlines()
+    truncated = len(raw_lines) > total_lines
+    if truncated:
+        raw_lines = raw_lines[-total_lines:]
+    content = "\n".join(raw_lines)
+    return Pm2LogsResponse(
+        app_name=name,
+        content=content,
+        lines=len(raw_lines),
+        pages=pages if lines is None else max(1, (len(raw_lines) + lines_per_page - 1) // lines_per_page),
+        lines_per_page=lines_per_page,
+        truncated=truncated,
+    )

@@ -8,7 +8,16 @@ _PM2_JSON_END = "__PM2_JSON_END__"
 
 _PM2_RESOLVE = """
 export HOME="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f6)"
-export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$HOME/bin:/usr/local/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$HOME/bin:/usr/local/bin:/usr/bin:$PATH"
+PYTHON3_BIN=$(command -v python3 2>/dev/null)
+if [ -z "$PYTHON3_BIN" ]; then
+  for _py3 in /usr/bin/python3 /usr/local/bin/python3; do
+    if [ -x "$_py3" ]; then PYTHON3_BIN="$_py3"; break; fi
+  done
+fi
+if [ -n "$PYTHON3_BIN" ]; then
+  export PATH="$(dirname "$PYTHON3_BIN"):$PATH"
+fi
 export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" >/dev/null 2>&1
 [ -s "/usr/local/nvm/nvm.sh" ] && . "/usr/local/nvm/nvm.sh" >/dev/null 2>&1

@@ -254,6 +254,10 @@ export type Pm2Process = {
 export type Pm2LogsResponse = {
   app_name: string;
   content: string;
+  lines: number;
+  pages: number;
+  lines_per_page: number;
+  truncated: boolean;
 };
 
 export type User = {

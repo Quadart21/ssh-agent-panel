@@ -461,11 +461,17 @@ export const api = {
       appendQuery(`/pm2/${serverId}/apps/${encodeURIComponent(appName)}`, { run_as_user: runAsUser }),
       { method: "DELETE" }
     ),
-  getPm2Logs: (serverId: number, appName: string, lines?: number, runAsUser?: string) =>
+  getPm2Logs: (
+    serverId: number,
+    appName: string,
+    options?: { pages?: number; linesPerPage?: number; lines?: number; runAsUser?: string }
+  ) =>
     request<Pm2LogsResponse>(
       appendQuery(`/pm2/${serverId}/apps/${encodeURIComponent(appName)}/logs`, {
-        run_as_user: runAsUser,
-        lines: lines ?? undefined
+        run_as_user: options?.runAsUser,
+        pages: options?.pages,
+        lines_per_page: options?.linesPerPage,
+        lines: options?.lines
       })
     ),
   runCommands: (payload: Record<string, unknown>) =>

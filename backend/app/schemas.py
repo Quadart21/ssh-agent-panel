@@ -408,6 +408,11 @@ class Pm2AppStart(BaseModel):
     script: str = Field(min_length=1, max_length=2000)
     instances: int = Field(default=1, ge=1, le=64)
     cwd: str | None = Field(default=None, max_length=500)
+    interpreter: str | None = Field(
+        default=None,
+        max_length=500,
+        description="PM2 --interpreter (например python3 или /path/to/venv/bin/python).",
+    )
     script_args: str | None = Field(
         default=None,
         max_length=500,
@@ -419,6 +424,10 @@ class Pm2AppStart(BaseModel):
 class Pm2LogsResponse(BaseModel):
     app_name: str
     content: str
+    lines: int = 0
+    pages: int = 50
+    lines_per_page: int = 50
+    truncated: bool = False
 
 
 class TmuxActionResponse(BaseModel):
