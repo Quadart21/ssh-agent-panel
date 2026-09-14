@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "../api";
 import type { CloudflareDnsRecord, CloudflareDnsRecordForm, CloudflareSettings, CloudflareZone, User } from "../types";
@@ -19,6 +19,8 @@ const emptyRecordForm: CloudflareDnsRecordForm = {
   priority: ""
 };
 
+const ZONE_STORAGE_KEY = "domains.selectedZoneId";
+
 function hasAction(user: User | null, action: string) {
   if (!user) {
     return false;
@@ -26,22 +28,58 @@ function hasAction(user: User | null, action: string) {
   return user.role === "admin" || user.action_permissions.includes(action);
 }
 
+function filterRecords(
+  records: CloudflareDnsRecord[],
+  search: string,
+  recordType: string,
+  onlySubdomains: boolean
+) {
+  const needle = search.trim().toLowerCase();
+  return records.filter((record) => {
+    if (onlySubdomains && !record.is_subdomain) {
+      return false;
+    }
+    if (recordType && record.type !== recordType) {
+      return false;
+    }
+    if (!needle) {
+      return true;
+    }
+    return (
+      record.name.toLowerCase().includes(needle) ||
+      record.relative_name.toLowerCase().includes(needle) ||
+      record.content.toLowerCase().includes(needle) ||
+      (record.comment ?? "").toLowerCase().includes(needle) ||
+      record.type.toLowerCase().includes(needle)
+    );
+  });
+}
+
 function DomainsRoute({ currentUser, onError }: Props) {
   const [settings, setSettings] = useState<CloudflareSettings | null>(null);
   const [settingsForm, setSettingsForm] = useState({ api_token: "", account_id: "", default_ttl: "1" });
   const [zones, setZones] = useState<CloudflareZone[]>([]);
-  const [selectedZoneId, setSelectedZoneId] = useState("");
-  const [records, setRecords] = useState<CloudflareDnsRecord[]>([]);
+  const [selectedZoneId, setSelectedZoneId] = useState(() => {
+    try {
+      return localStorage.getItem(ZONE_STORAGE_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const [allRecords, setAllRecords] = useState<CloudflareDnsRecord[]>([]);
   const [search, setSearch] = useState("");
   const [recordType, setRecordType] = useState("");
   const [onlySubdomains, setOnlySubdomains] = useState(false);
   const [recordForm, setRecordForm] = useState(emptyRecordForm);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
-  const [loadingSettings, setLoadingSettings] = useState(true);
-  const [loadingZones, setLoadingZones] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showRecordForm, setShowRecordForm] = useState(false);
+  const [loadingBootstrap, setLoadingBootstrap] = useState(true);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [busy, setBusy] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const recordsCacheRef = useRef<Map<string, CloudflareDnsRecord[]>>(new Map());
+  const recordsRequestRef = useRef(0);
 
   const canManage = hasAction(currentUser, "domains_manage");
   const isAdmin = currentUser?.role === "admin";
@@ -51,79 +89,115 @@ function DomainsRoute({ currentUser, onError }: Props) {
     [zones, selectedZoneId]
   );
 
-  async function loadSettings() {
-    setLoadingSettings(true);
-    onError("");
-    try {
-      const data = await api.cloudflareSettings();
-      setSettings(data);
-      setSettingsForm({
-        api_token: data.api_token?.includes("…") ? "" : data.api_token ?? "",
-        account_id: data.account_id ?? "",
-        default_ttl: String(data.default_ttl ?? 1)
-      });
-      setStatusMessage(data.configured ? "Cloudflare подключён." : "Укажите API token Cloudflare.");
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Не удалось загрузить настройки Cloudflare.");
-    } finally {
-      setLoadingSettings(false);
-    }
+  const records = useMemo(
+    () => filterRecords(allRecords, search, recordType, onlySubdomains),
+    [allRecords, search, recordType, onlySubdomains]
+  );
+
+  function applySettings(data: CloudflareSettings) {
+    setSettings(data);
+    setSettingsForm({
+      api_token: data.api_token?.includes("…") ? "" : data.api_token ?? "",
+      account_id: data.account_id ?? "",
+      default_ttl: String(data.default_ttl ?? 1)
+    });
   }
 
-  async function loadZones() {
-    setLoadingZones(true);
+  function pickZone(nextZones: CloudflareZone[], preferredId = selectedZoneId) {
+    if (nextZones.length === 0) {
+      setSelectedZoneId("");
+      return;
+    }
+    if (preferredId && nextZones.some((zone) => zone.id === preferredId)) {
+      setSelectedZoneId(preferredId);
+      return;
+    }
+    setSelectedZoneId(nextZones[0].id);
+  }
+
+  async function loadBootstrap(refresh = false) {
+    setLoadingBootstrap(true);
     onError("");
     try {
-      const data = await api.listCloudflareZones();
-      setZones(data);
-      if (!selectedZoneId && data.length > 0) {
-        setSelectedZoneId(data[0].id);
+      const data = await api.cloudflareBootstrap(refresh);
+      applySettings(data.settings);
+      setZones(data.zones);
+      pickZone(data.zones);
+      setStatusMessage(
+        data.settings.configured
+          ? refresh
+            ? "Зоны обновлены."
+            : `Загружено зон: ${data.zones.length}.`
+          : "Укажите API token Cloudflare."
+      );
+      if (!data.settings.configured && isAdmin) {
+        setShowSettings(true);
       }
     } catch (err) {
       setZones([]);
-      onError(err instanceof Error ? err.message : "Не удалось загрузить зоны Cloudflare.");
+      onError(err instanceof Error ? err.message : "Не удалось загрузить домены.");
     } finally {
-      setLoadingZones(false);
+      setLoadingBootstrap(false);
     }
   }
 
-  async function loadRecords(zoneId = selectedZoneId) {
+  async function loadRecords(zoneId = selectedZoneId, { refresh = false } = {}) {
     if (!zoneId) {
-      setRecords([]);
+      setAllRecords([]);
       return;
     }
+
+    if (!refresh) {
+      const cached = recordsCacheRef.current.get(zoneId);
+      if (cached) {
+        setAllRecords(cached);
+        return;
+      }
+    }
+
+    const requestId = ++recordsRequestRef.current;
     setLoadingRecords(true);
     onError("");
     try {
-      const data = await api.listCloudflareRecords(zoneId, {
-        search: search.trim() || undefined,
-        record_type: recordType || undefined,
-        only_subdomains: onlySubdomains
-      });
-      setRecords(data);
+      const data = await api.listCloudflareRecords(zoneId, { refresh });
+      if (recordsRequestRef.current !== requestId) {
+        return;
+      }
+      recordsCacheRef.current.set(zoneId, data);
+      setAllRecords(data);
     } catch (err) {
-      setRecords([]);
+      if (recordsRequestRef.current !== requestId) {
+        return;
+      }
+      setAllRecords([]);
       onError(err instanceof Error ? err.message : "Не удалось загрузить DNS-записи.");
     } finally {
-      setLoadingRecords(false);
+      if (recordsRequestRef.current === requestId) {
+        setLoadingRecords(false);
+      }
     }
   }
 
   useEffect(() => {
-    void loadSettings();
+    void loadBootstrap();
   }, []);
 
   useEffect(() => {
-    if (settings?.configured) {
-      void loadZones();
+    try {
+      if (selectedZoneId) {
+        localStorage.setItem(ZONE_STORAGE_KEY, selectedZoneId);
+      }
+    } catch {
+      /* ignore */
     }
-  }, [settings?.configured]);
-
-  useEffect(() => {
-    if (selectedZoneId) {
-      void loadRecords(selectedZoneId);
+    if (!settings?.configured || !selectedZoneId) {
+      if (!selectedZoneId) {
+        setAllRecords([]);
+      }
+      return;
     }
-  }, [selectedZoneId, search, recordType, onlySubdomains]);
+    void loadRecords(selectedZoneId);
+  }, [selectedZoneId, settings?.configured]);
 
   async function handleSaveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -138,9 +212,11 @@ function DomainsRoute({ currentUser, onError }: Props) {
         account_id: settingsForm.account_id.trim() || null,
         default_ttl: Number(settingsForm.default_ttl) || 1
       });
-      setSettings(updated);
+      applySettings(updated);
       setStatusMessage("Настройки Cloudflare сохранены.");
-      await loadZones();
+      recordsCacheRef.current.clear();
+      await loadBootstrap(true);
+      setShowSettings(false);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Не удалось сохранить настройки Cloudflare.");
     } finally {
@@ -164,6 +240,7 @@ function DomainsRoute({ currentUser, onError }: Props) {
   function resetRecordForm() {
     setEditingRecordId(null);
     setRecordForm(emptyRecordForm);
+    setShowRecordForm(false);
   }
 
   function handleEditRecord(record: CloudflareDnsRecord) {
@@ -177,6 +254,16 @@ function DomainsRoute({ currentUser, onError }: Props) {
       comment: record.comment ?? "",
       priority: record.priority != null ? String(record.priority) : ""
     });
+    setShowRecordForm(true);
+  }
+
+  function handleStartCreate() {
+    setEditingRecordId(null);
+    setRecordForm({
+      ...emptyRecordForm,
+      ttl: String(settings?.default_ttl ?? 1)
+    });
+    setShowRecordForm(true);
   }
 
   async function handleSaveRecord(event: FormEvent<HTMLFormElement>) {
@@ -206,7 +293,8 @@ function DomainsRoute({ currentUser, onError }: Props) {
         setStatusMessage("DNS-запись создана.");
       }
       resetRecordForm();
-      await loadRecords(selectedZoneId);
+      recordsCacheRef.current.delete(selectedZoneId);
+      await loadRecords(selectedZoneId, { refresh: true });
     } catch (err) {
       onError(err instanceof Error ? err.message : "Не удалось сохранить DNS-запись.");
     } finally {
@@ -229,7 +317,8 @@ function DomainsRoute({ currentUser, onError }: Props) {
       if (editingRecordId === recordId) {
         resetRecordForm();
       }
-      await loadRecords(selectedZoneId);
+      recordsCacheRef.current.delete(selectedZoneId);
+      await loadRecords(selectedZoneId, { refresh: true });
     } catch (err) {
       onError(err instanceof Error ? err.message : "Не удалось удалить DNS-запись.");
     } finally {
@@ -247,6 +336,7 @@ function DomainsRoute({ currentUser, onError }: Props) {
       setSelectedZoneId={setSelectedZoneId}
       selectedZone={selectedZone}
       records={records}
+      totalRecords={allRecords.length}
       search={search}
       setSearch={setSearch}
       recordType={recordType}
@@ -256,16 +346,19 @@ function DomainsRoute({ currentUser, onError }: Props) {
       recordForm={recordForm}
       setRecordForm={setRecordForm}
       editingRecordId={editingRecordId}
+      showSettings={showSettings}
+      setShowSettings={setShowSettings}
+      showRecordForm={showRecordForm}
+      onStartCreate={handleStartCreate}
       onSaveSettings={handleSaveSettings}
       onTestConnection={() => void handleTestConnection()}
-      onRefreshZones={() => void loadZones()}
-      onRefreshRecords={() => void loadRecords()}
+      onRefreshZones={() => void loadBootstrap(true)}
+      onRefreshRecords={() => void loadRecords(selectedZoneId, { refresh: true })}
       onSaveRecord={handleSaveRecord}
       onEditRecord={handleEditRecord}
       onCancelEdit={resetRecordForm}
       onDeleteRecord={(recordId) => void handleDeleteRecord(recordId)}
-      loadingSettings={loadingSettings}
-      loadingZones={loadingZones}
+      loadingBootstrap={loadingBootstrap}
       loadingRecords={loadingRecords}
       busy={busy}
       statusMessage={statusMessage}

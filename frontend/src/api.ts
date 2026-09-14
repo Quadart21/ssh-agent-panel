@@ -13,6 +13,7 @@ import type {
   BulkCommandResponse,
   BulkAgentReinstallResponse,
   BulkServerCreateResponse,
+  CloudflareBootstrap,
   CloudflareDnsRecord,
   CloudflareSettings,
   CloudflareStatus,
@@ -536,6 +537,8 @@ export const api = {
       body: JSON.stringify(payload)
     }),
   cloudflareSettings: () => request<CloudflareSettings>("/domains/settings"),
+  cloudflareBootstrap: (refresh = false) =>
+    request<CloudflareBootstrap>(appendQuery("/domains/bootstrap", { refresh: refresh ? "true" : undefined })),
   updateCloudflareSettings: (payload: Record<string, unknown>) =>
     request<CloudflareSettings>("/domains/settings", {
       method: "PUT",
@@ -545,16 +548,12 @@ export const api = {
     request<CloudflareStatus>("/domains/test", {
       method: "POST"
     }),
-  listCloudflareZones: () => request<CloudflareZone[]>("/domains/zones"),
-  listCloudflareRecords: (
-    zoneId: string,
-    params?: { search?: string; record_type?: string; only_subdomains?: boolean }
-  ) =>
+  listCloudflareZones: (refresh = false) =>
+    request<CloudflareZone[]>(appendQuery("/domains/zones", { refresh: refresh ? "true" : undefined })),
+  listCloudflareRecords: (zoneId: string, params?: { refresh?: boolean }) =>
     request<CloudflareDnsRecord[]>(
       appendQuery(`/domains/zones/${encodeURIComponent(zoneId)}/records`, {
-        search: params?.search,
-        record_type: params?.record_type,
-        only_subdomains: params?.only_subdomains ? "true" : undefined
+        refresh: params?.refresh ? "true" : undefined
       })
     ),
   createCloudflareRecord: (zoneId: string, payload: Record<string, unknown>) =>

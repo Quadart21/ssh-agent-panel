@@ -883,6 +883,11 @@ class CloudflareZoneRead(BaseModel):
     name_servers: list[str] = Field(default_factory=list)
 
 
+class CloudflareBootstrapRead(BaseModel):
+    settings: CloudflareSettingsRead
+    zones: list[CloudflareZoneRead] = Field(default_factory=list)
+
+
 class CloudflareDnsRecordRead(BaseModel):
     id: str
     type: str

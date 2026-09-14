@@ -597,6 +597,11 @@ export type CloudflareZone = {
   name_servers: string[];
 };
 
+export type CloudflareBootstrap = {
+  settings: CloudflareSettings;
+  zones: CloudflareZone[];
+};
+
 export type CloudflareDnsRecord = {
   id: string;
   type: string;

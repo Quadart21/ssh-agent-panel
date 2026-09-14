@@ -5,6 +5,7 @@ from app.db import get_db
 from app.deps import ensure_action_access, ensure_section_access, get_current_user, require_admin
 from app.models import User
 from app.schemas import (
+    CloudflareBootstrapRead,
     CloudflareDnsRecordCreate,
     CloudflareDnsRecordRead,
     CloudflareDnsRecordUpdate,
@@ -18,6 +19,8 @@ from app.services.cloudflare import (
     CloudflareAPIError,
     create_dns_record,
     delete_dns_record,
+    get_zone,
+    invalidate_cloudflare_caches,
     is_subdomain_record,
     list_dns_records,
     list_zones,
@@ -43,6 +46,16 @@ def _require_cloudflare_token(db: Session) -> str:
     if not token:
         raise HTTPException(status_code=400, detail="Cloudflare API token не настроен.")
     return token
+
+
+def _settings_payload(db: Session) -> CloudflareSettingsRead:
+    profile = get_or_create_cloudflare_settings(db)
+    return CloudflareSettingsRead(
+        api_token=visible_cloudflare_token(profile),
+        account_id=profile.account_id,
+        default_ttl=profile.default_ttl,
+        configured=cloudflare_is_configured(db),
+    )
 
 
 def _serialize_zone(item: dict) -> CloudflareZoneRead:
@@ -74,19 +87,41 @@ def _serialize_record(item: dict, zone_name: str) -> CloudflareDnsRecordRead:
     )
 
 
+def _load_zone(token: str, zone_id: str) -> dict:
+    try:
+        return get_zone(token, zone_id)
+    except CloudflareAPIError as exc:
+        if exc.status_code == 404:
+            raise HTTPException(status_code=404, detail="Зона Cloudflare не найдена.") from exc
+        raise
+
+
 @router.get("/settings", response_model=CloudflareSettingsRead)
 def get_cloudflare_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     ensure_section_access(current_user, "domains")
-    profile = get_or_create_cloudflare_settings(db)
-    return CloudflareSettingsRead(
-        api_token=visible_cloudflare_token(profile),
-        account_id=profile.account_id,
-        default_ttl=profile.default_ttl,
-        configured=cloudflare_is_configured(db),
-    )
+    return _settings_payload(db)
+
+
+@router.get("/bootstrap", response_model=CloudflareBootstrapRead)
+def bootstrap_domains(
+    refresh: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """One-shot payload for the Domains page: settings + zones."""
+    ensure_section_access(current_user, "domains")
+    settings = _settings_payload(db)
+    zones: list[CloudflareZoneRead] = []
+    if settings.configured:
+        token = _require_cloudflare_token(db)
+        try:
+            zones = [_serialize_zone(item) for item in list_zones(token, force_refresh=refresh)]
+        except CloudflareAPIError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return CloudflareBootstrapRead(settings=settings, zones=zones)
 
 
 @router.put("/settings", response_model=CloudflareSettingsRead)
@@ -108,13 +143,9 @@ def update_cloudflare_settings(
             profile.api_token = None
     db.commit()
     db.refresh(profile)
+    invalidate_cloudflare_caches()
     write_audit_log(db, user=current_user, action="domains.settings.update", target_type="system", target_id="cloudflare")
-    return CloudflareSettingsRead(
-        api_token=visible_cloudflare_token(profile),
-        account_id=profile.account_id,
-        default_ttl=profile.default_ttl,
-        configured=cloudflare_is_configured(db),
-    )
+    return _settings_payload(db)
 
 
 @router.get("/status", response_model=CloudflareStatusRead)
@@ -142,13 +173,14 @@ def test_cloudflare_connection(
 
 @router.get("/zones", response_model=list[CloudflareZoneRead])
 def get_cloudflare_zones(
+    refresh: bool = Query(default=False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     ensure_section_access(current_user, "domains")
     token = _require_cloudflare_token(db)
     try:
-        zones = list_zones(token)
+        zones = list_zones(token, force_refresh=refresh)
     except CloudflareAPIError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return [_serialize_zone(item) for item in zones]
@@ -160,17 +192,21 @@ def get_cloudflare_records(
     search: str | None = Query(default=None),
     record_type: str | None = Query(default=None),
     only_subdomains: bool = Query(default=False),
+    refresh: bool = Query(default=False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     ensure_section_access(current_user, "domains")
     token = _require_cloudflare_token(db)
     try:
-        zones = list_zones(token)
-        zone = next((item for item in zones if item.get("id") == zone_id), None)
-        if not zone:
-            raise HTTPException(status_code=404, detail="Зона Cloudflare не найдена.")
-        records = list_dns_records(token, zone_id, search=search, record_type=record_type)
+        zone = _load_zone(token, zone_id)
+        records = list_dns_records(
+            token,
+            zone_id,
+            search=search,
+            record_type=record_type,
+            force_refresh=refresh,
+        )
     except CloudflareAPIError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -195,10 +231,7 @@ def create_cloudflare_record(
     profile = get_or_create_cloudflare_settings(db)
 
     try:
-        zones = list_zones(token)
-        zone = next((item for item in zones if item.get("id") == zone_id), None)
-        if not zone:
-            raise HTTPException(status_code=404, detail="Зона Cloudflare не найдена.")
+        zone = _load_zone(token, zone_id)
         zone_name = zone["name"]
         body = payload.model_dump(exclude_none=True)
         body["name"] = normalize_record_name(body["name"], zone_name)
@@ -234,10 +267,7 @@ def update_cloudflare_record(
     token = _require_cloudflare_token(db)
 
     try:
-        zones = list_zones(token)
-        zone = next((item for item in zones if item.get("id") == zone_id), None)
-        if not zone:
-            raise HTTPException(status_code=404, detail="Зона Cloudflare не найдена.")
+        zone = _load_zone(token, zone_id)
         zone_name = zone["name"]
         body = payload.model_dump(exclude_none=True)
         if "name" in body and body["name"] is not None:

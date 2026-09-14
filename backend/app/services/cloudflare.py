@@ -1,17 +1,73 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import threading
+import time
 from typing import Any
 from urllib import error, parse, request
 
 CLOUDFLARE_API_BASE = "https://api.cloudflare.com/client/v4"
 MAX_PAGES = 100
+REQUEST_TIMEOUT_SECONDS = 12
+ZONES_CACHE_TTL_SECONDS = 90
+RECORDS_CACHE_TTL_SECONDS = 45
+
+_cache_lock = threading.Lock()
+_zones_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_zone_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_records_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
 
 class CloudflareAPIError(Exception):
     def __init__(self, message: str, status_code: int | None = None):
         super().__init__(message)
         self.status_code = status_code
+
+
+def _token_key(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:24]
+
+
+def _cache_get(store: dict[str, tuple[float, Any]], key: str, ttl: float) -> Any | None:
+    with _cache_lock:
+        item = store.get(key)
+        if not item:
+            return None
+        expires_at, value = item
+        if expires_at < time.monotonic():
+            store.pop(key, None)
+            return None
+        return value
+
+
+def _cache_set(store: dict[str, tuple[float, Any]], key: str, value: Any, ttl: float) -> None:
+    with _cache_lock:
+        store[key] = (time.monotonic() + ttl, value)
+
+
+def invalidate_cloudflare_caches(token: str | None = None, *, zone_id: str | None = None) -> None:
+    with _cache_lock:
+        if token is None and zone_id is None:
+            _zones_cache.clear()
+            _zone_cache.clear()
+            _records_cache.clear()
+            return
+
+        token_prefix = _token_key(token) if token else None
+        if token_prefix:
+            _zones_cache.pop(token_prefix, None)
+            for key in [k for k in _zone_cache if k.startswith(f"{token_prefix}:")]:
+                if zone_id is None or key.endswith(f":{zone_id}"):
+                    _zone_cache.pop(key, None)
+            for key in [k for k in _records_cache if k.startswith(f"{token_prefix}:")]:
+                if zone_id is None or key.endswith(f":{zone_id}"):
+                    _records_cache.pop(key, None)
+        elif zone_id:
+            for key in [k for k in _zone_cache if k.endswith(f":{zone_id}")]:
+                _zone_cache.pop(key, None)
+            for key in [k for k in _records_cache if k.endswith(f":{zone_id}")]:
+                _records_cache.pop(key, None)
 
 
 def _extract_error_message(payload: dict[str, Any]) -> str:
@@ -48,7 +104,7 @@ def _request(
     req = request.Request(url, data=data, headers=headers, method=method)
 
     try:
-        with request.urlopen(req, timeout=30) as response:
+        with request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             raw = response.read().decode("utf-8", errors="ignore")
             payload = json.loads(raw) if raw else {}
             if response.status >= 400 or not payload.get("success", True):
@@ -93,31 +149,80 @@ def verify_cloudflare_token(token: str) -> dict[str, Any]:
     return payload.get("result") or {}
 
 
-def list_zones(token: str) -> list[dict[str, Any]]:
-    return _paginate(token, "/zones", {"status": "active"})
+def list_zones(token: str, *, force_refresh: bool = False) -> list[dict[str, Any]]:
+    cache_key = _token_key(token)
+    if not force_refresh:
+        cached = _cache_get(_zones_cache, cache_key, ZONES_CACHE_TTL_SECONDS)
+        if cached is not None:
+            return cached
+
+    zones = _paginate(token, "/zones", {"status": "active"})
+    _cache_set(_zones_cache, cache_key, zones, ZONES_CACHE_TTL_SECONDS)
+    for zone in zones:
+        zone_id = zone.get("id")
+        if zone_id:
+            _cache_set(_zone_cache, f"{cache_key}:{zone_id}", zone, ZONES_CACHE_TTL_SECONDS)
+    return zones
 
 
-def list_dns_records(token: str, zone_id: str, *, search: str | None = None, record_type: str | None = None) -> list[dict[str, Any]]:
-    params: dict[str, Any] = {}
-    if search:
-        params["search"] = search
-    if record_type:
-        params["type"] = record_type
-    return _paginate(token, f"/zones/{zone_id}/dns_records", params)
+def get_zone(token: str, zone_id: str, *, force_refresh: bool = False) -> dict[str, Any]:
+    cache_key = f"{_token_key(token)}:{zone_id}"
+    if not force_refresh:
+        cached = _cache_get(_zone_cache, cache_key, ZONES_CACHE_TTL_SECONDS)
+        if cached is not None:
+            return cached
+
+    payload = _request("GET", f"/zones/{zone_id}", token)
+    zone = payload.get("result") or {}
+    if not zone.get("id"):
+        raise CloudflareAPIError("Зона Cloudflare не найдена.", 404)
+    _cache_set(_zone_cache, cache_key, zone, ZONES_CACHE_TTL_SECONDS)
+    return zone
+
+
+def list_dns_records(
+    token: str,
+    zone_id: str,
+    *,
+    search: str | None = None,
+    record_type: str | None = None,
+    force_refresh: bool = False,
+) -> list[dict[str, Any]]:
+    # Filtered queries bypass cache — they are rare after client-side filtering.
+    if search or record_type:
+        params: dict[str, Any] = {}
+        if search:
+            params["search"] = search
+        if record_type:
+            params["type"] = record_type
+        return _paginate(token, f"/zones/{zone_id}/dns_records", params)
+
+    cache_key = f"{_token_key(token)}:{zone_id}"
+    if not force_refresh:
+        cached = _cache_get(_records_cache, cache_key, RECORDS_CACHE_TTL_SECONDS)
+        if cached is not None:
+            return cached
+
+    records = _paginate(token, f"/zones/{zone_id}/dns_records")
+    _cache_set(_records_cache, cache_key, records, RECORDS_CACHE_TTL_SECONDS)
+    return records
 
 
 def create_dns_record(token: str, zone_id: str, body: dict[str, Any]) -> dict[str, Any]:
     payload = _request("POST", f"/zones/{zone_id}/dns_records", token, body=body)
+    invalidate_cloudflare_caches(token, zone_id=zone_id)
     return payload.get("result") or {}
 
 
 def update_dns_record(token: str, zone_id: str, record_id: str, body: dict[str, Any]) -> dict[str, Any]:
     payload = _request("PATCH", f"/zones/{zone_id}/dns_records/{record_id}", token, body=body)
+    invalidate_cloudflare_caches(token, zone_id=zone_id)
     return payload.get("result") or {}
 
 
 def delete_dns_record(token: str, zone_id: str, record_id: str) -> None:
     _request("DELETE", f"/zones/{zone_id}/dns_records/{record_id}", token)
+    invalidate_cloudflare_caches(token, zone_id=zone_id)
 
 
 def normalize_record_name(raw_name: str, zone_name: str) -> str:
