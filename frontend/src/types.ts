@@ -216,6 +216,8 @@ export type AccountingOverview = {
   budget_actual: number;
   budget_remaining: number | null;
   upcoming_7d: AccountingCalendarEvent[];
+  upcoming_month: AccountingCalendarEvent[];
+  upcoming_month_total: number;
   overdue: AccountingCalendarEvent[];
   top_expenses: Array<{ label: string; amount: number; currency: string }>;
 };

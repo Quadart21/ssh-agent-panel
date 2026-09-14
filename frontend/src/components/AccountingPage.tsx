@@ -396,12 +396,22 @@ function AccountingPage({ currentUser, servers, onError }: Props) {
               )}
             </Panel>
 
-            <Panel title="Ближайшие 7 дней">
-              {overview.upcoming_7d.length === 0 ? (
-                <p className="muted">Ближайших оплат нет.</p>
+            <Panel title="Ближайший месяц">
+              <div className="stats-grid accounting-stats" style={{ marginBottom: "0.85rem" }}>
+                <article className="stat-card amber">
+                  <span>К оплате за 30 дней</span>
+                  <strong>{formatMoney(overview.upcoming_month_total, currency)}</strong>
+                </article>
+                <article className="stat-card mint">
+                  <span>Recurring / мес</span>
+                  <strong>{formatMoney(overview.monthly_recurring, currency)}</strong>
+                </article>
+              </div>
+              {(overview.upcoming_month?.length ?? 0) === 0 ? (
+                <p className="muted">Нет дат оплаты в ближайшие 30 дней — прогноз выше по recurring-тарифам.</p>
               ) : (
                 <div className="list-stack">
-                  {overview.upcoming_7d.map((event) => (
+                  {(overview.upcoming_month ?? []).map((event) => (
                     <article className="mini-card" key={`${event.source}-${event.source_id}`}>
                       <div className="server-card-row">
                         <strong>{event.title}</strong>
@@ -409,6 +419,7 @@ function AccountingPage({ currentUser, servers, onError }: Props) {
                       </div>
                       <p>
                         {categoryLabel(event.category)} · {formatMoney(event.amount, event.currency)}
+                        {event.status === "today" ? " · сегодня" : ""}
                       </p>
                     </article>
                   ))}

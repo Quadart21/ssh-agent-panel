@@ -1199,6 +1199,8 @@ class AccountingOverview(BaseModel):
     budget_actual: float
     budget_remaining: float | None
     upcoming_7d: list[AccountingCalendarEvent]
+    upcoming_month: list[AccountingCalendarEvent]
+    upcoming_month_total: float
     overdue: list[AccountingCalendarEvent]
     top_expenses: list[dict]
 

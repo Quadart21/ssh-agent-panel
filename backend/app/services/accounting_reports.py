@@ -202,7 +202,20 @@ def build_overview(db: Session, *, user_server_ids: list[int] | None = None) -> 
         for event in events
         if 0 <= (event["due_date"].date() - now.date()).days <= 7 and event["status"] != "overdue"
     ]
+    upcoming_month = [
+        event
+        for event in events
+        if 0 <= (event["due_date"].date() - now.date()).days <= 30 and event["status"] != "overdue"
+    ]
     overdue = [event for event in events if event["status"] == "overdue"]
+    upcoming_month_total = round(
+        sum(
+            float(event["amount"] or 0)
+            for event in upcoming_month
+            if (event.get("currency") or "RUB").upper() == currency and event.get("amount") is not None
+        ),
+        2,
+    )
 
     start, end = month_bounds(now.year, now.month)
     month_payments = (
@@ -254,6 +267,8 @@ def build_overview(db: Session, *, user_server_ids: list[int] | None = None) -> 
         "budget_actual": actual,
         "budget_remaining": round(planned - actual, 2) if planned is not None else None,
         "upcoming_7d": upcoming[:20],
+        "upcoming_month": upcoming_month[:40],
+        "upcoming_month_total": upcoming_month_total,
         "overdue": overdue[:20],
         "top_expenses": top_expenses,
     }
