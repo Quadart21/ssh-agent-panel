@@ -136,8 +136,8 @@ async def bridge_terminal(websocket: WebSocket, session: SSHWebTerminalSession) 
       {"type":"input","data":"..."} | {"type":"resize","cols":N,"rows":N} | {"type":"ping"}
 
     Protocol (server → client):
-      binary frames = raw PTY output
-      text JSON     = control ({"type":"pong"} | {"type":"status","message":"..."})
+      text frames = PTY output (utf-8)
+      text JSON   = control only for {"type":"pong"} / {"type":"status",...}
     """
 
     async def stream_output() -> None:
@@ -149,7 +149,7 @@ async def bridge_terminal(websocket: WebSocket, session: SSHWebTerminalSession) 
                 continue
             chunk = await asyncio.to_thread(session.recv_bytes)
             if chunk:
-                await websocket.send_bytes(chunk)
+                await websocket.send_text(chunk.decode("utf-8", errors="ignore"))
 
     async def stream_input() -> None:
         while await _ws_open(websocket):
@@ -171,6 +171,10 @@ async def bridge_terminal(websocket: WebSocket, session: SSHWebTerminalSession) 
                 await asyncio.to_thread(session.send, text)
                 continue
 
+            if not isinstance(payload, dict):
+                await asyncio.to_thread(session.send, text)
+                continue
+
             message_type = payload.get("type")
             if message_type == "input":
                 await asyncio.to_thread(session.send, str(payload.get("data", "")))
@@ -181,6 +185,9 @@ async def bridge_terminal(websocket: WebSocket, session: SSHWebTerminalSession) 
             elif message_type == "ping":
                 if await _ws_open(websocket):
                     await websocket.send_text(json.dumps({"type": "pong", "ts": time.time()}))
+            else:
+                # Unknown JSON — do not inject into the shell.
+                continue
 
     output_task = asyncio.create_task(stream_output())
     input_task = asyncio.create_task(stream_input())

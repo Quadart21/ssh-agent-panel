@@ -17,7 +17,7 @@ export function useTerminalSelection(servers: Server[]) {
   const [selectedServerId, setSelectedServerIdState] = useState(() => {
     return queryServerId || readStored(TERMINAL_STORAGE_KEYS.serverId);
   });
-  const [selectedLogin, setSelectedLoginState] = useState(() => readStored(TERMINAL_STORAGE_KEYS.login));
+  const [selectedLogin, setSelectedLoginState] = useState("");
   const [availableLogins, setAvailableLogins] = useState<string[]>([]);
   const [loadingLogins, setLoadingLogins] = useState(false);
   const [serverQuery, setServerQuery] = useState("");
@@ -28,6 +28,13 @@ export function useTerminalSelection(servers: Server[]) {
   );
 
   const filteredServers = useMemo(() => filterServers(servers, serverQuery), [servers, serverQuery]);
+
+  const setSelectedLogin = useCallback((login: string) => {
+    setSelectedLoginState(login);
+    if (login) {
+      writeStored(TERMINAL_STORAGE_KEYS.login, login);
+    }
+  }, []);
 
   const setSelectedServerId = useCallback(
     (serverId: string) => {
@@ -40,42 +47,39 @@ export function useTerminalSelection(servers: Server[]) {
         next.delete("server");
       }
       setSearchParams(next, { replace: true });
-    },
-    [searchParams, setSearchParams]
-  );
 
-  const setSelectedLogin = useCallback((login: string) => {
-    setSelectedLoginState(login);
-    writeStored(TERMINAL_STORAGE_KEYS.login, login);
-  }, []);
+      const server = servers.find((item) => String(item.id) === serverId);
+      const baseLogin = server?.login ?? "";
+      setSelectedLoginState(baseLogin);
+      setAvailableLogins(baseLogin ? [baseLogin] : []);
+      if (baseLogin) {
+        writeStored(TERMINAL_STORAGE_KEYS.login, baseLogin);
+      }
+    },
+    [searchParams, setSearchParams, servers]
+  );
 
   useEffect(() => {
     if (queryServerId && queryServerId !== selectedServerId) {
-      setSelectedServerIdState(queryServerId);
-      writeStored(TERMINAL_STORAGE_KEYS.serverId, queryServerId);
+      setSelectedServerId(queryServerId);
     }
-  }, [queryServerId, selectedServerId]);
+  }, [queryServerId, selectedServerId, setSelectedServerId]);
 
   useEffect(() => {
     if (!selectedServerId) {
       setSelectedLoginState("");
       setAvailableLogins([]);
+      setLoadingLogins(false);
       return;
     }
 
-    const server = servers.find((item) => String(item.id) === selectedServerId);
-    const baseLogin = server?.login ?? "";
-    setSelectedLoginState((current) => {
-      if (current && current === baseLogin) {
-        return current;
-      }
-      const storedLogin = readStored(TERMINAL_STORAGE_KEYS.login);
-      if (storedLogin === baseLogin) {
-        return storedLogin;
-      }
-      return baseLogin;
-    });
-    setAvailableLogins(baseLogin ? [baseLogin] : []);
+    const baseLogin = selectedServer?.login ?? "";
+    if (!baseLogin) {
+      return;
+    }
+
+    setSelectedLoginState((current) => current || baseLogin);
+    setAvailableLogins((current) => (current.length > 0 ? current : [baseLogin]));
 
     let cancelled = false;
     setLoadingLogins(true);
@@ -87,16 +91,12 @@ export function useTerminalSelection(servers: Server[]) {
         }
         const logins = Array.from(new Set([baseLogin, ...users.map((user) => user.username)].filter(Boolean)));
         setAvailableLogins(logins);
-        setSelectedLoginState((current) => {
-          if (current && logins.includes(current)) {
-            return current;
-          }
-          return logins[0] ?? baseLogin;
-        });
+        setSelectedLoginState((current) => (current && logins.includes(current) ? current : baseLogin));
       })
       .catch(() => {
         if (!cancelled) {
-          setAvailableLogins(baseLogin ? [baseLogin] : []);
+          setAvailableLogins([baseLogin]);
+          setSelectedLoginState((current) => current || baseLogin);
         }
       })
       .finally(() => {
@@ -108,7 +108,7 @@ export function useTerminalSelection(servers: Server[]) {
     return () => {
       cancelled = true;
     };
-  }, [selectedServerId, servers]);
+  }, [selectedServerId, selectedServer?.login]);
 
   return {
     selectedServerId,

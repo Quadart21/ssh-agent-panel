@@ -18,10 +18,6 @@ import {
 
 const WS_BASE = getTerminalWsBaseUrl();
 
-function decodeBinary(data: ArrayBuffer): string {
-  return new TextDecoder("utf-8", { fatal: false }).decode(new Uint8Array(data));
-}
-
 type ConnectArgs = {
   serverId: string;
   login: string;
@@ -235,7 +231,6 @@ export function useTerminalSession() {
       });
 
       const socket = new WebSocket(url);
-      socket.binaryType = "arraybuffer";
       socketRef.current = socket;
 
       socket.onopen = () => {
@@ -250,29 +245,18 @@ export function useTerminalSession() {
       };
 
       socket.onmessage = (event) => {
-        if (typeof event.data === "string") {
-          const control = parseControlMessage(event.data);
-          if (control?.type === "pong") {
-            return;
-          }
-          if (control?.type === "status" && control.message) {
-            setStatusMessage(control.message);
-            return;
-          }
-          terminal.write(event.data);
+        if (typeof event.data !== "string") {
           return;
         }
-
-        if (event.data instanceof ArrayBuffer) {
-          terminal.write(decodeBinary(event.data));
+        const control = parseControlMessage(event.data);
+        if (control?.type === "pong") {
           return;
         }
-
-        if (event.data instanceof Blob) {
-          void event.data.arrayBuffer().then((buffer) => {
-            terminal.write(decodeBinary(buffer));
-          });
+        if (control?.type === "status" && control.message) {
+          setStatusMessage(control.message);
+          return;
         }
+        terminal.write(event.data);
       };
 
       socket.onerror = () => {

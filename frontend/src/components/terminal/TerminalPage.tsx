@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import type { Server } from "../../types";
 import { EmptyState, PageHero, PageShell } from "../ui";
@@ -15,6 +15,7 @@ type Props = {
 function TerminalPage({ servers, token }: Props) {
   const selection = useTerminalSelection(servers);
   const session = useTerminalSession();
+  const autoConnectKeyRef = useRef<string>("");
 
   useEffect(() => {
     if (session.isFullscreen) {
@@ -40,22 +41,64 @@ function TerminalPage({ servers, token }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [session.isFullscreen, session.toggleFullscreen]);
 
-  const canConnect = Boolean(selection.selectedServerId && selection.selectedLogin && token);
-
-  function handleConnect() {
-    if (!selection.selectedServer || !selection.selectedLogin) {
+  function connectTo(serverId: string, login: string, server?: Server | null) {
+    const target = server ?? servers.find((item) => String(item.id) === serverId) ?? null;
+    if (!serverId || !login || !token || !target) {
       return;
     }
+    const key = `${serverId}:${login}`;
+    autoConnectKeyRef.current = key;
     session.connect({
-      serverId: selection.selectedServerId,
-      login: selection.selectedLogin,
+      serverId,
+      login,
       token,
-      serverLabel: `${selection.selectedServer.name} (${selection.selectedServer.ip})`
+      serverLabel: `${target.name} (${target.ip})`
     });
     window.setTimeout(() => session.focusTerminal(), 30);
   }
 
-  const busy = session.connectionState === "connecting" || session.connectionState === "connected";
+  // Auto-connect when server+login become ready (selection, deep-link, refresh).
+  useEffect(() => {
+    const serverId = selection.selectedServerId;
+    const login = selection.selectedLogin || selection.selectedServer?.login || "";
+    if (!serverId || !login || !token || !selection.selectedServer) {
+      return;
+    }
+    const key = `${serverId}:${login}`;
+    if (autoConnectKeyRef.current === key) {
+      return;
+    }
+    if (session.connectionState === "connecting" || session.connectionState === "connected") {
+      return;
+    }
+    connectTo(serverId, login, selection.selectedServer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect on selection readiness only
+  }, [selection.selectedServerId, selection.selectedLogin, selection.selectedServer, token]);
+
+  function handleSelectServer(serverId: string) {
+    if (serverId === selection.selectedServerId && session.connectionState === "connected") {
+      session.focusTerminal();
+      return;
+    }
+    const server = servers.find((item) => String(item.id) === serverId) ?? null;
+    selection.setSelectedServerId(serverId);
+    const login = server?.login ?? "";
+    if (server && login && token) {
+      // Bypass the effect guard so a re-click / switch always reconnects.
+      autoConnectKeyRef.current = "";
+      connectTo(serverId, login, server);
+    }
+  }
+
+  const canConnect = Boolean(
+    selection.selectedServerId && (selection.selectedLogin || selection.selectedServer?.login) && token
+  );
+
+  function handleConnect() {
+    const login = selection.selectedLogin || selection.selectedServer?.login || "";
+    autoConnectKeyRef.current = "";
+    connectTo(selection.selectedServerId, login, selection.selectedServer);
+  }
 
   return (
     <PageShell className={`terminal-page ${session.isFullscreen ? "is-fullscreen" : ""}`}>
@@ -63,7 +106,7 @@ function TerminalPage({ servers, token }: Props) {
         <PageHero
           eyebrow="Операции"
           title="Терминал"
-          description="Интерактивный SSH прямо в панели. Сессия, пользователь и размер шрифта запоминаются."
+          description="Клик по серверу сразу открывает SSH-сессию. Пользователя и размер шрифта можно менять в панели."
           actions={
             selection.selectedServer ? (
               <div className="terminal-hero-meta">
@@ -84,18 +127,24 @@ function TerminalPage({ servers, token }: Props) {
               servers={servers}
               filteredServers={selection.filteredServers}
               selectedServerId={selection.selectedServerId}
-              onSelect={selection.setSelectedServerId}
+              onSelect={handleSelectServer}
               query={selection.serverQuery}
               onQueryChange={selection.setServerQuery}
-              disabled={busy}
+              disabled={session.connectionState === "connecting"}
             />
           ) : null}
 
           <section className="terminal-stage panel">
             <TerminalToolbar
               availableLogins={selection.availableLogins}
-              selectedLogin={selection.selectedLogin}
-              onLoginChange={selection.setSelectedLogin}
+              selectedLogin={selection.selectedLogin || selection.selectedServer?.login || ""}
+              onLoginChange={(login) => {
+                selection.setSelectedLogin(login);
+                if (login && selection.selectedServerId && token) {
+                  autoConnectKeyRef.current = "";
+                  connectTo(selection.selectedServerId, login, selection.selectedServer);
+                }
+              }}
               loadingLogins={selection.loadingLogins}
               connectionState={session.connectionState}
               connectionLabel={session.connectionLabel}
@@ -105,7 +154,10 @@ function TerminalPage({ servers, token }: Props) {
               isFullscreen={session.isFullscreen}
               canConnect={canConnect}
               onConnect={handleConnect}
-              onDisconnect={() => session.disconnect()}
+              onDisconnect={() => {
+                autoConnectKeyRef.current = `${selection.selectedServerId}:__disconnected__`;
+                session.disconnect();
+              }}
               onClear={session.clearTerminal}
               onToggleFullscreen={session.toggleFullscreen}
             />
@@ -118,7 +170,7 @@ function TerminalPage({ servers, token }: Props) {
             />
 
             {!selection.selectedServerId ? (
-              <p className="muted terminal-hint">Выберите сервер в списке слева.</p>
+              <p className="muted terminal-hint">Выберите сервер слева — сессия откроется автоматически.</p>
             ) : null}
           </section>
         </div>

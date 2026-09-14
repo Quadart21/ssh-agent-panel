@@ -54,7 +54,7 @@ function TerminalToolbar({
           <select
             value={selectedLogin}
             onChange={(event) => onLoginChange(event.target.value)}
-            disabled={availableLogins.length === 0 || connecting || connected}
+            disabled={availableLogins.length === 0 || connecting}
           >
             <option value="">{loadingLogins ? "Загрузка…" : "Войти как"}</option>
             {availableLogins.map((login) => (
