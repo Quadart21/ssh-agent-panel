@@ -9,6 +9,8 @@ const iconPaths: Record<string, string> = {
   "/dashboard": "M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z",
   "/alerts":
     "M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z",
+  "/accounting":
+    "M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2zm0-4H7V7h10v2z",
   "/servers":
     "M2 20h20v-4H2v4zm2-3h1v1H4v-1zm2 0h1v1H6v-1zm14 0h1v1h-1v-1zM2 8h20v4H2V8zm2 3h1v1H4v-1zm2 0h1v1H6v-1zm14 0h1v1h-1v-1zM2 4h20v4H2V4zm2 3h1v1H4V7zm2 0h1v1H6V7zm14 0h1v1h-1V7z",
   "/metric-embeds": "M3 3v18h18V3H3zm16 16H5V5h14v14zM7 17h2v-4H7v4zm4 0h2V7h-2v10zm4 0h2v-7h-2v7z",

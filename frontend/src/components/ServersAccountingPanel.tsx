@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 import type { ServerAccountingSummary } from "../types";
 import { billingPeriodLabel, formatMoney } from "../utils/formatMoney";
 
@@ -35,6 +37,9 @@ function ServersAccountingPanel({ summary, loading, embedded = false }: Props) {
           <h2>Оплаты</h2>
           <p className="muted">Расходы по серверам и даты оплаты.</p>
         </div>
+        <Link className="ghost button-link" to="/accounting">
+          Открыть бухгалтерию
+        </Link>
       </div>
 
       <div className="stats-grid accounting-stats">

@@ -1,6 +1,13 @@
 import type {
   Alert,
   AgentEnrollResponse,
+  AccountingBudget,
+  AccountingCalendarEvent,
+  AccountingMarkPaidResponse,
+  AccountingOverview,
+  AccountingPayment,
+  AccountingPlan,
+  AccountingReport,
   AutomationPreset,
   AuditLog,
   BulkCommandResponse,
@@ -14,6 +21,7 @@ import type {
   DashboardStats,
   FirewallStatus,
   Group,
+  InfraAsset,
   LinuxUser,
   LinuxUserOperationResponse,
   MetricsEmbed,
@@ -337,6 +345,51 @@ export const api = {
   listAlerts: () => request<Alert[]>("/servers/alerts"),
   listServers: () => request<Server[]>("/servers"),
   serversAccounting: () => request<ServerAccountingSummary>("/servers/accounting"),
+  accountingOverview: () => request<AccountingOverview>("/accounting/overview"),
+  accountingCalendar: () => request<AccountingCalendarEvent[]>("/accounting/calendar"),
+  accountingReports: (params?: { from?: string; to?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.from) query.set("from", params.from);
+    if (params?.to) query.set("to", params.to);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return request<AccountingReport>(`/accounting/reports${suffix}`);
+  },
+  listInfraAssets: () => request<InfraAsset[]>("/accounting/assets"),
+  createInfraAsset: (payload: Record<string, unknown>) =>
+    request<InfraAsset>("/accounting/assets", { method: "POST", body: JSON.stringify(payload) }),
+  updateInfraAsset: (id: number, payload: Record<string, unknown>) =>
+    request<InfraAsset>(`/accounting/assets/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteInfraAsset: (id: number) => request<void>(`/accounting/assets/${id}`, { method: "DELETE" }),
+  listAccountingPayments: () => request<AccountingPayment[]>("/accounting/payments"),
+  createAccountingPayment: (payload: Record<string, unknown>) =>
+    request<AccountingPayment>("/accounting/payments", { method: "POST", body: JSON.stringify(payload) }),
+  updateAccountingPayment: (id: number, payload: Record<string, unknown>) =>
+    request<AccountingPayment>(`/accounting/payments/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteAccountingPayment: (id: number) => request<void>(`/accounting/payments/${id}`, { method: "DELETE" }),
+  listAccountingPlans: () => request<AccountingPlan[]>("/accounting/plans"),
+  createAccountingPlan: (payload: Record<string, unknown>) =>
+    request<AccountingPlan>("/accounting/plans", { method: "POST", body: JSON.stringify(payload) }),
+  updateAccountingPlan: (id: number, payload: Record<string, unknown>) =>
+    request<AccountingPlan>(`/accounting/plans/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  completeAccountingPlan: (id: number) =>
+    request<AccountingMarkPaidResponse>(`/accounting/plans/${id}/complete`, { method: "POST" }),
+  deleteAccountingPlan: (id: number) => request<void>(`/accounting/plans/${id}`, { method: "DELETE" }),
+  listAccountingBudgets: (year?: number) => {
+    const suffix = year != null ? `?year=${year}` : "";
+    return request<AccountingBudget[]>(`/accounting/budgets${suffix}`);
+  },
+  createAccountingBudget: (payload: Record<string, unknown>) =>
+    request<AccountingBudget>("/accounting/budgets", { method: "POST", body: JSON.stringify(payload) }),
+  updateAccountingBudget: (id: number, payload: Record<string, unknown>) =>
+    request<AccountingBudget>(`/accounting/budgets/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteAccountingBudget: (id: number) => request<void>(`/accounting/budgets/${id}`, { method: "DELETE" }),
+  accountingMarkPaid: (payload: {
+    target_type: "server" | "asset";
+    target_id: number;
+    amount?: number | null;
+    paid_at?: string | null;
+    notes?: string | null;
+  }) => request<AccountingMarkPaidResponse>("/accounting/mark-paid", { method: "POST", body: JSON.stringify(payload) }),
   createServer: (payload: Record<string, unknown>) =>
     request<Server>("/servers", { method: "POST", body: JSON.stringify(payload) }),
   createServersBulk: (payload: Record<string, unknown>) =>

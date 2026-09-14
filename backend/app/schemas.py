@@ -917,3 +917,309 @@ class CloudflareDnsRecordUpdate(BaseModel):
     comment: str | None = Field(default=None, max_length=255)
     priority: int | None = Field(default=None, ge=0, le=65535)
 
+
+ASSET_CATEGORIES = {"domain", "cdn", "license", "server", "other"}
+PLAN_STATUSES = {"planned", "paid", "cancelled"}
+BILLING_PERIODS = {"monthly", "yearly", "quarterly"}
+
+
+def _normalize_billing_period(value: object) -> str:
+    normalized = (str(value).strip().lower() if value not in (None, "") else "monthly")
+    if normalized not in BILLING_PERIODS:
+        raise ValueError("Период оплаты: monthly, yearly или quarterly.")
+    return normalized
+
+
+def _normalize_currency(value: object) -> str:
+    if value in (None, ""):
+        return "RUB"
+    return str(value).strip().upper()[:8]
+
+
+def _normalize_category(value: object, *, allow_empty: bool = False) -> str | None:
+    if value in (None, ""):
+        return "" if allow_empty else "other"
+    normalized = str(value).strip().lower()
+    if allow_empty and normalized == "":
+        return ""
+    if normalized not in ASSET_CATEGORIES:
+        raise ValueError("Категория: domain, cdn, license, server или other.")
+    return normalized
+
+
+def _normalize_datetime(value: object) -> datetime | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        return to_naive_utc(value)
+    text = str(value).strip()
+    if not text:
+        return None
+    return to_naive_utc(datetime.fromisoformat(text.replace("Z", "+00:00")))
+
+
+class InfraAssetBase(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    category: str = Field(default="other", max_length=32)
+    provider: str | None = Field(default=None, max_length=120)
+    cost: float | None = Field(default=None, ge=0)
+    billing_period: str = Field(default="monthly", max_length=16)
+    currency: str = Field(default="RUB", max_length=8)
+    pay_until: datetime | None = None
+    notes: str | None = None
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def validate_category(cls, value: object) -> str:
+        return _normalize_category(value) or "other"
+
+    @field_validator("billing_period", mode="before")
+    @classmethod
+    def validate_billing_period(cls, value: object) -> str:
+        return _normalize_billing_period(value)
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def validate_currency(cls, value: object) -> str:
+        return _normalize_currency(value)
+
+    @field_validator("pay_until", mode="before")
+    @classmethod
+    def validate_pay_until(cls, value: object) -> datetime | None:
+        return _normalize_datetime(value)
+
+
+class InfraAssetCreate(InfraAssetBase):
+    pass
+
+
+class InfraAssetUpdate(InfraAssetBase):
+    pass
+
+
+class InfraAssetRead(InfraAssetBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    monthly_equivalent: float | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class AccountingPaymentBase(BaseModel):
+    paid_at: datetime
+    amount: float = Field(ge=0)
+    currency: str = Field(default="RUB", max_length=8)
+    title: str = Field(min_length=1, max_length=200)
+    category: str = Field(default="other", max_length=32)
+    server_id: int | None = None
+    asset_id: int | None = None
+    notes: str | None = None
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def validate_category(cls, value: object) -> str:
+        return _normalize_category(value) or "other"
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def validate_currency(cls, value: object) -> str:
+        return _normalize_currency(value)
+
+    @field_validator("paid_at", mode="before")
+    @classmethod
+    def validate_paid_at(cls, value: object) -> datetime:
+        parsed = _normalize_datetime(value)
+        if parsed is None:
+            raise ValueError("Укажите дату оплаты.")
+        return parsed
+
+
+class AccountingPaymentCreate(AccountingPaymentBase):
+    pass
+
+
+class AccountingPaymentUpdate(AccountingPaymentBase):
+    pass
+
+
+class AccountingPaymentRead(AccountingPaymentBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AccountingPlanBase(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    amount: float = Field(ge=0)
+    currency: str = Field(default="RUB", max_length=8)
+    due_date: datetime
+    category: str = Field(default="other", max_length=32)
+    server_id: int | None = None
+    asset_id: int | None = None
+    status: str = Field(default="planned", max_length=16)
+    notes: str | None = None
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def validate_category(cls, value: object) -> str:
+        return _normalize_category(value) or "other"
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def validate_currency(cls, value: object) -> str:
+        return _normalize_currency(value)
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def validate_status(cls, value: object) -> str:
+        normalized = (str(value).strip().lower() if value not in (None, "") else "planned")
+        if normalized not in PLAN_STATUSES:
+            raise ValueError("Статус: planned, paid или cancelled.")
+        return normalized
+
+    @field_validator("due_date", mode="before")
+    @classmethod
+    def validate_due_date(cls, value: object) -> datetime:
+        parsed = _normalize_datetime(value)
+        if parsed is None:
+            raise ValueError("Укажите срок.")
+        return parsed
+
+
+class AccountingPlanCreate(AccountingPlanBase):
+    pass
+
+
+class AccountingPlanUpdate(AccountingPlanBase):
+    pass
+
+
+class AccountingPlanRead(AccountingPlanBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AccountingBudgetBase(BaseModel):
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
+    currency: str = Field(default="RUB", max_length=8)
+    planned_amount: float = Field(ge=0)
+    category: str | None = Field(default=None, max_length=32)
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def validate_currency(cls, value: object) -> str:
+        return _normalize_currency(value)
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def validate_category(cls, value: object) -> str | None:
+        if value in (None, ""):
+            return None
+        return _normalize_category(value)
+
+
+class AccountingBudgetCreate(AccountingBudgetBase):
+    pass
+
+
+class AccountingBudgetUpdate(BaseModel):
+    planned_amount: float = Field(ge=0)
+    currency: str | None = Field(default=None, max_length=8)
+    category: str | None = Field(default=None, max_length=32)
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def validate_currency(cls, value: object) -> str | None:
+        if value in (None, ""):
+            return None
+        return _normalize_currency(value)
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def validate_category(cls, value: object) -> str | None:
+        if value in (None, ""):
+            return None
+        return _normalize_category(value)
+
+
+class AccountingBudgetRead(AccountingBudgetBase):
+    id: int
+    actual_amount: float = 0
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AccountingMarkPaidRequest(BaseModel):
+    target_type: str = Field(pattern="^(server|asset)$")
+    target_id: int
+    amount: float | None = Field(default=None, ge=0)
+    paid_at: datetime | None = None
+    notes: str | None = None
+
+    @field_validator("paid_at", mode="before")
+    @classmethod
+    def validate_paid_at(cls, value: object) -> datetime | None:
+        return _normalize_datetime(value)
+
+
+class AccountingMarkPaidResponse(BaseModel):
+    payment: AccountingPaymentRead
+    pay_until: datetime | None = None
+
+
+class AccountingCalendarEvent(BaseModel):
+    source: str
+    source_id: int
+    title: str
+    category: str
+    provider: str | None = None
+    amount: float | None = None
+    currency: str
+    due_date: datetime
+    status: str
+    billing_period: str | None = None
+
+
+class AccountingOverview(BaseModel):
+    primary_currency: str
+    monthly_recurring: float
+    yearly_forecast: float
+    assets_monthly: float
+    servers_monthly: float
+    budget_planned: float | None
+    budget_actual: float
+    budget_remaining: float | None
+    upcoming_7d: list[AccountingCalendarEvent]
+    overdue: list[AccountingCalendarEvent]
+    top_expenses: list[dict]
+
+
+class AccountingReportBreakdown(BaseModel):
+    key: str
+    label: str
+    amount: float
+    currency: str
+    count: int = 0
+
+
+class AccountingReport(BaseModel):
+    primary_currency: str
+    period_from: datetime
+    period_to: datetime
+    total_paid: float
+    payments_count: int
+    by_category: list[AccountingReportBreakdown]
+    by_provider: list[AccountingReportBreakdown]
+    by_month: list[AccountingReportBreakdown]
+    by_group: list[AccountingReportBreakdown]
+    recurring_monthly: float
+

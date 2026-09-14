@@ -246,3 +246,58 @@ class MetricsEmbed(Base):
     created_by_email: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class InfraAsset(Base, TimestampMixin):
+    __tablename__ = "infra_assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    category: Mapped[str] = mapped_column(String(32), nullable=False, default="other", index=True)
+    provider: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    billing_period: Mapped[str] = mapped_column(String(16), nullable=False, default="monthly")
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="RUB")
+    pay_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class AccountingPayment(Base, TimestampMixin):
+    __tablename__ = "accounting_payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    paid_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="RUB")
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    category: Mapped[str] = mapped_column(String(32), nullable=False, default="other", index=True)
+    server_id: Mapped[int | None] = mapped_column(ForeignKey("servers.id", ondelete="SET NULL"), nullable=True, index=True)
+    asset_id: Mapped[int | None] = mapped_column(ForeignKey("infra_assets.id", ondelete="SET NULL"), nullable=True, index=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class AccountingPlan(Base, TimestampMixin):
+    __tablename__ = "accounting_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="RUB")
+    due_date: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    category: Mapped[str] = mapped_column(String(32), nullable=False, default="other", index=True)
+    server_id: Mapped[int | None] = mapped_column(ForeignKey("servers.id", ondelete="SET NULL"), nullable=True)
+    asset_id: Mapped[int | None] = mapped_column(ForeignKey("infra_assets.id", ondelete="SET NULL"), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="planned", index=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class AccountingBudget(Base, TimestampMixin):
+    __tablename__ = "accounting_budgets"
+    __table_args__ = (UniqueConstraint("year", "month", "currency", "category", name="uq_accounting_budgets_period"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    month: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="RUB")
+    planned_amount: Mapped[float] = mapped_column(Float, nullable=False)
+    category: Mapped[str | None] = mapped_column(String(32), nullable=True)

@@ -135,6 +135,117 @@ export type ServerAccountingSummary = {
   items: ServerAccountingItem[];
 };
 
+export type InfraAssetCategory = "domain" | "cdn" | "license" | "server" | "other";
+
+export type InfraAsset = {
+  id: number;
+  name: string;
+  category: InfraAssetCategory | string;
+  provider: string | null;
+  cost: number | null;
+  billing_period: string;
+  currency: string;
+  pay_until: string | null;
+  notes: string | null;
+  monthly_equivalent: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AccountingPayment = {
+  id: number;
+  paid_at: string;
+  amount: number;
+  currency: string;
+  title: string;
+  category: string;
+  server_id: number | null;
+  asset_id: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AccountingPlan = {
+  id: number;
+  title: string;
+  amount: number;
+  currency: string;
+  due_date: string;
+  category: string;
+  server_id: number | null;
+  asset_id: number | null;
+  status: "planned" | "paid" | "cancelled" | string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AccountingBudget = {
+  id: number;
+  year: number;
+  month: number;
+  currency: string;
+  planned_amount: number;
+  category: string | null;
+  actual_amount: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AccountingCalendarEvent = {
+  source: "server" | "asset" | "plan" | string;
+  source_id: number;
+  title: string;
+  category: string;
+  provider: string | null;
+  amount: number | null;
+  currency: string;
+  due_date: string;
+  status: "overdue" | "today" | "upcoming" | string;
+  billing_period: string | null;
+};
+
+export type AccountingOverview = {
+  primary_currency: string;
+  monthly_recurring: number;
+  yearly_forecast: number;
+  assets_monthly: number;
+  servers_monthly: number;
+  budget_planned: number | null;
+  budget_actual: number;
+  budget_remaining: number | null;
+  upcoming_7d: AccountingCalendarEvent[];
+  overdue: AccountingCalendarEvent[];
+  top_expenses: Array<{ label: string; amount: number; currency: string }>;
+};
+
+export type AccountingReportBreakdown = {
+  key: string;
+  label: string;
+  amount: number;
+  currency: string;
+  count: number;
+};
+
+export type AccountingReport = {
+  primary_currency: string;
+  period_from: string;
+  period_to: string;
+  total_paid: number;
+  payments_count: number;
+  by_category: AccountingReportBreakdown[];
+  by_provider: AccountingReportBreakdown[];
+  by_month: AccountingReportBreakdown[];
+  by_group: AccountingReportBreakdown[];
+  recurring_monthly: number;
+};
+
+export type AccountingMarkPaidResponse = {
+  payment: AccountingPayment;
+  pay_until: string | null;
+};
+
 export type Pattern = {
   id: number;
   name: string;

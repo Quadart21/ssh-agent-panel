@@ -23,6 +23,14 @@ export const panelPermissionModules: PermissionModule[] = [
     editActions: []
   },
   {
+    id: "accounting",
+    label: "Бухгалтерия",
+    description: "Оплаты, бюджеты и отчёты инфраструктуры",
+    group: "overview",
+    sections: ["accounting"],
+    editActions: ["accounting_manage"]
+  },
+  {
     id: "fleet",
     label: "Серверы и виджеты",
     description: "Инвентарь, метрики, embed-виджеты",
@@ -126,6 +134,7 @@ export const panelAccessPresets: Array<{
     role: "user",
     levels: {
       overview: "view",
+      accounting: "view",
       fleet: "view",
       groups: "view",
       domains: "view",
@@ -146,6 +155,7 @@ export const panelAccessPresets: Array<{
     role: "user",
     levels: {
       overview: "view",
+      accounting: "view",
       fleet: "view",
       groups: "view",
       domains: "view",
@@ -166,6 +176,7 @@ export const panelAccessPresets: Array<{
     role: "user",
     levels: {
       overview: "view",
+      accounting: "edit",
       fleet: "edit",
       groups: "edit",
       domains: "edit",

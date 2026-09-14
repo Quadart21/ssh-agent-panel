@@ -17,6 +17,7 @@ import type {
 
 const AuditPage = lazy(() => import("../components/AuditPage"));
 const AlertsPage = lazy(() => import("../components/AlertsPage"));
+const AccountingPage = lazy(() => import("../components/AccountingPage"));
 const AutomationPage = lazy(() => import("../components/AutomationPage"));
 const CommandsRoute = lazy(() => import("../components/CommandsRoute"));
 const DashboardPage = lazy(() => import("../components/DashboardPage"));
@@ -192,6 +193,16 @@ function AppRoutes({
           }
         />
         <Route path="/alerts" element={<AlertsPage alerts={alerts} loading={loading} />} />
+        <Route
+          path="/accounting"
+          element={
+            userHasSectionAccess(currentUser, "accounting") ? (
+              <AccountingPage currentUser={currentUser} servers={servers} onError={setError} />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
         <Route
           path="/patterns"
           element={<PatternsRoute patterns={patterns} currentUser={currentUser} onError={setError} onReload={onReload} />}

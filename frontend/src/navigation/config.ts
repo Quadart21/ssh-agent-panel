@@ -3,6 +3,7 @@ import type { SectionItem } from "./types";
 export const sections: SectionItem[] = [
   { path: "/dashboard", label: "Дашборд", description: "Состояние парка", group: "overview" },
   { path: "/alerts", label: "Уведомления", description: "Офлайн и оплаты", group: "overview" },
+  { path: "/accounting", label: "Бухгалтерия", description: "Расходы и бюджеты", group: "overview" },
   { path: "/servers", label: "Серверы", description: "Список и доступ", group: "infrastructure" },
   { path: "/metric-embeds", label: "Виджеты", description: "Метрики на сайт", group: "infrastructure" },
   { path: "/groups", label: "Группы", description: "Группировка", group: "infrastructure" },
@@ -35,6 +36,7 @@ export const sectionGroups: Array<{ key: SectionItem["group"]; label: string }> 
 export const permissionSections = [
   "dashboard",
   "alerts",
+  "accounting",
   "servers",
   "metric-embeds",
   "groups",

@@ -9,7 +9,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.bootstrap import ensure_admin_user
 from app.core.config import settings
 from app.db import SessionLocal, run_startup_migrations
-from app.routers import agent, automation, audit, auth, domains, firewall, groups, linux_users, metric_embeds, notifications, panel_users, patterns, pm2, security, servers, ssh_keys, system, terminal
+from app.routers import accounting, agent, automation, audit, auth, domains, firewall, groups, linux_users, metric_embeds, notifications, panel_users, patterns, pm2, security, servers, ssh_keys, system, terminal
 from app.services.scheduler import scheduler_loop
 
 run_startup_migrations()
@@ -49,6 +49,7 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(agent.router, prefix=settings.api_v1_prefix)
+app.include_router(accounting.router, prefix=settings.api_v1_prefix)
 app.include_router(automation.router, prefix=settings.api_v1_prefix)
 app.include_router(audit.router, prefix=settings.api_v1_prefix)
 app.include_router(firewall.router, prefix=settings.api_v1_prefix)
