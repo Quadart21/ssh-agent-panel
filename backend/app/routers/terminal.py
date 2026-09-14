@@ -5,19 +5,31 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.core.security import decode_access_token
 from app.db import SessionLocal
 from app.deps import ensure_action_access, ensure_section_access, ensure_server_access
-from app.models import Server
-from app.models import User
+from app.models import Server, User
+from app.services.audit import write_audit_log
 from app.services.auth_state import validate_user_session
 from app.services.terminal import SSHWebTerminalSession, bridge_terminal
-from app.services.audit import write_audit_log
 
 router = APIRouter(prefix="/terminal", tags=["terminal"])
+
+
+def _query_int(websocket: WebSocket, name: str, default: int) -> int:
+    raw = websocket.query_params.get(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return max(int(raw), 1)
+    except ValueError:
+        return default
 
 
 @router.websocket("/ws/{server_id}")
 async def terminal_websocket(websocket: WebSocket, server_id: int):
     token = websocket.query_params.get("token")
     run_as_user = websocket.query_params.get("as_user")
+    cols = _query_int(websocket, "cols", 120)
+    rows = _query_int(websocket, "rows", 32)
+
     if not token:
         await websocket.close(code=4401)
         return
@@ -52,17 +64,20 @@ async def terminal_websocket(websocket: WebSocket, server_id: int):
             await websocket.send_text("Пользователь не найден.\r\n")
             await websocket.close(code=4401)
             return
+
         try:
             ensure_section_access(user, "terminal")
             ensure_action_access(user, "terminal_use")
             ensure_server_access(user, server)
         except Exception as exc:
-            await websocket.send_text(f"{exc.detail if hasattr(exc, 'detail') else str(exc)}\r\n")
+            detail = getattr(exc, "detail", None) or str(exc)
+            await websocket.send_text(f"{detail}\r\n")
             await websocket.close(code=4403)
             return
 
         session = SSHWebTerminalSession(server, run_as_user=run_as_user)
-        await asyncio.to_thread(session.connect)
+        await asyncio.to_thread(session.connect, cols, rows)
+
         target_login = run_as_user.strip() if run_as_user else server.login
         write_audit_log(
             db,
@@ -79,9 +94,12 @@ async def terminal_websocket(websocket: WebSocket, server_id: int):
     except WebSocketDisconnect:
         pass
     except Exception as exc:
-        await websocket.send_text(f"\r\n[ошибка-терминала] {exc}\r\n")
-        await websocket.close(code=1011)
+        try:
+            await websocket.send_text(f"\r\n[ошибка терминала] {exc}\r\n")
+            await websocket.close(code=1011)
+        except Exception:
+            pass
     finally:
         if session is not None:
-            session.close()
+            await asyncio.to_thread(session.close)
         db.close()

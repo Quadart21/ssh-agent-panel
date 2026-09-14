@@ -159,21 +159,7 @@ function AppRoutes({
           path="/system"
           element={currentUser.role === "admin" ? <SystemPage onError={setError} /> : <Navigate to="/dashboard" replace />}
         />
-        <Route
-          path="/terminal"
-          element={
-            <div className="page-stack">
-              <section className="page-hero">
-                <div>
-                  <p className="eyebrow">Терминал</p>
-                  <h1>Интерактивный SSH-доступ</h1>
-                  <p className="hero-copy">Подключайтесь к серверу прямо из панели без перехода в отдельный клиент.</p>
-                </div>
-              </section>
-              <TerminalPanel servers={servers} token={authToken} />
-            </div>
-          }
-        />
+        <Route path="/terminal" element={<TerminalPanel servers={servers} token={authToken} />} />
         <Route path="/tmux" element={<Navigate to="/pm2" replace />} />
         <Route
           path="/pm2"
