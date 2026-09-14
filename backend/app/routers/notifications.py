@@ -278,10 +278,17 @@ def telegram_webhook_status(
     _: object = Depends(get_current_user),
 ):
     webhook_url = _build_telegram_webhook_url()
-    info = get_telegram_webhook_info(db) if telegram_is_configured(db) else {}
+    configured = telegram_is_configured(db)
+    info: dict = {}
+    if configured:
+        try:
+            info = get_telegram_webhook_info(db) or {}
+        except Exception:
+            # Telegram API может тормозить/падать — UI настроек не должен зависеть от этого.
+            info = {}
     telegram_url = info.get("url") or None
     return TelegramWebhookRead(
-        configured=telegram_is_configured(db),
+        configured=configured,
         webhook_url=webhook_url,
         webhook_active=bool(telegram_url),
         telegram_webhook_url=telegram_url,

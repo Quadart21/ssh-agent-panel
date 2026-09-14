@@ -45,18 +45,21 @@ function TelegramPage({ onError }: Props) {
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState("Проверьте настройки и выберите, какие уведомления вам нужны.");
 
+  async function loadWebhookInfo() {
+    try {
+      const webhook = await api.telegramWebhookInfo();
+      setWebhookInfo(webhook);
+    } catch {
+      setWebhookInfo(null);
+    }
+  }
+
   async function loadSettings() {
     setLoading(true);
     onError("");
     try {
       const data = await api.notificationSettings();
       setSettings(data);
-      try {
-        const webhook = await api.telegramWebhookInfo();
-        setWebhookInfo(webhook);
-      } catch {
-        setWebhookInfo(null);
-      }
       setForm({
         telegram_bot_token: data.telegram_bot_token ?? "",
         telegram_chat_id: data.telegram_chat_id ?? "",
@@ -75,6 +78,8 @@ function TelegramPage({ onError }: Props) {
         notify_automation_failed: data.notify_automation_failed
       });
       setMessage(data.configured ? "Telegram настроен и готов к отправке." : "Укажите токен и chat id, чтобы включить Telegram.");
+      // Webhook info ходит в Telegram API и может тормозить — не блокируем форму.
+      void loadWebhookInfo();
     } catch (err) {
       onError(err instanceof Error ? err.message : "Не удалось получить настройки уведомлений.");
     } finally {
@@ -364,8 +369,12 @@ function TelegramPage({ onError }: Props) {
           <div className="result-card">
             <div className="server-card-row">
               <strong>Webhook для кнопки «Оплатил»</strong>
-              <span className={`status-pill ${webhookInfo?.webhook_active ? "online" : "offline"}`}>
-                {webhookInfo?.webhook_active ? "активен" : "не активен"}
+              <span
+                className={`status-pill ${
+                  webhookInfo == null ? "offline" : webhookInfo.webhook_active ? "online" : "offline"
+                }`}
+              >
+                {webhookInfo == null ? "проверка…" : webhookInfo.webhook_active ? "активен" : "не активен"}
               </span>
             </div>
             <p className="muted">

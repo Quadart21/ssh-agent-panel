@@ -74,17 +74,27 @@ def _resolve_credentials(db: Session | None) -> tuple[str, str]:
     return settings.telegram_bot_token, settings.telegram_chat_id
 
 
-def telegram_api_request(token: str, method: str, payload: dict[str, Any]) -> dict[str, Any]:
+def telegram_api_request(
+    token: str,
+    method: str,
+    payload: dict[str, Any] | None = None,
+    *,
+    timeout: float = 15,
+    http_method: str = "POST",
+) -> dict[str, Any]:
     url = f"https://api.telegram.org/bot{token}/{method}"
-    body = json.dumps(payload).encode("utf-8")
+    data = None
+    headers = {"Content-Type": "application/json"}
+    if http_method.upper() == "POST":
+        data = json.dumps(payload or {}).encode("utf-8")
     req = request.Request(
         url,
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
+        data=data,
+        headers=headers,
+        method=http_method.upper(),
     )
     try:
-        with request.urlopen(req, timeout=15) as response:
+        with request.urlopen(req, timeout=timeout) as response:
             raw = response.read().decode("utf-8", errors="ignore")
             if response.status >= 400:
                 raise RuntimeError(raw or "Telegram API вернул ошибку.")
@@ -171,7 +181,7 @@ def get_telegram_webhook_info(db: Session | None = None) -> dict[str, Any]:
     token, _ = _resolve_credentials(db)
     if not token:
         return {}
-    result = telegram_api_request(token, "getWebhookInfo", {})
+    result = telegram_api_request(token, "getWebhookInfo", timeout=5, http_method="GET")
     return result.get("result") or {}
 
 
