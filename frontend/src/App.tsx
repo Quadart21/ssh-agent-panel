@@ -48,7 +48,11 @@ function App() {
     setCurrentUser(me);
 
     const [serverList, groupList, patternList] = await Promise.all([
-      userHasSectionAccess(me, "servers") || userHasSectionAccess(me, "dashboard")
+      userHasSectionAccess(me, "servers") ||
+      userHasSectionAccess(me, "dashboard") ||
+      userHasSectionAccess(me, "terminal") ||
+      userHasSectionAccess(me, "pm2") ||
+      userHasSectionAccess(me, "commands")
         ? api.listServers()
         : Promise.resolve([]),
       userHasSectionAccess(me, "groups") ? api.listGroups() : Promise.resolve([]),

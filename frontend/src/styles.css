@@ -1612,17 +1612,20 @@ main#main-content {
 
 .terminal-frame {
   margin: 0;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 420px;
+  height: 100%;
   border: 0;
   border-radius: 0;
   overflow: hidden;
   background: #08111c;
   cursor: text;
+  position: relative;
 }
 
 .terminal-frame .xterm {
-  height: 100%;
+  position: absolute;
+  inset: 0;
   padding: 0.75rem 0.9rem;
   box-sizing: border-box;
 }

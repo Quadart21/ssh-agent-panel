@@ -15,7 +15,7 @@ type Props = {
 function TerminalPage({ servers, token }: Props) {
   const selection = useTerminalSelection(servers);
   const session = useTerminalSession();
-  const autoConnectKeyRef = useRef<string>("");
+  const lastAttemptRef = useRef<string>("");
 
   useEffect(() => {
     if (session.isFullscreen) {
@@ -41,64 +41,58 @@ function TerminalPage({ servers, token }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [session.isFullscreen, session.toggleFullscreen]);
 
-  function connectTo(serverId: string, login: string, server?: Server | null) {
+  function connectTo(serverId: string, login: string, server?: Server | null, force = false) {
     const target = server ?? servers.find((item) => String(item.id) === serverId) ?? null;
     if (!serverId || !login || !token || !target) {
       return;
     }
     const key = `${serverId}:${login}`;
-    autoConnectKeyRef.current = key;
-    session.connect({
+    if (!force && lastAttemptRef.current === key && session.connectionState === "connected") {
+      session.focusTerminal();
+      return;
+    }
+    lastAttemptRef.current = key;
+    const started = session.connect({
       serverId,
       login,
       token,
       serverLabel: `${target.name} (${target.ip})`
     });
-    window.setTimeout(() => session.focusTerminal(), 30);
+    if (!started) {
+      // Terminal not ready yet — keep key so pending queue can finish, but allow retry.
+      lastAttemptRef.current = `${key}:pending`;
+    }
+    window.setTimeout(() => session.focusTerminal(), 40);
   }
 
-  // Auto-connect when server+login become ready (selection, deep-link, refresh).
+  // When xterm becomes ready, connect selected server if idle.
   useEffect(() => {
+    if (!session.terminalReady) {
+      return;
+    }
     const serverId = selection.selectedServerId;
     const login = selection.selectedLogin || selection.selectedServer?.login || "";
     if (!serverId || !login || !token || !selection.selectedServer) {
       return;
     }
-    const key = `${serverId}:${login}`;
-    if (autoConnectKeyRef.current === key) {
-      return;
-    }
     if (session.connectionState === "connecting" || session.connectionState === "connected") {
       return;
     }
-    connectTo(serverId, login, selection.selectedServer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect on selection readiness only
-  }, [selection.selectedServerId, selection.selectedLogin, selection.selectedServer, token]);
+    connectTo(serverId, login, selection.selectedServer, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.terminalReady]);
 
   function handleSelectServer(serverId: string) {
-    if (serverId === selection.selectedServerId && session.connectionState === "connected") {
-      session.focusTerminal();
-      return;
-    }
     const server = servers.find((item) => String(item.id) === serverId) ?? null;
+    const login = server?.login || selection.selectedLogin || "";
     selection.setSelectedServerId(serverId);
-    const login = server?.login ?? "";
     if (server && login && token) {
-      // Bypass the effect guard so a re-click / switch always reconnects.
-      autoConnectKeyRef.current = "";
-      connectTo(serverId, login, server);
+      connectTo(serverId, login, server, true);
     }
   }
 
-  const canConnect = Boolean(
-    selection.selectedServerId && (selection.selectedLogin || selection.selectedServer?.login) && token
-  );
-
-  function handleConnect() {
-    const login = selection.selectedLogin || selection.selectedServer?.login || "";
-    autoConnectKeyRef.current = "";
-    connectTo(selection.selectedServerId, login, selection.selectedServer);
-  }
+  const effectiveLogin = selection.selectedLogin || selection.selectedServer?.login || "";
+  const canConnect = Boolean(selection.selectedServerId && effectiveLogin && token);
 
   return (
     <PageShell className={`terminal-page ${session.isFullscreen ? "is-fullscreen" : ""}`}>
@@ -106,12 +100,13 @@ function TerminalPage({ servers, token }: Props) {
         <PageHero
           eyebrow="Операции"
           title="Терминал"
-          description="Клик по серверу сразу открывает SSH-сессию. Пользователя и размер шрифта можно менять в панели."
+          description="Клик по серверу сразу открывает SSH-сессию."
           actions={
             selection.selectedServer ? (
               <div className="terminal-hero-meta">
                 <span className="server-chip">{selection.selectedServer.name}</span>
                 <span className="server-chip muted-chip">{selection.selectedServer.ip}</span>
+                {!session.terminalReady ? <span className="server-chip muted-chip">init…</span> : null}
               </div>
             ) : null
           }
@@ -136,13 +131,18 @@ function TerminalPage({ servers, token }: Props) {
 
           <section className="terminal-stage panel">
             <TerminalToolbar
-              availableLogins={selection.availableLogins}
-              selectedLogin={selection.selectedLogin || selection.selectedServer?.login || ""}
+              availableLogins={
+                selection.availableLogins.length > 0
+                  ? selection.availableLogins
+                  : effectiveLogin
+                    ? [effectiveLogin]
+                    : []
+              }
+              selectedLogin={effectiveLogin}
               onLoginChange={(login) => {
                 selection.setSelectedLogin(login);
                 if (login && selection.selectedServerId && token) {
-                  autoConnectKeyRef.current = "";
-                  connectTo(selection.selectedServerId, login, selection.selectedServer);
+                  connectTo(selection.selectedServerId, login, selection.selectedServer, true);
                 }
               }}
               loadingLogins={selection.loadingLogins}
@@ -153,9 +153,11 @@ function TerminalPage({ servers, token }: Props) {
               onFontSizeChange={session.setFontSize}
               isFullscreen={session.isFullscreen}
               canConnect={canConnect}
-              onConnect={handleConnect}
+              onConnect={() =>
+                connectTo(selection.selectedServerId, effectiveLogin, selection.selectedServer, true)
+              }
               onDisconnect={() => {
-                autoConnectKeyRef.current = `${selection.selectedServerId}:__disconnected__`;
+                lastAttemptRef.current = `${selection.selectedServerId}:__disconnected__`;
                 session.disconnect();
               }}
               onClear={session.clearTerminal}
