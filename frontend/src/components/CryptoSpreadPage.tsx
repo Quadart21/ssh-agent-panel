@@ -20,8 +20,66 @@ function todayInput() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
-function money(value: number) {
-  return value.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+function money(value: number, digits = 4) {
+  return value.toLocaleString("ru-RU", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: digits
+  });
+}
+
+function signedMoney(value: number) {
+  const abs = money(Math.abs(value));
+  if (value > 0) return `+${abs}`;
+  if (value < 0) return `−${abs}`;
+  return abs;
+}
+
+function toneClass(value: number) {
+  if (value > 0) return "is-positive";
+  if (value < 0) return "is-negative";
+  return "is-neutral";
+}
+
+function formatAsset(code: string) {
+  const raw = code.trim().toUpperCase();
+  if (!raw) return "—";
+  const networks = ["TRC20", "ERC20", "BEP20", "BEP2", "POLYGON", "SOL", "TON", "ARBITRUM", "OPTIMISM", "BASE"];
+  for (const net of networks) {
+    if (raw.endsWith(net) && raw.length > net.length) {
+      return `${raw.slice(0, -net.length)} ${net}`;
+    }
+  }
+  return raw;
+}
+
+function formatPair(pair: string) {
+  const [give, get] = pair.split("->").map((part) => part.trim());
+  if (!get) return formatAsset(pair);
+  return `${formatAsset(give)} → ${formatAsset(get)}`;
+}
+
+function formatWhen(value: string | null) {
+  if (!value) return "—";
+  const date = new Date(value.includes("T") ? value : value.replace(" ", "T"));
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function AmountCell({ amount, asset, usdt }: { amount: number; asset: string; usdt: number }) {
+  return (
+    <div className="spread-amount">
+      <span className="spread-amount-main">
+        {money(amount)} <span className="spread-asset">{formatAsset(asset)}</span>
+      </span>
+      <span className="spread-amount-sub">{money(usdt)} USDT</span>
+    </div>
+  );
 }
 
 function CryptoSpreadPage({ servers, onError }: Props) {
@@ -59,11 +117,11 @@ function CryptoSpreadPage({ servers, onError }: Props) {
   }
 
   return (
-    <PageShell>
+    <PageShell className="crypto-spread-page">
       <PageHero
         eyebrow="Обменник"
         title="Спред крипта → крипта"
-        description="Считаем, сколько клиент отдал, сколько забрала платёжка, сколько выплатили и что осталось системе по завершённым заявкам."
+        description="Сколько клиент отдал, сколько забрала платёжка, сколько выплатили и что осталось системе."
         actions={
           <button type="button" className="btn primary" disabled={loading} onClick={() => void loadReport()}>
             {loading ? "Считаю…" : "Посчитать"}
@@ -72,7 +130,7 @@ function CryptoSpreadPage({ servers, onError }: Props) {
       />
 
       <Panel title="Период и источник">
-        <div className="form-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+        <div className="spread-filters">
           <label>
             С даты
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
@@ -81,8 +139,8 @@ function CryptoSpreadPage({ servers, onError }: Props) {
             По дату
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           </label>
-          <label>
-            Сервер обменника (опционально)
+          <label className="spread-filters-server">
+            Сервер обменника
             <select value={serverId} onChange={(e) => setServerId(e.target.value)}>
               <option value="">Из .env (IEX_SSH_* / IEX_DATABASE_URL)</option>
               {(exchangerServers.length ? exchangerServers : servers).map((server) => (
@@ -93,9 +151,7 @@ function CryptoSpreadPage({ servers, onError }: Props) {
             </select>
           </label>
         </div>
-        <p className="muted" style={{ marginTop: 12 }}>
-          Берутся только выполненные заявки (`status=4`), где обе стороны — крипта (не фиат). Суммы сводятся в USDT.
-        </p>
+        <p className="muted spread-hint">Только выполненные заявки (status=4), обе стороны — крипта. Суммы в USDT.</p>
       </Panel>
 
       {!report && !loading ? (
@@ -103,56 +159,69 @@ function CryptoSpreadPage({ servers, onError }: Props) {
       ) : null}
 
       {report ? (
-        <>
-          <div className="stats-grid" style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
-            <Panel title="Клиент отдал">
-              <div className="stat-value">{money(report.client_gave_usdt)} USDT</div>
-            </Panel>
-            <Panel title="Забрала платёжка">
-              <div className="stat-value">{money(report.ps_fee_usdt)} USDT</div>
-            </Panel>
-            <Panel title="Выплатили">
-              <div className="stat-value">{money(report.paid_out_usdt)} USDT</div>
-            </Panel>
-            <Panel title="Заработала система">
-              <div className="stat-value" style={{ color: "var(--success)" }}>
-                {money(report.system_earned_usdt)} USDT
-              </div>
-            </Panel>
+        <div className="page-stack">
+          <div className="stats-grid spread-stats">
+            <article className="stat-card sky">
+              <span>Клиент отдал</span>
+              <strong>{money(report.client_gave_usdt)}</strong>
+              <em>USDT</em>
+            </article>
+            <article className="stat-card amber">
+              <span>Платёжка</span>
+              <strong>{money(report.ps_fee_usdt)}</strong>
+              <em>USDT</em>
+            </article>
+            <article className="stat-card ice">
+              <span>Выплатили</span>
+              <strong>{money(report.paid_out_usdt)}</strong>
+              <em>USDT</em>
+            </article>
+            <article className={`stat-card spread-earn ${toneClass(report.system_earned_usdt)}`}>
+              <span>Система</span>
+              <strong>{signedMoney(report.system_earned_usdt)}</strong>
+              <em>USDT</em>
+            </article>
           </div>
 
-          <Panel title="Сводка">
-            <p className="muted">
-              Заявок: <strong>{report.orders_count}</strong> из просмотренных {report.scanned_count}. Источник:{" "}
-              <code>{report.source}</code>
-            </p>
-          </Panel>
+          <div className="spread-meta">
+            <span>
+              Заявок: <strong>{report.orders_count}</strong>
+              <span className="muted"> из {report.scanned_count}</span>
+            </span>
+            <span className="spread-meta-source" title={report.source}>
+              Источник: <code>{report.source}</code>
+            </span>
+          </div>
 
           <Panel title="По парам">
             {report.pairs.length === 0 ? (
               <EmptyState title="Нет крипто-пар" description="За период не нашлось завершённых crypto↔crypto заявок." />
             ) : (
-              <div className="table-wrap">
-                <table>
+              <div className="spread-table-wrap">
+                <table className="spread-table">
                   <thead>
                     <tr>
                       <th>Пара</th>
-                      <th>Заявок</th>
-                      <th>Клиент отдал</th>
-                      <th>Платёжка</th>
-                      <th>Выплата</th>
-                      <th>Система</th>
+                      <th className="num">Заявок</th>
+                      <th className="num">Клиент отдал</th>
+                      <th className="num">Платёжка</th>
+                      <th className="num">Выплата</th>
+                      <th className="num">Система</th>
                     </tr>
                   </thead>
                   <tbody>
                     {report.pairs.map((pair) => (
                       <tr key={pair.pair}>
-                        <td>{pair.pair}</td>
-                        <td>{pair.orders_count}</td>
-                        <td>{money(pair.client_gave_usdt)}</td>
-                        <td>{money(pair.ps_fee_usdt)}</td>
-                        <td>{money(pair.paid_out_usdt)}</td>
-                        <td>{money(pair.system_earned_usdt)}</td>
+                        <td>
+                          <span className="spread-pair">{formatPair(pair.pair)}</span>
+                        </td>
+                        <td className="num">{pair.orders_count}</td>
+                        <td className="num mono">{money(pair.client_gave_usdt)}</td>
+                        <td className="num mono">{money(pair.ps_fee_usdt)}</td>
+                        <td className="num mono">{money(pair.paid_out_usdt)}</td>
+                        <td className={`num mono ${toneClass(pair.system_earned_usdt)}`}>
+                          {signedMoney(pair.system_earned_usdt)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -162,45 +231,51 @@ function CryptoSpreadPage({ servers, onError }: Props) {
           </Panel>
 
           <Panel title="Заявки">
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>№</th>
-                    <th>Пара</th>
-                    <th>Когда</th>
-                    <th>Отдал</th>
-                    <th>ПС</th>
-                    <th>Выплата</th>
-                    <th>Система (USDT)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.orders.map((order) => (
-                    <tr key={order.task_id}>
-                      <td>{order.task_id}</td>
-                      <td>{order.pair}</td>
-                      <td>{order.completed_at || "—"}</td>
-                      <td>
-                        {money(order.client_gave)} {order.give_xml}
-                        <div className="muted">{money(order.client_gave_usdt)} USDT</div>
-                      </td>
-                      <td>
-                        {money(order.ps_fee)} {order.give_xml}
-                        <div className="muted">{money(order.ps_fee_usdt)} USDT</div>
-                      </td>
-                      <td>
-                        {money(order.paid_out)} {order.get_xml}
-                        <div className="muted">{money(order.paid_out_usdt)} USDT</div>
-                      </td>
-                      <td>{money(order.system_earned_usdt)}</td>
+            {report.orders.length === 0 ? (
+              <EmptyState title="Нет заявок" description="В выборке нет завершённых crypto↔crypto заявок." />
+            ) : (
+              <div className="spread-table-wrap">
+                <table className="spread-table spread-table-orders">
+                  <thead>
+                    <tr>
+                      <th className="num">№</th>
+                      <th>Пара</th>
+                      <th>Когда</th>
+                      <th>Отдал</th>
+                      <th>Платёжка</th>
+                      <th>Выплата</th>
+                      <th className="num">Система</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {report.orders.map((order) => (
+                      <tr key={order.task_id}>
+                        <td className="num mono">{order.task_id}</td>
+                        <td>
+                          <span className="spread-pair">{formatPair(order.pair)}</span>
+                        </td>
+                        <td className="spread-when">{formatWhen(order.completed_at)}</td>
+                        <td>
+                          <AmountCell amount={order.client_gave} asset={order.give_xml} usdt={order.client_gave_usdt} />
+                        </td>
+                        <td>
+                          <AmountCell amount={order.ps_fee} asset={order.give_xml} usdt={order.ps_fee_usdt} />
+                        </td>
+                        <td>
+                          <AmountCell amount={order.paid_out} asset={order.get_xml} usdt={order.paid_out_usdt} />
+                        </td>
+                        <td className={`num mono ${toneClass(order.system_earned_usdt)}`}>
+                          {signedMoney(order.system_earned_usdt)}
+                          <span className="spread-amount-sub">USDT</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Panel>
-        </>
+        </div>
       ) : null}
     </PageShell>
   );
