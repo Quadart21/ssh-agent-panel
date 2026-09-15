@@ -243,6 +243,45 @@ export type AccountingReport = {
   recurring_monthly: number;
 };
 
+export type CryptoSpreadOrder = {
+  task_id: number;
+  pair: string;
+  give_xml: string;
+  get_xml: string;
+  completed_at: string | null;
+  client_gave: number;
+  client_gave_usdt: number;
+  ps_fee: number;
+  ps_fee_usdt: number;
+  paid_out: number;
+  paid_out_usdt: number;
+  system_earned_usdt: number;
+  course_display: string | null;
+  merchant_provider: string | null;
+};
+
+export type CryptoSpreadPairStat = {
+  pair: string;
+  orders_count: number;
+  client_gave_usdt: number;
+  ps_fee_usdt: number;
+  paid_out_usdt: number;
+  system_earned_usdt: number;
+};
+
+export type CryptoSpreadReport = {
+  source: string;
+  currency: string;
+  orders_count: number;
+  scanned_count: number;
+  client_gave_usdt: number;
+  ps_fee_usdt: number;
+  paid_out_usdt: number;
+  system_earned_usdt: number;
+  pairs: CryptoSpreadPairStat[];
+  orders: CryptoSpreadOrder[];
+};
+
 export type AccountingMarkPaidResponse = {
   payment: AccountingPayment;
   pay_until: string | null;

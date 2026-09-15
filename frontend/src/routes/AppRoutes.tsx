@@ -18,6 +18,7 @@ import type {
 const AuditPage = lazy(() => import("../components/AuditPage"));
 const AlertsPage = lazy(() => import("../components/AlertsPage"));
 const AccountingPage = lazy(() => import("../components/AccountingPage"));
+const CryptoSpreadPage = lazy(() => import("../components/CryptoSpreadPage"));
 const AutomationPage = lazy(() => import("../components/AutomationPage"));
 const CommandsRoute = lazy(() => import("../components/CommandsRoute"));
 const DashboardPage = lazy(() => import("../components/DashboardPage"));
@@ -184,6 +185,16 @@ function AppRoutes({
           element={
             userHasSectionAccess(currentUser, "accounting") ? (
               <AccountingPage currentUser={currentUser} servers={servers} onError={setError} />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
+        <Route
+          path="/crypto-spread"
+          element={
+            userHasSectionAccess(currentUser, "crypto-spread") ? (
+              <CryptoSpreadPage currentUser={currentUser} servers={servers} onError={setError} />
             ) : (
               <Navigate to="/dashboard" replace />
             )

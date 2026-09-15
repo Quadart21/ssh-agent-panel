@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     login_lock_minutes: int = 15
     session_inactivity_minutes: int = 720
     public_api_base_url: str = ""
+    # iEX / CryptoCash spread analytics
+    iex_database_url: str = ""
+    iex_ssh_host: str = ""
+    iex_ssh_port: int = 22
+    iex_ssh_user: str = "root"
+    iex_ssh_password: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

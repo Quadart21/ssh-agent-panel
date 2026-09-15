@@ -31,6 +31,14 @@ export const panelPermissionModules: PermissionModule[] = [
     editActions: ["accounting_manage"]
   },
   {
+    id: "crypto-spread",
+    label: "Спред",
+    description: "Прибыль по crypto↔crypto заявкам обменника",
+    group: "overview",
+    sections: ["crypto-spread"],
+    editActions: []
+  },
+  {
     id: "fleet",
     label: "Серверы и виджеты",
     description: "Инвентарь, метрики, embed-виджеты",
@@ -135,6 +143,7 @@ export const panelAccessPresets: Array<{
     levels: {
       overview: "view",
       accounting: "view",
+      "crypto-spread": "view",
       fleet: "view",
       groups: "view",
       domains: "view",
@@ -156,6 +165,7 @@ export const panelAccessPresets: Array<{
     levels: {
       overview: "view",
       accounting: "view",
+      "crypto-spread": "view",
       fleet: "view",
       groups: "view",
       domains: "view",
@@ -177,6 +187,7 @@ export const panelAccessPresets: Array<{
     levels: {
       overview: "view",
       accounting: "edit",
+      "crypto-spread": "view",
       fleet: "edit",
       groups: "edit",
       domains: "edit",

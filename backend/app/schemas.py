@@ -1230,3 +1230,42 @@ class AccountingReport(BaseModel):
     by_group: list[AccountingReportBreakdown]
     recurring_monthly: float
 
+
+class CryptoSpreadOrder(BaseModel):
+    task_id: int
+    pair: str
+    give_xml: str
+    get_xml: str
+    completed_at: str | None = None
+    client_gave: float
+    client_gave_usdt: float
+    ps_fee: float
+    ps_fee_usdt: float
+    paid_out: float
+    paid_out_usdt: float
+    system_earned_usdt: float
+    course_display: str | None = None
+    merchant_provider: str | None = None
+
+
+class CryptoSpreadPairStat(BaseModel):
+    pair: str
+    orders_count: int
+    client_gave_usdt: float
+    ps_fee_usdt: float
+    paid_out_usdt: float
+    system_earned_usdt: float
+
+
+class CryptoSpreadReport(BaseModel):
+    source: str
+    currency: str = "USDT"
+    orders_count: int
+    scanned_count: int
+    client_gave_usdt: float
+    ps_fee_usdt: float
+    paid_out_usdt: float
+    system_earned_usdt: float
+    pairs: list[CryptoSpreadPairStat]
+    orders: list[CryptoSpreadOrder]
+
