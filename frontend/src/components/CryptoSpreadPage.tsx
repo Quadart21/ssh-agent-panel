@@ -82,21 +82,27 @@ function AmountCell({ amount, asset, usdt }: { amount: number; asset: string; us
   );
 }
 
+const DEFAULT_SPREAD_SERVER_ID = "27";
+
 function CryptoSpreadPage({ servers, onError }: Props) {
   const [dateFrom, setDateFrom] = useState(monthStartInput());
   const [dateTo, setDateTo] = useState(todayInput());
-  const [serverId, setServerId] = useState("");
+  const [serverId, setServerId] = useState(DEFAULT_SPREAD_SERVER_ID);
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<CryptoSpreadReport | null>(null);
 
-  const exchangerServers = useMemo(
-    () =>
-      servers.filter((server) => {
-        const hay = `${server.name} ${server.ip} ${server.notes || ""}`.toLowerCase();
-        return hay.includes("iex") || hay.includes("kubex") || hay.includes("exchange") || hay.includes("103.68.110");
-      }),
-    [servers]
-  );
+  const exchangerServers = useMemo(() => {
+    const matched = servers.filter((server) => {
+      const hay = `${server.name} ${server.ip} ${server.notes || ""}`.toLowerCase();
+      return hay.includes("iex") || hay.includes("kubex") || hay.includes("exchange") || hay.includes("103.68.110");
+    });
+    const preferred = servers.find((server) => String(server.id) === DEFAULT_SPREAD_SERVER_ID);
+    const base = matched.length ? matched : servers;
+    if (preferred && !base.some((server) => server.id === preferred.id)) {
+      return [preferred, ...base];
+    }
+    return base;
+  }, [servers]);
 
   async function loadReport() {
     setLoading(true);
