@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from html import escape
 from typing import Any
 from urllib import error, request
+import threading
 
 from sqlalchemy.orm import Session
 
@@ -79,7 +80,7 @@ def telegram_api_request(
     method: str,
     payload: dict[str, Any] | None = None,
     *,
-    timeout: float = 15,
+    timeout: float = 8,
     http_method: str = "POST",
 ) -> dict[str, Any]:
     url = f"https://api.telegram.org/bot{token}/{method}"
@@ -113,8 +114,15 @@ def send_telegram_message(
     parse_mode: str | None = None,
     topic_id: int | None = None,
     reply_markup: dict[str, Any] | None = None,
+    *,
+    timeout: float = 8,
+    token: str | None = None,
+    chat_id: str | None = None,
 ) -> int | None:
-    token, chat_id = _resolve_credentials(db)
+    if token is None or chat_id is None:
+        resolved_token, resolved_chat_id = _resolve_credentials(db)
+        token = token if token is not None else resolved_token
+        chat_id = chat_id if chat_id is not None else resolved_chat_id
     if not token or not chat_id:
         return None
 
@@ -130,9 +138,59 @@ def send_telegram_message(
     if reply_markup:
         payload_data["reply_markup"] = reply_markup
 
-    result = telegram_api_request(token, "sendMessage", payload_data)
+    result = telegram_api_request(token, "sendMessage", payload_data, timeout=timeout)
     message = result.get("result") or {}
     return message.get("message_id")
+
+
+def send_telegram_message_best_effort(
+    text: str,
+    *,
+    token: str,
+    chat_id: str,
+    parse_mode: str | None = None,
+    topic_id: int | None = None,
+    timeout: float = 8,
+) -> None:
+    """Fire-and-forget helper that never raises (for background / threaded notify)."""
+    try:
+        send_telegram_message(
+            text,
+            parse_mode=parse_mode,
+            topic_id=topic_id,
+            timeout=timeout,
+            token=token,
+            chat_id=chat_id,
+        )
+    except Exception:
+        pass
+
+
+def schedule_telegram_message(
+    text: str,
+    *,
+    token: str,
+    chat_id: str,
+    parse_mode: str | None = None,
+    topic_id: int | None = None,
+    timeout: float = 8,
+) -> None:
+    """Send Telegram in a daemon thread so request handlers never wait on API latency."""
+    if not token or not chat_id:
+        return
+    threading.Thread(
+        target=send_telegram_message_best_effort,
+        kwargs={
+            "text": text,
+            "token": token,
+            "chat_id": chat_id,
+            "parse_mode": parse_mode,
+            "topic_id": topic_id,
+            "timeout": timeout,
+        },
+        daemon=True,
+        name="telegram-notify",
+    ).start()
 
 
 def answer_callback_query(

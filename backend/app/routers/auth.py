@@ -28,8 +28,12 @@ from app.services.auth_state import (
     revoke_session,
     revoke_session_by_id,
 )
-from app.services.notification_settings import get_or_create_notification_settings
-from app.services.telegram import format_telegram_message, resolve_telegram_topic_id, send_telegram_message, telegram_is_configured
+from app.services.notification_settings import get_or_create_notification_settings, telegram_credentials
+from app.services.telegram import (
+    format_telegram_message,
+    resolve_telegram_topic_id,
+    schedule_telegram_message,
+)
 from app.services.two_factor import (
     disable_two_factor,
     enable_two_factor,
@@ -78,27 +82,27 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     token = create_access_token(user.email, session_id=session.session_token_id)
     write_audit_log(db, user=user, action="auth.login", target_type="user", target_id=str(user.id))
     profile = get_or_create_notification_settings(db)
-    if profile.notify_login and telegram_is_configured(db):
-        try:
-            user_agent_short = (user_agent or "unknown").strip()
-            if len(user_agent_short) > 120:
-                user_agent_short = f"{user_agent_short[:117]}..."
-            send_telegram_message(
-                format_telegram_message(
-                    "Вход в панель",
-                    icon="🔐",
-                    facts=[
-                        ("Пользователь", user.email),
-                        ("IP", ip_address or "unknown"),
-                    ],
-                    lines=[f"User-Agent: {user_agent_short}"],
-                ),
-                db,
-                parse_mode="HTML",
-                topic_id=resolve_telegram_topic_id(profile, "login"),
-            )
-        except Exception:
-            pass
+    bot_token, chat_id = telegram_credentials(profile)
+    if profile.notify_login and bot_token and chat_id:
+        user_agent_short = (user_agent or "unknown").strip()
+        if len(user_agent_short) > 120:
+            user_agent_short = f"{user_agent_short[:117]}..."
+        # Do not block login on Telegram latency/timeouts (often 10–20s from this host).
+        schedule_telegram_message(
+            format_telegram_message(
+                "Вход в панель",
+                icon="🔐",
+                facts=[
+                    ("Пользователь", user.email),
+                    ("IP", ip_address or "unknown"),
+                ],
+                lines=[f"User-Agent: {user_agent_short}"],
+            ),
+            token=bot_token,
+            chat_id=chat_id,
+            parse_mode="HTML",
+            topic_id=resolve_telegram_topic_id(profile, "login"),
+        )
     return TokenResponse(access_token=token, user=UserRead.model_validate(user, from_attributes=True))
 
 
