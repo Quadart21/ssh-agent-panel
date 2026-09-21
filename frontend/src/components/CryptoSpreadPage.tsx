@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { api } from "../api";
 import type { CryptoSpreadReport, Server, User } from "../types";
@@ -9,8 +9,6 @@ type Props = {
   servers: Server[];
   onError: (message: string) => void;
 };
-
-const DEFAULT_SPREAD_SERVER_ID = 27;
 
 function monthStartInput() {
   const now = new Date();
@@ -87,30 +85,26 @@ function AmountCell({ amount, asset, usdt }: { amount: number; asset: string; us
 function CryptoSpreadPage({ servers, onError }: Props) {
   const [dateFrom, setDateFrom] = useState(monthStartInput());
   const [dateTo, setDateTo] = useState(todayInput());
-  const [serverId, setServerId] = useState(String(DEFAULT_SPREAD_SERVER_ID));
-  const [loading, setLoading] = useState(true);
+  const [serverId, setServerId] = useState("");
+  const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<CryptoSpreadReport | null>(null);
 
-  const exchangerServers = useMemo(() => {
-    const matched = servers.filter((server) => {
-      const hay = `${server.name} ${server.ip} ${server.notes || ""}`.toLowerCase();
-      return hay.includes("iex") || hay.includes("kubex") || hay.includes("exchange") || hay.includes("103.68.110");
-    });
-    const preferred = servers.find((server) => server.id === DEFAULT_SPREAD_SERVER_ID);
-    const base = matched.length ? matched : servers;
-    if (preferred && !base.some((server) => server.id === preferred.id)) {
-      return [preferred, ...base];
-    }
-    return base;
-  }, [servers]);
+  const exchangerServers = useMemo(
+    () =>
+      servers.filter((server) => {
+        const hay = `${server.name} ${server.ip} ${server.notes || ""}`.toLowerCase();
+        return hay.includes("iex") || hay.includes("kubex") || hay.includes("exchange") || hay.includes("103.68.110");
+      }),
+    [servers]
+  );
 
-  async function loadReport(from = dateFrom, to = dateTo, selectedServerId = serverId) {
+  async function loadReport() {
     setLoading(true);
     try {
       const data = await api.cryptoSpreadReport({
-        from: `${from}T00:00:00`,
-        to: `${to}T23:59:59`,
-        server_id: Number(selectedServerId) || DEFAULT_SPREAD_SERVER_ID,
+        from: `${dateFrom}T00:00:00`,
+        to: `${dateTo}T23:59:59`,
+        server_id: serverId ? Number(serverId) : undefined,
         limit: 2000
       });
       setReport(data);
@@ -122,10 +116,6 @@ function CryptoSpreadPage({ servers, onError }: Props) {
     }
   }
 
-  useEffect(() => {
-    void loadReport(monthStartInput(), todayInput(), String(DEFAULT_SPREAD_SERVER_ID));
-  }, []);
-
   return (
     <PageShell className="crypto-spread-page">
       <PageHero
@@ -134,7 +124,7 @@ function CryptoSpreadPage({ servers, onError }: Props) {
         description="Сколько клиент отдал, сколько забрала платёжка, сколько выплатили и что осталось системе."
         actions={
           <button type="button" className="btn primary" disabled={loading} onClick={() => void loadReport()}>
-            {loading ? "Считаю…" : "Обновить"}
+            {loading ? "Считаю…" : "Посчитать"}
           </button>
         }
       />
@@ -152,10 +142,8 @@ function CryptoSpreadPage({ servers, onError }: Props) {
           <label className="spread-filters-server">
             Сервер обменника
             <select value={serverId} onChange={(e) => setServerId(e.target.value)}>
-              {exchangerServers.length === 0 ? (
-                <option value={DEFAULT_SPREAD_SERVER_ID}>Сервер #{DEFAULT_SPREAD_SERVER_ID}</option>
-              ) : null}
-              {exchangerServers.map((server) => (
+              <option value="">Из .env (IEX_SSH_* / IEX_DATABASE_URL)</option>
+              {(exchangerServers.length ? exchangerServers : servers).map((server) => (
                 <option key={server.id} value={server.id}>
                   {server.name} ({server.ip})
                 </option>
@@ -163,13 +151,13 @@ function CryptoSpreadPage({ servers, onError }: Props) {
             </select>
           </label>
         </div>
-        <p className="muted spread-hint">Только выполненные заявки (status=4), обе стороны — крипта. Суммы в USDT.</p>
+        <p className="muted spread-hint">
+          Выполненные crypto↔crypto. Fee и себестоимость выплаты — из колбеков CryptoCash (свап), не из курса заявки.
+        </p>
       </Panel>
 
-      {loading && !report ? <p className="muted">Загружаю отчёт…</p> : null}
-
       {!report && !loading ? (
-        <EmptyState title="Нет данных" description="Измените период и нажмите «Обновить»." />
+        <EmptyState title="Отчёта ещё нет" description="Выберите период и нажмите «Посчитать»." />
       ) : null}
 
       {report ? (

@@ -1,4 +1,11 @@
-"""Спред по завершённым заявкам крипта↔крипта (iEX / CryptoCash)."""
+"""Спред по завершённым заявкам крипта↔крипта (iEX / CryptoCash).
+
+Прибыль считается по кассе CryptoCash:
+  система = (вход на баланс) − (себестоимость выплаты по свапу CC)
+
+Вход/fee — из Paid fetch_payment; выплата в USDT — из Paid fetch_payout.usdtTotal.
+Если колбека нет — fallback на поля tasks + курс заявки.
+"""
 from __future__ import annotations
 
 import csv
@@ -65,7 +72,7 @@ def _d(value: Any) -> Decimal:
     if value is None or value == "":
         return Decimal("0")
     try:
-        return Decimal(str(value))
+        return Decimal(str(value).strip())
     except (InvalidOperation, ValueError):
         return Decimal("0")
 
@@ -98,7 +105,6 @@ def parse_usdt_per_coin(course_display: str | None, course_float: Decimal) -> De
     text = (course_display or "").replace("\u00a0", " ").strip()
     if not text:
         if course_float > 0:
-            # Часто course_float = coin per 1 USDT
             return (Decimal("1") / course_float) if course_float != 0 else None
         return None
 
@@ -138,8 +144,8 @@ def amount_to_usdt(
     return Decimal("0")
 
 
-def extract_ps_fee_give(payload: Any, give_price_fee_pay: Decimal, give_price_fee_comm_pay: Decimal) -> Decimal:
-    """Комиссия платёжки на стороне отдаю (в валюте отдаю)."""
+def extract_ps_fee_give(payload: Any, give_price_fee_pay: Decimal) -> Decimal:
+    """Комиссия платёжки на стороне отдаю (в валюте отдаю) — fallback из tasks."""
     from_payload = Decimal("0")
     if isinstance(payload, dict):
         for item in payload.get("components") or []:
@@ -155,6 +161,88 @@ def extract_ps_fee_give(payload: Any, give_price_fee_pay: Decimal, give_price_fe
         return from_payload
     return give_price_fee_pay
 
+
+def _parse_callback_json(raw: Any) -> dict[str, Any]:
+    if isinstance(raw, dict):
+        return raw
+    if not raw or not isinstance(raw, str):
+        return {}
+    text = raw.strip()
+    if not text:
+        return {}
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _callback_item(raw: Any) -> dict[str, Any]:
+    data = _parse_callback_json(raw)
+    item = ((data.get("data") or {}) if isinstance(data.get("data"), dict) else {}).get("item")
+    return item if isinstance(item, dict) else {}
+
+
+def _net_out_usdt_from_item(item: dict[str, Any]) -> Decimal:
+    """Себестоимость выплаты CryptoCash в USDT (по свапу)."""
+    usdt_total = _d(item.get("usdtTotal"))
+    if usdt_total > 0:
+        return usdt_total
+
+    # fallback: OUT − Return hold из balanceEntries
+    out_sum = Decimal("0")
+    in_sum = Decimal("0")
+    for entry in item.get("balanceEntries") or []:
+        if not isinstance(entry, dict):
+            continue
+        amount = _d(entry.get("amount"))
+        direction = str(entry.get("direction") or "").upper()
+        reason = str(entry.get("reason") or "").lower()
+        if direction == "OUT":
+            out_sum += amount
+        elif direction == "IN" and "return" in reason:
+            in_sum += amount
+    net = out_sum - in_sum
+    if net > 0:
+        return net
+
+    rate = _d(item.get("exchangeRate"))
+    amount = _d(item.get("amount"))
+    if rate > 0 and amount > 0:
+        return amount * rate
+    return Decimal("0")
+
+
+def _in_fee_usdt_from_item(item: dict[str, Any], *, give_xml: str, usdt_per_coin: Decimal | None) -> Decimal:
+    fee = _d(item.get("commission"))
+    if fee <= 0:
+        fee = _d(item.get("feeAmount"))
+    if fee <= 0:
+        for entry in item.get("balanceEntries") or []:
+            if isinstance(entry, dict) and str(entry.get("direction") or "").upper() == "IN":
+                fee = _d(entry.get("feeAmount"))
+                if fee > 0:
+                    break
+    if fee <= 0:
+        return Decimal("0")
+    # commission уже в USDT у CC (и для USDT, и для LTC→USDT)
+    if is_stable(give_xml):
+        return fee
+    # если fee в монете отдаю — переведём; у CC обычно уже USDT
+    # эвристика: если fee << give и give не стейбл, скорее уже USDT
+    return fee if fee > 0 else amount_to_usdt(fee, give_xml, usdt_per_coin=usdt_per_coin)
+
+
+def _in_credited_usdt(item: dict[str, Any]) -> Decimal:
+    credited = _d(item.get("usdtTotal"))
+    if credited > 0:
+        return credited
+    for entry in item.get("balanceEntries") or []:
+        if isinstance(entry, dict) and str(entry.get("direction") or "").upper() == "IN":
+            amount = _d(entry.get("amount"))
+            if amount > 0:
+                return amount
+    return Decimal("0")
 
 
 def row_from_task(raw: dict[str, Any]) -> SpreadRow | None:
@@ -181,15 +269,75 @@ def row_from_task(raw: dict[str, Any]) -> SpreadRow | None:
     if not isinstance(payload, dict):
         payload = {}
 
-    ps_fee = extract_ps_fee_give(
-        payload,
-        _d(raw.get("give_price_fee_pay")),
-        _d(raw.get("give_price_fee_comm_pay")),
-    )
+    in_item = _callback_item(raw.get("in_callback") or raw.get("in_cb_json"))
+    out_item = _callback_item(raw.get("out_callback") or raw.get("out_cb_json"))
 
-    client_gave_usdt = amount_to_usdt(give_price, give_xml, usdt_per_coin=usdt_per_coin)
-    ps_fee_usdt = amount_to_usdt(ps_fee, give_xml, usdt_per_coin=usdt_per_coin)
-    paid_out_usdt = amount_to_usdt(receiving_price, get_xml, usdt_per_coin=usdt_per_coin)
+    # Плоские поля из SQL (надёжнее, чем гонять весь JSON через CSV)
+    in_usdt_total = _d(raw.get("in_usdt_total"))
+    in_commission = _d(raw.get("in_commission"))
+    in_fee_amount = _d(raw.get("in_fee_amount"))
+    out_usdt_total = _d(raw.get("out_usdt_total"))
+    out_exchange_rate = _d(raw.get("out_exchange_rate"))
+    out_amount = _d(raw.get("out_amount"))
+
+    if in_usdt_total > 0 and not in_item.get("usdtTotal"):
+        in_item = {
+            **in_item,
+            "usdtTotal": str(in_usdt_total),
+            "commission": str(in_commission) if in_commission > 0 else in_item.get("commission"),
+            "feeAmount": str(in_fee_amount) if in_fee_amount > 0 else in_item.get("feeAmount"),
+        }
+    if out_usdt_total > 0 and not out_item.get("usdtTotal"):
+        out_item = {
+            **out_item,
+            "usdtTotal": str(out_usdt_total),
+            "exchangeRate": str(out_exchange_rate) if out_exchange_rate > 0 else out_item.get("exchangeRate"),
+            "amount": str(out_amount) if out_amount > 0 else out_item.get("amount"),
+        }
+
+    # --- fee / вход ---
+    ps_fee_task = extract_ps_fee_give(payload, _d(raw.get("give_price_fee_pay")))
+    ps_fee_usdt_cb = _in_fee_usdt_from_item(in_item, give_xml=give_xml, usdt_per_coin=usdt_per_coin)
+    if ps_fee_usdt_cb <= 0:
+        ps_fee_usdt_cb = in_commission if in_commission > 0 else in_fee_amount
+    credited_usdt = _in_credited_usdt(in_item)
+    if credited_usdt <= 0:
+        credited_usdt = in_usdt_total
+
+    if is_stable(give_xml):
+        client_gave_usdt = give_price
+        ps_fee = ps_fee_usdt_cb if ps_fee_usdt_cb > 0 else ps_fee_task
+        ps_fee_usdt = ps_fee
+        if credited_usdt > 0 and ps_fee_usdt <= 0 and client_gave_usdt > credited_usdt:
+            ps_fee_usdt = client_gave_usdt - credited_usdt
+            ps_fee = ps_fee_usdt
+    else:
+        ps_fee_usdt = ps_fee_usdt_cb
+        if credited_usdt > 0:
+            client_gave_usdt = credited_usdt + ps_fee_usdt
+        else:
+            client_gave_usdt = amount_to_usdt(give_price, give_xml, usdt_per_coin=usdt_per_coin)
+            if ps_fee_usdt <= 0:
+                ps_fee_usdt = amount_to_usdt(ps_fee_task, give_xml, usdt_per_coin=usdt_per_coin)
+        ps_fee = ps_fee_task if ps_fee_task > 0 else ps_fee_usdt
+
+    # --- выплата: себестоимость по свапу CC ---
+    paid_out = receiving_price
+    paid_out_usdt_cb = _net_out_usdt_from_item(out_item)
+    if paid_out_usdt_cb <= 0:
+        paid_out_usdt_cb = out_usdt_total
+    swap_rate = _d(out_item.get("exchangeRate"))
+    if swap_rate <= 0:
+        swap_rate = out_exchange_rate
+
+    if paid_out_usdt_cb > 0:
+        paid_out_usdt = paid_out_usdt_cb
+        if swap_rate > 0:
+            asset = (get_xml or "COIN").replace("USDT", "").strip() or get_xml
+            course_display = f"CC swap {swap_rate} USDT = 1 {asset}"
+    else:
+        paid_out_usdt = amount_to_usdt(receiving_price, get_xml, usdt_per_coin=usdt_per_coin)
+
     system_earned = client_gave_usdt - ps_fee_usdt - paid_out_usdt
 
     completed = raw.get("completed_at")
@@ -207,7 +355,7 @@ def row_from_task(raw: dict[str, Any]) -> SpreadRow | None:
         client_gave_usdt=_f(client_gave_usdt),
         ps_fee=_f(ps_fee),
         ps_fee_usdt=_f(ps_fee_usdt),
-        paid_out=_f(receiving_price),
+        paid_out=_f(paid_out if paid_out > 0 else out_amount),
         paid_out_usdt=_f(paid_out_usdt),
         system_earned_usdt=_f(system_earned),
         course_display=str(course_display) if course_display else None,
@@ -228,11 +376,60 @@ SELECT
   t.course_display,
   t.amounts_payload::text AS amounts_payload,
   t.merchant_provider,
-  t.completed_at
+  t.completed_at,
+  in_cb.usdt_total AS in_usdt_total,
+  in_cb.commission AS in_commission,
+  in_cb.fee_amount AS in_fee_amount,
+  out_cb.usdt_total AS out_usdt_total,
+  out_cb.exchange_rate AS out_exchange_rate,
+  out_cb.amount AS out_amount
 FROM tasks t
 JOIN direction_exchange d ON d.id = t.id_direction_exchange
 JOIN currencies c1 ON c1.id = d.id_currency1
 JOIN currencies c2 ON c2.id = d.id_currency2
+LEFT JOIN LATERAL (
+  SELECT
+    (regexp_match(g.response_body, '"usdtTotal"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1] AS usdt_total,
+    COALESCE(
+      (regexp_match(g.response_body, '"commission"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1],
+      ''
+    ) AS commission,
+    COALESCE(
+      (regexp_match(g.response_body, '"feeAmount"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1],
+      ''
+    ) AS fee_amount
+  FROM payment_gateway_logs g
+  WHERE g.direction = 'incoming'
+    AND g.operation IN ('fetch_payment', 'purchase')
+    AND (
+      g.task_id = t.id
+      OR g.external_id = t.id::text
+      OR g.transaction_id = t.id::text
+    )
+    AND g.response_body LIKE '%%"status":"Paid"%%'
+  ORDER BY g.id DESC
+  LIMIT 1
+) in_cb ON TRUE
+LEFT JOIN LATERAL (
+  SELECT
+    (regexp_match(g.response_body, '"usdtTotal"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1] AS usdt_total,
+    (regexp_match(g.response_body, '"exchangeRate"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1] AS exchange_rate,
+    (regexp_match(g.response_body, '"amount"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1] AS amount
+  FROM payment_gateway_logs g
+  WHERE g.direction = 'outgoing'
+    AND g.operation IN ('fetch_payout', 'payout')
+    AND (
+      g.task_id = t.id
+      OR g.transaction_id = t.id::text
+      OR g.external_id = t.id::text
+      OR g.external_id = 'OUT_' || t.id::text
+      OR g.transaction_id = 'OUT_' || t.id::text
+      OR g.response_body LIKE ('%%"externalId":"OUT_' || t.id::text || '"%%')
+    )
+    AND g.response_body LIKE '%%"status":"Paid"%%'
+  ORDER BY g.id DESC
+  LIMIT 1
+) out_cb ON TRUE
 WHERE t.status = 4
   AND t.deleted_at IS NULL
   AND t.completed_at IS NOT NULL
@@ -271,6 +468,12 @@ def _csv_to_rows(csv_text: str) -> list[dict[str, Any]]:
                 "amounts_payload": payload,
                 "merchant_provider": item.get("merchant_provider"),
                 "completed_at": item.get("completed_at"),
+                "in_usdt_total": item.get("in_usdt_total") or "",
+                "in_commission": item.get("in_commission") or "",
+                "in_fee_amount": item.get("in_fee_amount") or "",
+                "out_usdt_total": item.get("out_usdt_total") or "",
+                "out_exchange_rate": item.get("out_exchange_rate") or "",
+                "out_amount": item.get("out_amount") or "",
             }
         )
     return rows
