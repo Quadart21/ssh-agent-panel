@@ -116,7 +116,7 @@ function CryptoSpreadPage({ onError }: Props) {
   return (
     <PageShell className="crypto-spread-page">
       <PageHero
-        eyebrow="CryptoCash · SSH"
+        eyebrow="CryptoCash · SSH #27"
         title="Спред"
         description="Прибыль по кассе: fee входящего и себестоимость выплаты по свапу CryptoCash."
         actions={

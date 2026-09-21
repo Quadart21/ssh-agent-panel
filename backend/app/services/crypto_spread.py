@@ -22,6 +22,10 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.security import decrypt_secret
+from app.models import Server
+from app.services.ssh import build_ssh_client
+from app.services.ssh_keys import resolve_server_private_key
 
 STABLE_PREFIXES = ("USDT", "USDC", "TUSD", "USDS", "USD1", "USDR", "DAI")
 FIAT_MARKERS = (
@@ -485,7 +489,7 @@ def _ssh_run(client: paramiko.SSHClient, command: str, timeout: int = 120) -> st
     return out
 
 
-def fetch_via_ssh(sql: str) -> list[dict[str, Any]]:
+def fetch_via_ssh_env(sql: str) -> list[dict[str, Any]]:
     host = settings.iex_ssh_host.strip()
     user = settings.iex_ssh_user.strip() or "root"
     password = settings.iex_ssh_password
@@ -521,30 +525,64 @@ def fetch_via_ssh(sql: str) -> list[dict[str, Any]]:
     return _csv_to_rows(csv_text)
 
 
+def fetch_via_panel_server(db: Session, server_id: int, sql: str) -> list[dict[str, Any]]:
+    server = db.get(Server, server_id)
+    if not server:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Сервер обменника #{server_id} не найден в панели.",
+        )
+    password = decrypt_secret(server.password_enc) if server.password_enc else None
+    private_key = resolve_server_private_key(server)
+    if not password and not private_key and not server.key_path:
+        raise HTTPException(status_code=400, detail="У сервера обменника нет SSH-пароля/ключа.")
+
+    sql_one_line = " ".join(line.strip() for line in sql.splitlines() if line.strip())
+    remote = (
+        "sudo -u postgres psql -d iex -v ON_ERROR_STOP=1 -P pager=off "
+        "--csv -c "
+        + json.dumps(sql_one_line)
+    )
+    client = build_ssh_client(
+        host=server.ip,
+        port=int(server.port or 22),
+        username=server.login,
+        password=password,
+        key_path=server.key_path,
+        private_key_pem=private_key,
+    )
+    try:
+        csv_text = _ssh_run(client, remote)
+    finally:
+        client.close()
+    return _csv_to_rows(csv_text)
+
+
 def load_raw_tasks(
+    db: Session,
     *,
     date_from: datetime | None,
     date_to: datetime | None,
     limit: int,
 ) -> tuple[list[dict[str, Any]], str]:
+    """Единственный источник: SSH. По умолчанию — сервер панели IEX_SSH_SERVER_ID (27)."""
     sql = _build_sql(date_from, date_to, limit)
-    host = settings.iex_ssh_host.strip()
-    if not host:
-        raise HTTPException(
-            status_code=400,
-            detail="Не настроен SSH к обменнику: задайте IEX_SSH_HOST и IEX_SSH_PASSWORD.",
-        )
-    return fetch_via_ssh(sql), f"ssh:{host}"
+    # Опционально: прямые IEX_SSH_* из .env (локальная отладка)
+    if settings.iex_ssh_host.strip() and settings.iex_ssh_password:
+        return fetch_via_ssh_env(sql), f"ssh:{settings.iex_ssh_host.strip()}"
+    server_id = int(settings.iex_ssh_server_id or 27)
+    return fetch_via_panel_server(db, server_id, sql), f"ssh:server:{server_id}"
 
 
 def build_spread_report(
-    _db: Session | None = None,
+    db: Session,
     *,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     limit: int = 1000,
 ) -> dict[str, Any]:
     raw_rows, source = load_raw_tasks(
+        db,
         date_from=date_from,
         date_to=date_to,
         limit=limit,
