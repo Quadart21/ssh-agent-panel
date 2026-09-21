@@ -4,7 +4,7 @@ export const sections: SectionItem[] = [
   { path: "/dashboard", label: "Дашборд", description: "Состояние парка", group: "overview" },
   { path: "/alerts", label: "Уведомления", description: "Офлайн и оплаты", group: "overview" },
   { path: "/accounting", label: "Бухгалтерия", description: "Расходы и бюджеты", group: "overview" },
-  { path: "/crypto-spread", label: "Спред", description: "Прибыль крипта↔крипта", group: "overview" },
+  { path: "/crypto-spread", label: "Спред", description: "Касса CryptoCash", group: "overview" },
   { path: "/servers", label: "Серверы", description: "Список и доступ", group: "infrastructure" },
   { path: "/metric-embeds", label: "Виджеты", description: "Метрики на сайт", group: "infrastructure" },
   { path: "/groups", label: "Группы", description: "Группировка", group: "infrastructure" },

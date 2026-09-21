@@ -1,12 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../api";
-import type { CryptoSpreadReport, Server, User } from "../types";
+import type { CryptoSpreadReport, User } from "../types";
 import { EmptyState, PageHero, PageShell, Panel } from "./ui";
 
 type Props = {
   currentUser: User;
-  servers: Server[];
   onError: (message: string) => void;
 };
 
@@ -82,21 +81,16 @@ function AmountCell({ amount, asset, usdt }: { amount: number; asset: string; us
   );
 }
 
-function CryptoSpreadPage({ servers, onError }: Props) {
+function CryptoSpreadPage({ onError }: Props) {
   const [dateFrom, setDateFrom] = useState(monthStartInput());
   const [dateTo, setDateTo] = useState(todayInput());
-  const [serverId, setServerId] = useState("");
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<CryptoSpreadReport | null>(null);
 
-  const exchangerServers = useMemo(
-    () =>
-      servers.filter((server) => {
-        const hay = `${server.name} ${server.ip} ${server.notes || ""}`.toLowerCase();
-        return hay.includes("iex") || hay.includes("kubex") || hay.includes("exchange") || hay.includes("103.68.110");
-      }),
-    [servers]
-  );
+  const maxPairAbs = useMemo(() => {
+    if (!report?.pairs.length) return 1;
+    return Math.max(...report.pairs.map((p) => Math.abs(p.system_earned_usdt)), 1);
+  }, [report]);
 
   async function loadReport() {
     setLoading(true);
@@ -104,7 +98,6 @@ function CryptoSpreadPage({ servers, onError }: Props) {
       const data = await api.cryptoSpreadReport({
         from: `${dateFrom}T00:00:00`,
         to: `${dateTo}T23:59:59`,
-        server_id: serverId ? Number(serverId) : undefined,
         limit: 2000
       });
       setReport(data);
@@ -116,167 +109,167 @@ function CryptoSpreadPage({ servers, onError }: Props) {
     }
   }
 
+  useEffect(() => {
+    void loadReport();
+  }, []);
+
   return (
     <PageShell className="crypto-spread-page">
       <PageHero
-        eyebrow="Обменник"
-        title="Спред крипта → крипта"
-        description="Сколько клиент отдал, сколько забрала платёжка, сколько выплатили и что осталось системе."
+        eyebrow="CryptoCash · SSH"
+        title="Спред"
+        description="Прибыль по кассе: fee входящего и себестоимость выплаты по свапу CryptoCash."
         actions={
-          <button type="button" className="btn primary" disabled={loading} onClick={() => void loadReport()}>
-            {loading ? "Считаю…" : "Посчитать"}
-          </button>
+          <div className="spread-hero-actions">
+            <label className="spread-date">
+              <span>С</span>
+              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            </label>
+            <label className="spread-date">
+              <span>По</span>
+              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </label>
+            <button type="button" className="btn primary" disabled={loading} onClick={() => void loadReport()}>
+              {loading ? "Считаю…" : "Обновить"}
+            </button>
+          </div>
         }
       />
 
-      <Panel title="Период и источник">
-        <div className="spread-filters">
-          <label>
-            С даты
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          </label>
-          <label>
-            По дату
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-          </label>
-          <label className="spread-filters-server">
-            Сервер обменника
-            <select value={serverId} onChange={(e) => setServerId(e.target.value)}>
-              <option value="">Из .env (IEX_SSH_* / IEX_DATABASE_URL)</option>
-              {(exchangerServers.length ? exchangerServers : servers).map((server) => (
-                <option key={server.id} value={server.id}>
-                  {server.name} ({server.ip})
-                </option>
-              ))}
-            </select>
-          </label>
+      {loading && !report ? (
+        <div className="spread-loading" aria-busy="true">
+          <div className="spread-loading-pulse" />
+          <p>Тяну заявки по SSH…</p>
         </div>
-        <p className="muted spread-hint">
-          Выполненные crypto↔crypto. Fee и себестоимость выплаты — из колбеков CryptoCash (свап), не из курса заявки.
-        </p>
-      </Panel>
+      ) : null}
 
-      {!report && !loading ? (
-        <EmptyState title="Отчёта ещё нет" description="Выберите период и нажмите «Посчитать»." />
+      {!loading && !report ? (
+        <EmptyState title="Нет данных" description="Не удалось получить отчёт. Проверьте IEX_SSH_* и нажмите «Обновить»." />
       ) : null}
 
       {report ? (
-        <div className="page-stack">
-          <div className="stats-grid spread-stats">
-            <article className="stat-card sky">
+        <div className="spread-layout">
+          <section className={`spread-pnl ${toneClass(report.system_earned_usdt)}`}>
+            <div className="spread-pnl-main">
+              <p className="spread-pnl-label">Система за период</p>
+              <p className="spread-pnl-value">{signedMoney(report.system_earned_usdt)}</p>
+              <p className="spread-pnl-unit">USDT</p>
+            </div>
+            <div className="spread-pnl-meta">
+              <span>
+                <strong>{report.orders_count}</strong> заявок
+              </span>
+              <span className="spread-dot" />
+              <span className="muted">crypto ↔ crypto · status 4</span>
+            </div>
+          </section>
+
+          <div className="spread-flow">
+            <article className="spread-flow-card">
               <span>Клиент отдал</span>
               <strong>{money(report.client_gave_usdt)}</strong>
-              <em>USDT</em>
             </article>
-            <article className="stat-card amber">
-              <span>Платёжка</span>
+            <span className="spread-flow-op" aria-hidden>
+              −
+            </span>
+            <article className="spread-flow-card">
+              <span>Fee платёжки</span>
               <strong>{money(report.ps_fee_usdt)}</strong>
-              <em>USDT</em>
             </article>
-            <article className="stat-card ice">
-              <span>Выплатили</span>
+            <span className="spread-flow-op" aria-hidden>
+              −
+            </span>
+            <article className="spread-flow-card">
+              <span>Выплата (свап)</span>
               <strong>{money(report.paid_out_usdt)}</strong>
-              <em>USDT</em>
             </article>
-            <article className={`stat-card spread-earn ${toneClass(report.system_earned_usdt)}`}>
+            <span className="spread-flow-op" aria-hidden>
+              =
+            </span>
+            <article className={`spread-flow-card spread-flow-result ${toneClass(report.system_earned_usdt)}`}>
               <span>Система</span>
               <strong>{signedMoney(report.system_earned_usdt)}</strong>
-              <em>USDT</em>
             </article>
           </div>
 
-          <div className="spread-meta">
-            <span>
-              Заявок: <strong>{report.orders_count}</strong>
-              <span className="muted"> из {report.scanned_count}</span>
-            </span>
-            <span className="spread-meta-source" title={report.source}>
-              Источник: <code>{report.source}</code>
-            </span>
-          </div>
-
-          <Panel title="По парам">
-            {report.pairs.length === 0 ? (
-              <EmptyState title="Нет крипто-пар" description="За период не нашлось завершённых crypto↔crypto заявок." />
-            ) : (
-              <div className="spread-table-wrap">
-                <table className="spread-table">
-                  <thead>
-                    <tr>
-                      <th>Пара</th>
-                      <th className="num">Заявок</th>
-                      <th className="num">Клиент отдал</th>
-                      <th className="num">Платёжка</th>
-                      <th className="num">Выплата</th>
-                      <th className="num">Система</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.pairs.map((pair) => (
-                      <tr key={pair.pair}>
-                        <td>
+          <div className="spread-grid">
+            <Panel title="По парам" className="spread-panel">
+              {report.pairs.length === 0 ? (
+                <EmptyState title="Нет пар" description="За период нет завершённых crypto↔crypto заявок." />
+              ) : (
+                <ul className="spread-pair-list">
+                  {report.pairs.map((pair) => {
+                    const width = `${Math.max(4, (Math.abs(pair.system_earned_usdt) / maxPairAbs) * 100)}%`;
+                    return (
+                      <li key={pair.pair} className="spread-pair-row">
+                        <div className="spread-pair-head">
                           <span className="spread-pair">{formatPair(pair.pair)}</span>
-                        </td>
-                        <td className="num">{pair.orders_count}</td>
-                        <td className="num mono">{money(pair.client_gave_usdt)}</td>
-                        <td className="num mono">{money(pair.ps_fee_usdt)}</td>
-                        <td className="num mono">{money(pair.paid_out_usdt)}</td>
-                        <td className={`num mono ${toneClass(pair.system_earned_usdt)}`}>
-                          {signedMoney(pair.system_earned_usdt)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Panel>
+                          <span className="spread-pair-count">{pair.orders_count}</span>
+                          <span className={`spread-pair-earn mono ${toneClass(pair.system_earned_usdt)}`}>
+                            {signedMoney(pair.system_earned_usdt)}
+                          </span>
+                        </div>
+                        <div className="spread-pair-bar" aria-hidden>
+                          <i className={toneClass(pair.system_earned_usdt)} style={{ width }} />
+                        </div>
+                        <div className="spread-pair-foot muted">
+                          <span>отдал {money(pair.client_gave_usdt)}</span>
+                          <span>fee {money(pair.ps_fee_usdt)}</span>
+                          <span>выплата {money(pair.paid_out_usdt)}</span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Panel>
 
-          <Panel title="Заявки">
-            {report.orders.length === 0 ? (
-              <EmptyState title="Нет заявок" description="В выборке нет завершённых crypto↔crypto заявок." />
-            ) : (
-              <div className="spread-table-wrap">
-                <table className="spread-table spread-table-orders">
-                  <thead>
-                    <tr>
-                      <th className="num">№</th>
-                      <th>Пара</th>
-                      <th>Когда</th>
-                      <th>Отдал</th>
-                      <th>Платёжка</th>
-                      <th>Выплата</th>
-                      <th className="num">Система</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.orders.map((order) => (
-                      <tr key={order.task_id}>
-                        <td className="num mono">{order.task_id}</td>
-                        <td>
-                          <span className="spread-pair">{formatPair(order.pair)}</span>
-                        </td>
-                        <td className="spread-when">{formatWhen(order.completed_at)}</td>
-                        <td>
-                          <AmountCell amount={order.client_gave} asset={order.give_xml} usdt={order.client_gave_usdt} />
-                        </td>
-                        <td>
-                          <AmountCell amount={order.ps_fee} asset={order.give_xml} usdt={order.ps_fee_usdt} />
-                        </td>
-                        <td>
-                          <AmountCell amount={order.paid_out} asset={order.get_xml} usdt={order.paid_out_usdt} />
-                        </td>
-                        <td className={`num mono ${toneClass(order.system_earned_usdt)}`}>
-                          {signedMoney(order.system_earned_usdt)}
-                          <span className="spread-amount-sub">USDT</span>
-                        </td>
+            <Panel title="Заявки" className="spread-panel spread-panel-orders">
+              {report.orders.length === 0 ? (
+                <EmptyState title="Нет заявок" description="В выборке нет завершённых crypto↔crypto заявок." />
+              ) : (
+                <div className="spread-table-wrap">
+                  <table className="spread-table spread-table-orders">
+                    <thead>
+                      <tr>
+                        <th className="num">№</th>
+                        <th>Пара</th>
+                        <th>Когда</th>
+                        <th>Отдал</th>
+                        <th>Fee</th>
+                        <th>Выплата</th>
+                        <th className="num">Система</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Panel>
+                    </thead>
+                    <tbody>
+                      {report.orders.map((order) => (
+                        <tr key={order.task_id}>
+                          <td className="num mono">{order.task_id}</td>
+                          <td>
+                            <span className="spread-pair">{formatPair(order.pair)}</span>
+                          </td>
+                          <td className="spread-when">{formatWhen(order.completed_at)}</td>
+                          <td>
+                            <AmountCell amount={order.client_gave} asset={order.give_xml} usdt={order.client_gave_usdt} />
+                          </td>
+                          <td>
+                            <AmountCell amount={order.ps_fee} asset={order.give_xml} usdt={order.ps_fee_usdt} />
+                          </td>
+                          <td>
+                            <AmountCell amount={order.paid_out} asset={order.get_xml} usdt={order.paid_out_usdt} />
+                          </td>
+                          <td className={`num mono ${toneClass(order.system_earned_usdt)}`}>
+                            {signedMoney(order.system_earned_usdt)}
+                            <span className="spread-amount-sub">USDT</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
+          </div>
         </div>
       ) : null}
     </PageShell>

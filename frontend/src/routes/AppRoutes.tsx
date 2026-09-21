@@ -194,7 +194,7 @@ function AppRoutes({
           path="/crypto-spread"
           element={
             userHasSectionAccess(currentUser, "crypto-spread") ? (
-              <CryptoSpreadPage currentUser={currentUser} servers={servers} onError={setError} />
+              <CryptoSpreadPage currentUser={currentUser} onError={setError} />
             ) : (
               <Navigate to="/dashboard" replace />
             )

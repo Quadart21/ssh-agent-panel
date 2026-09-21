@@ -22,10 +22,6 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import decrypt_secret
-from app.models import Server
-from app.services.ssh import build_ssh_client
-from app.services.ssh_keys import resolve_server_private_key
 
 STABLE_PREFIXES = ("USDT", "USDC", "TUSD", "USDS", "USD1", "USDR", "DAI")
 FIAT_MARKERS = (
@@ -479,16 +475,6 @@ def _csv_to_rows(csv_text: str) -> list[dict[str, Any]]:
     return rows
 
 
-def fetch_via_direct_db(sql: str) -> list[dict[str, Any]]:
-    import psycopg
-    from psycopg.rows import dict_row
-
-    with psycopg.connect(settings.iex_database_url, row_factory=dict_row) as conn:
-        with conn.cursor() as cur:
-            cur.execute(sql)
-            return list(cur.fetchall())
-
-
 def _ssh_run(client: paramiko.SSHClient, command: str, timeout: int = 120) -> str:
     stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
     out = stdout.read().decode("utf-8", "replace")
@@ -499,14 +485,14 @@ def _ssh_run(client: paramiko.SSHClient, command: str, timeout: int = 120) -> st
     return out
 
 
-def fetch_via_ssh_env(sql: str) -> list[dict[str, Any]]:
+def fetch_via_ssh(sql: str) -> list[dict[str, Any]]:
     host = settings.iex_ssh_host.strip()
     user = settings.iex_ssh_user.strip() or "root"
     password = settings.iex_ssh_password
     if not host or not password:
         raise HTTPException(
             status_code=400,
-            detail="Не настроен доступ к обменнику: задайте IEX_DATABASE_URL или IEX_SSH_HOST + IEX_SSH_PASSWORD.",
+            detail="Не настроен SSH к обменнику: задайте IEX_SSH_HOST и IEX_SSH_PASSWORD.",
         )
 
     sql_one_line = " ".join(line.strip() for line in sql.splitlines() if line.strip())
@@ -535,71 +521,33 @@ def fetch_via_ssh_env(sql: str) -> list[dict[str, Any]]:
     return _csv_to_rows(csv_text)
 
 
-def fetch_via_panel_server(db: Session, server_id: int, sql: str) -> list[dict[str, Any]]:
-    server = db.get(Server, server_id)
-    if not server:
-        raise HTTPException(status_code=404, detail="Сервер не найден.")
-    password = decrypt_secret(server.password_enc) if server.password_enc else None
-    private_key = resolve_server_private_key(server)
-    if not password and not private_key and not server.key_path:
-        raise HTTPException(status_code=400, detail="У сервера нет SSH-пароля/ключа.")
-
-    sql_one_line = " ".join(line.strip() for line in sql.splitlines() if line.strip())
-    remote = (
-        "sudo -u postgres psql -d iex -v ON_ERROR_STOP=1 -P pager=off "
-        "--csv -c "
-        + json.dumps(sql_one_line)
-    )
-    client = build_ssh_client(
-        host=server.ip,
-        port=int(server.port or 22),
-        username=server.login,
-        password=password,
-        key_path=server.key_path,
-        private_key_pem=private_key,
-    )
-    try:
-        csv_text = _ssh_run(client, remote)
-    finally:
-        client.close()
-    return _csv_to_rows(csv_text)
-
-
 def load_raw_tasks(
-    db: Session,
     *,
     date_from: datetime | None,
     date_to: datetime | None,
     limit: int,
-    server_id: int | None,
 ) -> tuple[list[dict[str, Any]], str]:
     sql = _build_sql(date_from, date_to, limit)
-    if server_id is not None:
-        return fetch_via_panel_server(db, server_id, sql), f"ssh:server:{server_id}"
-    if settings.iex_database_url.strip():
-        return fetch_via_direct_db(sql), "database_url"
-    if settings.iex_ssh_host.strip():
-        return fetch_via_ssh_env(sql), f"ssh:{settings.iex_ssh_host}"
-    raise HTTPException(
-        status_code=400,
-        detail="Нет источника данных обменника. Укажите server_id, IEX_DATABASE_URL или IEX_SSH_*.",
-    )
+    host = settings.iex_ssh_host.strip()
+    if not host:
+        raise HTTPException(
+            status_code=400,
+            detail="Не настроен SSH к обменнику: задайте IEX_SSH_HOST и IEX_SSH_PASSWORD.",
+        )
+    return fetch_via_ssh(sql), f"ssh:{host}"
 
 
 def build_spread_report(
-    db: Session,
+    _db: Session | None = None,
     *,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     limit: int = 1000,
-    server_id: int | None = None,
 ) -> dict[str, Any]:
     raw_rows, source = load_raw_tasks(
-        db,
         date_from=date_from,
         date_to=date_to,
         limit=limit,
-        server_id=server_id,
     )
     orders: list[SpreadRow] = []
     for raw in raw_rows:

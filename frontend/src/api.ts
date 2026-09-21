@@ -356,11 +356,10 @@ export const api = {
     const suffix = query.toString() ? `?${query.toString()}` : "";
     return request<AccountingReport>(`/accounting/reports${suffix}`);
   },
-  cryptoSpreadReport: (params?: { from?: string; to?: string; server_id?: number; limit?: number }) => {
+  cryptoSpreadReport: (params?: { from?: string; to?: string; limit?: number }) => {
     const query = new URLSearchParams();
     if (params?.from) query.set("from", params.from);
     if (params?.to) query.set("to", params.to);
-    if (params?.server_id != null) query.set("server_id", String(params.server_id));
     if (params?.limit != null) query.set("limit", String(params.limit));
     const suffix = query.toString() ? `?${query.toString()}` : "";
     return request<CryptoSpreadReport>(`/crypto-spread/report${suffix}`);

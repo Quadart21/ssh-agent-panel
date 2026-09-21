@@ -17,7 +17,6 @@ def crypto_spread_report(
     date_from: datetime | None = Query(default=None, alias="from"),
     date_to: datetime | None = Query(default=None, alias="to"),
     limit: int = Query(default=1000, ge=1, le=5000),
-    server_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -27,7 +26,6 @@ def crypto_spread_report(
         date_from=date_from,
         date_to=date_to,
         limit=limit,
-        server_id=server_id,
     )
     return CryptoSpreadReport(
         source=payload["source"],
