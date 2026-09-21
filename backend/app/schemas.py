@@ -1231,6 +1231,14 @@ class AccountingReport(BaseModel):
     recurring_monthly: float
 
 
+class CryptoSpreadCallback(BaseModel):
+    side: str
+    title: str
+    lines: list[str]
+    tx_hash: str | None = None
+    status: str | None = None
+
+
 class CryptoSpreadOrder(BaseModel):
     task_id: int
     pair: str
@@ -1246,6 +1254,7 @@ class CryptoSpreadOrder(BaseModel):
     system_earned_usdt: float
     course_display: str | None = None
     merchant_provider: str | None = None
+    callbacks: list[CryptoSpreadCallback] = []
 
 
 class CryptoSpreadPairStat(BaseModel):

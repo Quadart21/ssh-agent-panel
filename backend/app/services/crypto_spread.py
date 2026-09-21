@@ -51,6 +51,15 @@ FIAT_MARKERS = (
 
 
 @dataclass
+class CallbackBlock:
+    side: str  # in | out
+    title: str
+    lines: list[str]
+    tx_hash: str | None = None
+    status: str | None = None
+
+
+@dataclass
 class SpreadRow:
     task_id: int
     give_xml: str
@@ -66,6 +75,136 @@ class SpreadRow:
     system_earned_usdt: float
     course_display: str | None
     merchant_provider: str | None
+    callbacks: list[CallbackBlock]
+
+
+def _short_hash(value: str | None, keep: int = 10) -> str | None:
+    text = (value or "").strip()
+    if not text:
+        return None
+    if len(text) <= keep * 2 + 1:
+        return text
+    return f"{text[:keep]}…{text[-keep:]}"
+
+
+def _fmt_num(value: Decimal, digits: int = 8) -> str:
+    if value == 0:
+        return "0"
+    text = f"{value:.{digits}f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def _s(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def build_in_callback(
+    *,
+    give_xml: str,
+    give_price: Decimal,
+    fee_usdt: Decimal,
+    credited_usdt: Decimal,
+    amount: Decimal,
+    network: str,
+    tx_hash: str,
+    status: str,
+    pair: str,
+    exchange_rate: Decimal,
+) -> CallbackBlock | None:
+    has_data = any([amount > 0, credited_usdt > 0, fee_usdt > 0, tx_hash, status, network])
+    if not has_data:
+        return None
+
+    st = status or "Paid"
+    lines: list[str] = []
+    asset = _human_asset(give_xml)
+    got = amount if amount > 0 else give_price
+    if got > 0:
+        net = f" · {network}" if network else ""
+        lines.append(f"Клиент прислал {_fmt_num(got)} {asset}{net}")
+    if fee_usdt > 0:
+        lines.append(f"Комиссия CryptoCash {_fmt_num(fee_usdt)} USDT")
+    if credited_usdt > 0:
+        lines.append(f"На баланс зачислено {_fmt_num(credited_usdt)} USDT")
+    if pair:
+        lines.append(f"Пара колбека {pair}")
+    if exchange_rate > 0 and not is_stable(give_xml):
+        lines.append(f"Курс входа {_fmt_num(exchange_rate)}")
+    short = _short_hash(tx_hash)
+    if short:
+        lines.append(f"TX {short}")
+
+    return CallbackBlock(
+        side="in",
+        title=f"Вход · {st}",
+        lines=lines,
+        tx_hash=tx_hash or None,
+        status=st,
+    )
+
+
+def _human_asset(xml: str) -> str:
+    raw = (xml or "").upper()
+    networks = ("TRC20", "ERC20", "BEP20", "BEP2", "POLYGON", "SOL", "TON", "ARBITRUM", "OPTIMISM", "BASE")
+    for net in networks:
+        if raw.endswith(net) and len(raw) > len(net):
+            return f"{raw[: -len(net)]} {net}"
+    return raw or "—"
+
+
+def build_out_callback(
+    *,
+    get_xml: str,
+    paid_out: Decimal,
+    paid_out_usdt: Decimal,
+    amount: Decimal,
+    exchange_rate: Decimal,
+    network: str,
+    network_fee: str,
+    tx_hash: str,
+    status: str,
+    pair: str,
+) -> CallbackBlock | None:
+    has_data = any([paid_out_usdt > 0, amount > 0, exchange_rate > 0, tx_hash, status, pair])
+    if not has_data:
+        return None
+
+    st = status or "Paid"
+    lines: list[str] = []
+    asset = _human_asset(get_xml)
+    if pair:
+        lines.append(f"Свап {pair.replace('/', ' → ')}")
+    if exchange_rate > 0:
+        lines.append(f"Курс свапа {_fmt_num(exchange_rate)} USDT = 1 {asset.split()[0]}")
+    sent = paid_out if paid_out > 0 else amount
+    if sent > 0:
+        net = f" · {network}" if network else ""
+        # amount в Paid часто = requested + network fee
+        if amount > sent:
+            lines.append(f"Клиенту {_fmt_num(sent)} {asset}{net}")
+            lines.append(f"Купили у CC {_fmt_num(amount)} {asset} (с network fee)")
+        else:
+            lines.append(f"Отправили {_fmt_num(sent)} {asset}{net}")
+    elif amount > 0:
+        net = f" · {network}" if network else ""
+        lines.append(f"Объём покупки {_fmt_num(amount)} {asset}{net}")
+    if network_fee:
+        lines.append(f"Network fee {network_fee}")
+    if paid_out_usdt > 0:
+        lines.append(f"Себестоимость {_fmt_num(paid_out_usdt)} USDT")
+    short = _short_hash(tx_hash)
+    if short:
+        lines.append(f"TX {short}")
+
+    return CallbackBlock(
+        side="out",
+        title=f"Выплата · {st}",
+        lines=lines,
+        tx_hash=tx_hash or None,
+        status=st,
+    )
 
 
 def _d(value: Any) -> Decimal:
@@ -276,9 +415,20 @@ def row_from_task(raw: dict[str, Any]) -> SpreadRow | None:
     in_usdt_total = _d(raw.get("in_usdt_total"))
     in_commission = _d(raw.get("in_commission"))
     in_fee_amount = _d(raw.get("in_fee_amount"))
+    in_amount = _d(raw.get("in_amount"))
+    in_network = _s(raw.get("in_network"))
+    in_hash = _s(raw.get("in_hash"))
+    in_status = _s(raw.get("in_status")) or "Paid"
+    in_pair = _s(raw.get("in_pair"))
+    in_exchange_rate = _d(raw.get("in_exchange_rate"))
     out_usdt_total = _d(raw.get("out_usdt_total"))
     out_exchange_rate = _d(raw.get("out_exchange_rate"))
     out_amount = _d(raw.get("out_amount"))
+    out_network = _s(raw.get("out_network"))
+    out_hash = _s(raw.get("out_hash"))
+    out_status = _s(raw.get("out_status")) or "Paid"
+    out_pair = _s(raw.get("out_pair"))
+    out_network_fee = _s(raw.get("out_network_fee"))
 
     if in_usdt_total > 0 and not in_item.get("usdtTotal"):
         in_item = {
@@ -345,6 +495,41 @@ def row_from_task(raw: dict[str, Any]) -> SpreadRow | None:
         str(completed) if completed else None
     )
 
+    paid_out_final = paid_out if paid_out > 0 else out_amount
+    callbacks: list[CallbackBlock] = []
+    has_in_raw = bool(in_usdt_total or in_commission or in_fee_amount or in_amount or in_hash or in_network)
+    has_out_raw = bool(out_usdt_total or out_amount or out_exchange_rate or out_hash or out_pair or out_network_fee)
+    if has_in_raw:
+        in_cb = build_in_callback(
+            give_xml=give_xml,
+            give_price=give_price,
+            fee_usdt=ps_fee_usdt,
+            credited_usdt=credited_usdt,
+            amount=in_amount if in_amount > 0 else _d(in_item.get("amount")),
+            network=in_network or _s(in_item.get("network")),
+            tx_hash=in_hash or _s(in_item.get("hash")),
+            status=in_status or _s(in_item.get("status")),
+            pair=in_pair or _s(in_item.get("pair")),
+            exchange_rate=in_exchange_rate if in_exchange_rate > 0 else _d(in_item.get("exchangeRate")),
+        )
+        if in_cb:
+            callbacks.append(in_cb)
+    if has_out_raw:
+        out_cb = build_out_callback(
+            get_xml=get_xml,
+            paid_out=paid_out_final,
+            paid_out_usdt=paid_out_usdt,
+            amount=out_amount if out_amount > 0 else _d(out_item.get("amount")),
+            exchange_rate=swap_rate,
+            network=out_network or _s(out_item.get("network")),
+            network_fee=out_network_fee or _s(out_item.get("networkFee")),
+            tx_hash=out_hash or _s(out_item.get("hash")),
+            status=out_status or _s(out_item.get("status")),
+            pair=out_pair or _s(out_item.get("pair")),
+        )
+        if out_cb:
+            callbacks.append(out_cb)
+
     return SpreadRow(
         task_id=int(raw["id"]),
         give_xml=give_xml,
@@ -355,11 +540,12 @@ def row_from_task(raw: dict[str, Any]) -> SpreadRow | None:
         client_gave_usdt=_f(client_gave_usdt),
         ps_fee=_f(ps_fee),
         ps_fee_usdt=_f(ps_fee_usdt),
-        paid_out=_f(paid_out if paid_out > 0 else out_amount),
+        paid_out=_f(paid_out_final),
         paid_out_usdt=_f(paid_out_usdt),
         system_earned_usdt=_f(system_earned),
         course_display=str(course_display) if course_display else None,
         merchant_provider=str(raw.get("merchant_provider") or "") or None,
+        callbacks=callbacks,
     )
 
 
@@ -380,9 +566,20 @@ SELECT
   in_cb.usdt_total AS in_usdt_total,
   in_cb.commission AS in_commission,
   in_cb.fee_amount AS in_fee_amount,
+  in_cb.amount AS in_amount,
+  in_cb.network AS in_network,
+  in_cb.hash AS in_hash,
+  in_cb.status AS in_status,
+  in_cb.pair AS in_pair,
+  in_cb.exchange_rate AS in_exchange_rate,
   out_cb.usdt_total AS out_usdt_total,
   out_cb.exchange_rate AS out_exchange_rate,
-  out_cb.amount AS out_amount
+  out_cb.amount AS out_amount,
+  out_cb.network AS out_network,
+  out_cb.hash AS out_hash,
+  out_cb.status AS out_status,
+  out_cb.pair AS out_pair,
+  out_cb.network_fee AS out_network_fee
 FROM tasks t
 JOIN direction_exchange d ON d.id = t.id_direction_exchange
 JOIN currencies c1 ON c1.id = d.id_currency1
@@ -397,7 +594,31 @@ LEFT JOIN LATERAL (
     COALESCE(
       (regexp_match(g.response_body, '"feeAmount"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1],
       ''
-    ) AS fee_amount
+    ) AS fee_amount,
+    COALESCE(
+      (regexp_match(g.response_body, '"amount"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1],
+      ''
+    ) AS amount,
+    COALESCE(
+      (regexp_match(g.response_body, '"network"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1],
+      ''
+    ) AS network,
+    COALESCE(
+      (regexp_match(g.response_body, '"hash"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1],
+      ''
+    ) AS hash,
+    COALESCE(
+      (regexp_match(g.response_body, '"status"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1],
+      ''
+    ) AS status,
+    COALESCE(
+      (regexp_match(g.response_body, '"pair"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1],
+      ''
+    ) AS pair,
+    COALESCE(
+      (regexp_match(g.response_body, '"exchangeRate"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1],
+      ''
+    ) AS exchange_rate
   FROM payment_gateway_logs g
   WHERE g.direction = 'incoming'
     AND g.operation IN ('fetch_payment', 'purchase')
@@ -414,7 +635,27 @@ LEFT JOIN LATERAL (
   SELECT
     (regexp_match(g.response_body, '"usdtTotal"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1] AS usdt_total,
     (regexp_match(g.response_body, '"exchangeRate"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1] AS exchange_rate,
-    (regexp_match(g.response_body, '"amount"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1] AS amount
+    (regexp_match(g.response_body, '"amount"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1] AS amount,
+    COALESCE(
+      (regexp_match(g.response_body, '"network"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1],
+      ''
+    ) AS network,
+    COALESCE(
+      (regexp_match(g.response_body, '"hash"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1],
+      ''
+    ) AS hash,
+    COALESCE(
+      (regexp_match(g.response_body, '"status"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1],
+      ''
+    ) AS status,
+    COALESCE(
+      (regexp_match(g.response_body, '"pair"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1],
+      ''
+    ) AS pair,
+    COALESCE(
+      (regexp_match(g.response_body, '"networkFee"[[:space:]]*:[[:space:]]*"([^"]*)"'))[1],
+      ''
+    ) AS network_fee
   FROM payment_gateway_logs g
   WHERE g.direction = 'outgoing'
     AND g.operation IN ('fetch_payout', 'payout')
@@ -471,9 +712,20 @@ def _csv_to_rows(csv_text: str) -> list[dict[str, Any]]:
                 "in_usdt_total": item.get("in_usdt_total") or "",
                 "in_commission": item.get("in_commission") or "",
                 "in_fee_amount": item.get("in_fee_amount") or "",
+                "in_amount": item.get("in_amount") or "",
+                "in_network": item.get("in_network") or "",
+                "in_hash": item.get("in_hash") or "",
+                "in_status": item.get("in_status") or "",
+                "in_pair": item.get("in_pair") or "",
+                "in_exchange_rate": item.get("in_exchange_rate") or "",
                 "out_usdt_total": item.get("out_usdt_total") or "",
                 "out_exchange_rate": item.get("out_exchange_rate") or "",
                 "out_amount": item.get("out_amount") or "",
+                "out_network": item.get("out_network") or "",
+                "out_hash": item.get("out_hash") or "",
+                "out_status": item.get("out_status") or "",
+                "out_pair": item.get("out_pair") or "",
+                "out_network_fee": item.get("out_network_fee") or "",
             }
         )
     return rows
@@ -645,6 +897,16 @@ def build_spread_report(
                 "system_earned_usdt": o.system_earned_usdt,
                 "course_display": o.course_display,
                 "merchant_provider": o.merchant_provider,
+                "callbacks": [
+                    {
+                        "side": cb.side,
+                        "title": cb.title,
+                        "lines": cb.lines,
+                        "tx_hash": cb.tx_hash,
+                        "status": cb.status,
+                    }
+                    for cb in o.callbacks
+                ],
             }
             for o in orders
         ],

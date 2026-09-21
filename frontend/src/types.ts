@@ -243,6 +243,14 @@ export type AccountingReport = {
   recurring_monthly: number;
 };
 
+export type CryptoSpreadCallback = {
+  side: "in" | "out" | string;
+  title: string;
+  lines: string[];
+  tx_hash: string | null;
+  status: string | null;
+};
+
 export type CryptoSpreadOrder = {
   task_id: number;
   pair: string;
@@ -258,6 +266,7 @@ export type CryptoSpreadOrder = {
   system_earned_usdt: number;
   course_display: string | null;
   merchant_provider: string | null;
+  callbacks: CryptoSpreadCallback[];
 };
 
 export type CryptoSpreadPairStat = {

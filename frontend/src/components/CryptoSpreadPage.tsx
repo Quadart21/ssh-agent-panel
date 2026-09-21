@@ -228,44 +228,62 @@ function CryptoSpreadPage({ onError }: Props) {
               {report.orders.length === 0 ? (
                 <EmptyState title="Нет заявок" description="В выборке нет завершённых crypto↔crypto заявок." />
               ) : (
-                <div className="spread-table-wrap">
-                  <table className="spread-table spread-table-orders">
-                    <thead>
-                      <tr>
-                        <th className="num">№</th>
-                        <th>Пара</th>
-                        <th>Когда</th>
-                        <th>Отдал</th>
-                        <th>Fee</th>
-                        <th>Выплата</th>
-                        <th className="num">Система</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.orders.map((order) => (
-                        <tr key={order.task_id}>
-                          <td className="num mono">{order.task_id}</td>
-                          <td>
-                            <span className="spread-pair">{formatPair(order.pair)}</span>
-                          </td>
-                          <td className="spread-when">{formatWhen(order.completed_at)}</td>
-                          <td>
+                <div className="spread-orders">
+                  {report.orders.map((order) => (
+                    <article key={order.task_id} className="spread-order">
+                      <div className="spread-order-main">
+                        <div className="spread-order-id">
+                          <span className="mono">#{order.task_id}</span>
+                          <span className="spread-pair">{formatPair(order.pair)}</span>
+                        </div>
+                        <div className="spread-when">{formatWhen(order.completed_at)}</div>
+                        <div className="spread-order-amounts">
+                          <div>
+                            <span className="spread-order-label">Отдал</span>
                             <AmountCell amount={order.client_gave} asset={order.give_xml} usdt={order.client_gave_usdt} />
-                          </td>
-                          <td>
+                          </div>
+                          <div>
+                            <span className="spread-order-label">Fee</span>
                             <AmountCell amount={order.ps_fee} asset={order.give_xml} usdt={order.ps_fee_usdt} />
-                          </td>
-                          <td>
+                          </div>
+                          <div>
+                            <span className="spread-order-label">Выплата</span>
                             <AmountCell amount={order.paid_out} asset={order.get_xml} usdt={order.paid_out_usdt} />
-                          </td>
-                          <td className={`num mono ${toneClass(order.system_earned_usdt)}`}>
-                            {signedMoney(order.system_earned_usdt)}
+                          </div>
+                          <div className={`spread-order-earn ${toneClass(order.system_earned_usdt)}`}>
+                            <span className="spread-order-label">Система</span>
+                            <strong className="mono">{signedMoney(order.system_earned_usdt)}</strong>
                             <span className="spread-amount-sub">USDT</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                        </div>
+                      </div>
+                      {order.callbacks?.length ? (
+                        <div className="spread-callbacks">
+                          {order.callbacks.map((cb) => (
+                            <div key={`${order.task_id}-${cb.side}`} className={`spread-callback is-${cb.side}`}>
+                              <div className="spread-callback-head">
+                                <strong>{cb.title}</strong>
+                                {cb.tx_hash ? (
+                                  <code className="spread-callback-hash" title={cb.tx_hash}>
+                                    {cb.tx_hash.length > 22
+                                      ? `${cb.tx_hash.slice(0, 10)}…${cb.tx_hash.slice(-8)}`
+                                      : cb.tx_hash}
+                                  </code>
+                                ) : null}
+                              </div>
+                              <ul>
+                                {cb.lines.map((line) => (
+                                  <li key={line}>{line}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="spread-callback-empty muted">Колбеков CryptoCash по заявке нет</p>
+                      )}
+                    </article>
+                  ))}
                 </div>
               )}
             </Panel>
