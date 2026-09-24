@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
+import socket
+import ssl
 import threading
 import time
 from typing import Any
@@ -10,13 +13,76 @@ from urllib import error, parse, request
 CLOUDFLARE_API_BASE = "https://api.cloudflare.com/client/v4"
 MAX_PAGES = 100
 REQUEST_TIMEOUT_SECONDS = 12
-ZONES_CACHE_TTL_SECONDS = 90
-RECORDS_CACHE_TTL_SECONDS = 45
+ZONES_CACHE_TTL_SECONDS = 300
+RECORDS_CACHE_TTL_SECONDS = 120
+ZONES_PER_PAGE = 50
+RECORDS_PER_PAGE = 100
 
 _cache_lock = threading.Lock()
 _zones_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 _zone_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _records_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_opener_lock = threading.Lock()
+_ipv4_opener: request.OpenerDirector | None = None
+
+
+class _IPv4HTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS connection that prefers IPv4.
+
+    On some hosts IPv6 routes to api.cloudflare.com time out while IPv4 is fine.
+    CPython's urllib tries getaddrinfo() order (IPv6 first) and can burn a minute
+    on dead AAAA records before falling back — forcing IPv4 first keeps Domains fast.
+    """
+
+    def connect(self) -> None:
+        errors: list[OSError] = []
+        families = (socket.AF_INET, socket.AF_INET6)
+        for family in families:
+            try:
+                addrinfos = socket.getaddrinfo(self.host, self.port, family, socket.SOCK_STREAM)
+            except OSError as exc:
+                errors.append(exc)
+                continue
+            for af, socktype, proto, _canon, sockaddr in addrinfos:
+                sock: socket.socket | None = None
+                try:
+                    sock = socket.socket(af, socktype, proto)
+                    if self.timeout is not None:
+                        sock.settimeout(self.timeout)
+                    if self.source_address:
+                        sock.bind(self.source_address)
+                    sock.connect(sockaddr)
+                    self.sock = sock
+                    sock = None
+                    if self._tunnel_host:
+                        self._tunnel()
+                    context = self._context
+                    server_hostname = self.host
+                    if hasattr(self, "_server_hostname") and self._server_hostname:
+                        server_hostname = self._server_hostname
+                    self.sock = context.wrap_socket(self.sock, server_hostname=server_hostname)
+                    return
+                except OSError as exc:
+                    errors.append(exc)
+                    if sock is not None:
+                        sock.close()
+        if errors:
+            raise errors[-1]
+        raise OSError(f"Unable to connect to {self.host}:{self.port}")
+
+
+class _IPv4HTTPSHandler(request.HTTPSHandler):
+    def https_open(self, req: request.Request):  # type: ignore[override]
+        return self.do_open(_IPv4HTTPSConnection, req)
+
+
+def _get_opener() -> request.OpenerDirector:
+    global _ipv4_opener
+    with _opener_lock:
+        if _ipv4_opener is None:
+            context = ssl.create_default_context()
+            _ipv4_opener = request.build_opener(_IPv4HTTPSHandler(context=context))
+        return _ipv4_opener
 
 
 class CloudflareAPIError(Exception):
@@ -104,7 +170,7 @@ def _request(
     req = request.Request(url, data=data, headers=headers, method=method)
 
     try:
-        with request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+        with _get_opener().open(req, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             raw = response.read().decode("utf-8", errors="ignore")
             payload = json.loads(raw) if raw else {}
             if response.status >= 400 or not payload.get("success", True):
@@ -120,11 +186,20 @@ def _request(
         raise CloudflareAPIError(message, exc.code) from exc
     except error.URLError as exc:
         raise CloudflareAPIError(f"Не удалось связаться с Cloudflare API: {exc}") from exc
+    except TimeoutError as exc:
+        raise CloudflareAPIError(f"Таймаут Cloudflare API: {exc}") from exc
+    except OSError as exc:
+        raise CloudflareAPIError(f"Не удалось связаться с Cloudflare API: {exc}") from exc
 
 
-def _paginate(token: str, path: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def _paginate(
+    token: str,
+    path: str,
+    params: dict[str, Any] | None = None,
+    *,
+    per_page: int = RECORDS_PER_PAGE,
+) -> list[dict[str, Any]]:
     page = 1
-    per_page = 100
     collected: list[dict[str, Any]] = []
 
     while page <= MAX_PAGES:
@@ -156,7 +231,7 @@ def list_zones(token: str, *, force_refresh: bool = False) -> list[dict[str, Any
         if cached is not None:
             return cached
 
-    zones = _paginate(token, "/zones", {"status": "active"})
+    zones = _paginate(token, "/zones", {"status": "active"}, per_page=ZONES_PER_PAGE)
     _cache_set(_zones_cache, cache_key, zones, ZONES_CACHE_TTL_SECONDS)
     for zone in zones:
         zone_id = zone.get("id")
@@ -195,7 +270,7 @@ def list_dns_records(
             params["search"] = search
         if record_type:
             params["type"] = record_type
-        return _paginate(token, f"/zones/{zone_id}/dns_records", params)
+        return _paginate(token, f"/zones/{zone_id}/dns_records", params, per_page=RECORDS_PER_PAGE)
 
     cache_key = f"{_token_key(token)}:{zone_id}"
     if not force_refresh:
@@ -203,7 +278,7 @@ def list_dns_records(
         if cached is not None:
             return cached
 
-    records = _paginate(token, f"/zones/{zone_id}/dns_records")
+    records = _paginate(token, f"/zones/{zone_id}/dns_records", per_page=RECORDS_PER_PAGE)
     _cache_set(_records_cache, cache_key, records, RECORDS_CACHE_TTL_SECONDS)
     return records
 
